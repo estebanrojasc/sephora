@@ -33,7 +33,10 @@ function getDetailExtraColumns(catId: DetailCategoryId): RowExtraColumn[] {
     case "cheques":
       return [{ key: "banco", label: "Banco" }];
     case "transferencias":
-      return [{ key: "cliente", label: "Cliente" }];
+      return [
+        { key: "cliente", label: "Cliente" },
+        { key: "banco", label: "Banco" },
+      ];
     case "creditoVendedor":
       return [
         { key: "cliente", label: "Cliente" },
@@ -393,22 +396,64 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                     {catId === "efectivo" ? (
                       <table className="w-full border-collapse text-[10px] print:text-[7pt]">
                         <tbody>
-                          {(data.items as CashItem[]).map((item, i) => (
-                            <tr
-                              key={i}
-                              className="border-b border-slate-100"
-                            >
-                              <td className="py-0.5 break-words text-slate-900 print:text-slate-800">
-                                {item.denominacion}
-                              </td>
-                              <td className="py-0.5 text-center whitespace-nowrap text-slate-900 print:text-slate-800">
-                                {item.cantidad > 0 ? `×${item.cantidad}` : "—"}
-                              </td>
-                              <td className="py-0.5 text-right font-medium whitespace-nowrap text-slate-900 print:text-slate-800">
-                                {formatearMoneda(item.valor)}
-                              </td>
-                            </tr>
-                          ))}
+                          {(() => {
+                            const cash = data.items as CashItem[];
+                            const billetes = cash.filter(
+                              (i) => i.tipo !== "moneda"
+                            );
+                            const monedas = cash.filter(
+                              (i) => i.tipo === "moneda"
+                            );
+                            const renderRows = (items: CashItem[]) =>
+                              items.map((item, i) => (
+                                <tr
+                                  key={i}
+                                  className="border-b border-slate-100"
+                                >
+                                  <td className="py-0.5 break-words text-slate-900 print:text-slate-800">
+                                    {item.denominacion}
+                                  </td>
+                                  <td className="py-0.5 text-center whitespace-nowrap text-slate-900 print:text-slate-800">
+                                    {item.cantidad > 0
+                                      ? `×${item.cantidad}`
+                                      : "—"}
+                                  </td>
+                                  <td className="py-0.5 text-right font-medium whitespace-nowrap text-slate-900 print:text-slate-800">
+                                    {formatearMoneda(item.valor)}
+                                  </td>
+                                </tr>
+                              ));
+                            return (
+                              <>
+                                {billetes.length > 0 && (
+                                  <>
+                                    <tr>
+                                      <td
+                                        colSpan={3}
+                                        className="py-0.5 text-[9px] font-semibold uppercase text-slate-500"
+                                      >
+                                        Billetes
+                                      </td>
+                                    </tr>
+                                    {renderRows(billetes)}
+                                  </>
+                                )}
+                                {monedas.length > 0 && (
+                                  <>
+                                    <tr>
+                                      <td
+                                        colSpan={3}
+                                        className="py-0.5 pt-1 text-[9px] font-semibold uppercase text-slate-500"
+                                      >
+                                        Monedas
+                                      </td>
+                                    </tr>
+                                    {renderRows(monedas)}
+                                  </>
+                                )}
+                              </>
+                            );
+                          })()}
                           <tr className="font-semibold text-slate-900 print:text-slate-800">
                             <td colSpan={2} className="py-0.5 pt-1">
                               Subtotal

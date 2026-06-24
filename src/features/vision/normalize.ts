@@ -3,12 +3,14 @@ import {
   type Bbox,
   type BilleteRow,
   type ChequeRow,
+  type ExtractedDetalleEfectivo,
   type ExtractedField,
   type Extraction,
   type NCRow,
   type TransferenciaRow,
   type CreditoVendedorRow,
 } from "@/features/records/types";
+import { splitBilletesAndMonedas } from "@/features/records/efectivo-utils";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
 
 const EMPTY_BBOX: Bbox = [0, 0, 0, 0];
@@ -78,6 +80,7 @@ function fillTransferenciaRow(input: unknown): TransferenciaRow {
     no_fac: fillField(obj.no_fac),
     valor: fillField(obj.valor),
     cliente: fillField(obj.cliente),
+    banco: fillField(obj.banco),
   };
 }
 
@@ -137,6 +140,27 @@ function creditoVendedorFilled(row: CreditoVendedorRow): boolean {
 
 function billeteFilled(row: BilleteRow): boolean {
   return !!row.denominacion.valor.trim() || !!row.valor.valor.trim();
+}
+
+function normalizeDetalleEfectivoFromRaw(
+  raw: Record<string, unknown>
+): ExtractedDetalleEfectivo {
+  let billetes = fillArray(raw.billetes, fillBilleteRow, billeteFilled);
+  let monedas = fillArray(raw.monedas, fillBilleteRow, billeteFilled);
+
+  if (monedas.length === 0 && billetes.length > 0) {
+    const split = splitBilletesAndMonedas(billetes);
+    billetes = split.billetes;
+    monedas = split.monedas;
+  }
+
+  return {
+    billetes,
+    monedas,
+    total_billetes: fillField(raw.total_billetes),
+    total_monedas: fillField(raw.total_monedas),
+    total_efectivo: fillField(raw.total_efectivo),
+  };
 }
 
 interface NumericToken {
@@ -292,6 +316,7 @@ export function harvestTransfersFromObservations(text: string): {
         no_fac: { valor: r.fac, bbox: [...EMPTY_BBOX] },
         valor: { valor: r.amount, bbox: [...EMPTY_BBOX] },
         cliente: { valor: r.cliente, bbox: [...EMPTY_BBOX] },
+        banco: { valor: "", bbox: [...EMPTY_BBOX] },
       });
     }
     if (parsed.leftover.trim()) remainingLines.push(parsed.leftover);
@@ -336,6 +361,7 @@ export function dedupeTransferenciaRows(
       cliente: existing.cliente.valor.trim()
         ? existing.cliente
         : r.cliente,
+      banco: existing.banco.valor.trim() ? existing.banco : r.banco,
     });
   }
   return [...byKey.values()];
@@ -414,10 +440,7 @@ export function normalizeExtractionShape(raw: unknown): Extraction {
       fillCreditoVendedorRow,
       creditoVendedorFilled
     ),
-    detalle_efectivo: {
-      billetes: fillArray(efectIn.billetes, fillBilleteRow, billeteFilled),
-      total_efectivo: fillField(efectIn.total_efectivo),
-    },
+    detalle_efectivo: normalizeDetalleEfectivoFromRaw(efectIn),
     total_n_c_rechazo_total: fillField(obj.total_n_c_rechazo_total),
     total_n_c_rechazo_parcial: fillField(obj.total_n_c_rechazo_parcial),
     total_n_c_por_negocios: fillField(obj.total_n_c_por_negocios),
@@ -476,6 +499,7 @@ function swapTransferenciaRow(row: TransferenciaRow): TransferenciaRow {
     no_fac: swapField(row.no_fac),
     valor: swapField(row.valor),
     cliente: swapField(row.cliente),
+    banco: swapField(row.banco),
   };
 }
 
@@ -531,6 +555,9 @@ export function swapBboxAxes(extraction: Extraction): Extraction {
     ),
     detalle_efectivo: {
       billetes: extraction.detalle_efectivo.billetes.map(swapBilleteRow),
+      monedas: extraction.detalle_efectivo.monedas.map(swapBilleteRow),
+      total_billetes: swapField(extraction.detalle_efectivo.total_billetes),
+      total_monedas: swapField(extraction.detalle_efectivo.total_monedas),
       total_efectivo: swapField(extraction.detalle_efectivo.total_efectivo),
     },
     total_n_c_rechazo_total: swapField(extraction.total_n_c_rechazo_total),

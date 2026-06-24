@@ -28,6 +28,7 @@ import {
   type TransferenciaRow,
   type CreditoVendedorRow,
 } from "@/features/records/types";
+import type { TotalFieldIssue } from "@/features/records/totals";
 
 const EMPTY: ExtractedField = { valor: "", bbox: [0, 0, 0, 0] };
 
@@ -44,6 +45,7 @@ const newTransferencia = (): TransferenciaRow => ({
   no_fac: { ...EMPTY },
   valor: { ...EMPTY },
   cliente: { ...EMPTY },
+  banco: { ...EMPTY },
 });
 const newCreditoVendedor = (): CreditoVendedorRow => ({
   no_fac: { ...EMPTY },
@@ -70,6 +72,8 @@ interface ExtractionFormProps {
    * Guardar, alertas, etc.).
    */
   onStateChange?: (extraction: Extraction) => void;
+  /** Campos de total a resaltar (falta o descuadre). */
+  totalFieldIssues?: Map<string, TotalFieldIssue>;
 }
 
 export function ExtractionForm({
@@ -77,6 +81,7 @@ export function ExtractionForm({
   formRef,
   onHoverBbox,
   onStateChange,
+  totalFieldIssues,
 }: ExtractionFormProps) {
   // Estado local editable. Cuando la prop `extraction` cambia (porque la IA
   // devolvió una nueva extracción o porque se cargó otro registro), lo
@@ -111,6 +116,9 @@ export function ExtractionForm({
       })),
     []
   );
+
+  const fieldHighlight = (editKey?: string) =>
+    editKey ? totalFieldIssues?.get(editKey) : undefined;
 
   return (
     <div className="space-y-4">
@@ -212,6 +220,7 @@ export function ExtractionForm({
                 value={state.rendicion.credito_vendedor}
                 onChange={setRendField("credito_vendedor")}
                 onHover={onHoverBbox}
+                highlight={fieldHighlight("rendicion.credito_vendedor")}
               />
               <FieldInput
                 editKey="rendicion.retorno_total"
@@ -219,6 +228,7 @@ export function ExtractionForm({
                 value={state.rendicion.retorno_total}
                 onChange={setRendField("retorno_total")}
                 onHover={onHoverBbox}
+                highlight={fieldHighlight("rendicion.retorno_total")}
               />
               <FieldInput
                 editKey="rendicion.retorno_parcial"
@@ -226,6 +236,7 @@ export function ExtractionForm({
                 value={state.rendicion.retorno_parcial}
                 onChange={setRendField("retorno_parcial")}
                 onHover={onHoverBbox}
+                highlight={fieldHighlight("rendicion.retorno_parcial")}
               />
               <FieldInput
                 editKey="rendicion.n_c_negocio"
@@ -264,6 +275,82 @@ export function ExtractionForm({
                 ]}
                 extractedValue={state.rendicion.total.valor}
               />
+            </div>
+
+            <div className="mt-6 space-y-4 border-t pt-4">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                  Nulos (rechazo total)
+                </p>
+                <RowsEditor
+                  rows={state.n_c_rechazo_total}
+                  columns={[
+                    {
+                      key: "no_fac",
+                      label: "N° factura",
+                      catalogKey: "n_c_rechazo_total.no_fac",
+                    },
+                    { key: "valor", label: "Valor" },
+                  ]}
+                  createEmpty={newNc}
+                  onChange={(rows) =>
+                    setState((s) => ({ ...s, n_c_rechazo_total: rows }))
+                  }
+                  onHoverBbox={onHoverBbox}
+                />
+                <FieldInput
+                  editKey="total_n_c_rechazo_total"
+                  label="Total nulos"
+                  value={state.total_n_c_rechazo_total}
+                  onChange={setField("total_n_c_rechazo_total")}
+                  onHover={onHoverBbox}
+                  highlight={fieldHighlight("total_n_c_rechazo_total")}
+                />
+                <ComputedTotal
+                  values={state.n_c_rechazo_total.map((r) => r.valor.valor)}
+                  extractedValue={
+                    state.total_n_c_rechazo_total.valor ||
+                    state.rendicion.retorno_total.valor
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                  Parciales (rechazo parcial)
+                </p>
+                <RowsEditor
+                  rows={state.n_c_rechazo_parcial}
+                  columns={[
+                    {
+                      key: "no_fac",
+                      label: "N° factura",
+                      catalogKey: "n_c_rechazo_parcial.no_fac",
+                    },
+                    { key: "valor", label: "Valor" },
+                  ]}
+                  createEmpty={newNc}
+                  onChange={(rows) =>
+                    setState((s) => ({ ...s, n_c_rechazo_parcial: rows }))
+                  }
+                  onHoverBbox={onHoverBbox}
+                />
+                <FieldInput
+                  editKey="total_n_c_rechazo_parcial"
+                  label="Total parciales"
+                  value={state.total_n_c_rechazo_parcial}
+                  onChange={setField("total_n_c_rechazo_parcial")}
+                  onHover={onHoverBbox}
+                  highlight={fieldHighlight("total_n_c_rechazo_parcial")}
+                />
+                <ComputedTotal
+                  values={state.n_c_rechazo_parcial.map((r) => r.valor.valor)}
+                  extractedValue={
+                    state.total_n_c_rechazo_parcial.valor ||
+                    state.rendicion.retorno_parcial.valor
+                  }
+                />
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -329,6 +416,7 @@ export function ExtractionForm({
                 value={state.total_cheques}
                 onChange={setField("total_cheques")}
                 onHover={onHoverBbox}
+                highlight={fieldHighlight("total_cheques")}
               />
               <ComputedTotal
                 values={state.detalles_cheques.map((r) => r.valor.valor)}
@@ -342,30 +430,101 @@ export function ExtractionForm({
           <AccordionTrigger className="text-sm font-semibold">
             Detalle de efectivo
           </AccordionTrigger>
-          <AccordionContent>
-            <RowsEditor
-              rows={state.detalle_efectivo.billetes}
-              columns={[
-                {
-                  key: "denominacion",
-                  label: "Denominación",
-                  catalogKey: "detalle_efectivo.billetes.denominacion",
-                },
-                { key: "valor", label: "Valor" },
-              ]}
-              createEmpty={newBillete}
-              onChange={(rows) =>
-                setState((s) => ({
-                  ...s,
-                  detalle_efectivo: { ...s.detalle_efectivo, billetes: rows },
-                }))
-              }
-              onHoverBbox={onHoverBbox}
-            />
-            <div className="mt-3 space-y-2">
+          <AccordionContent className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Billetes
+              </p>
+              <RowsEditor
+                rows={state.detalle_efectivo.billetes}
+                columns={[
+                  {
+                    key: "denominacion",
+                    label: "Denominación",
+                    catalogKey: "detalle_efectivo.billetes.denominacion",
+                  },
+                  { key: "valor", label: "Valor" },
+                ]}
+                createEmpty={newBillete}
+                onChange={(rows) =>
+                  setState((s) => ({
+                    ...s,
+                    detalle_efectivo: { ...s.detalle_efectivo, billetes: rows },
+                  }))
+                }
+                onHoverBbox={onHoverBbox}
+              />
+              <FieldInput
+                editKey="detalle_efectivo.total_billetes"
+                label="Total billetes"
+                value={state.detalle_efectivo.total_billetes}
+                onChange={(val) =>
+                  setState((s) => ({
+                    ...s,
+                    detalle_efectivo: {
+                      ...s.detalle_efectivo,
+                      total_billetes: val,
+                    },
+                  }))
+                }
+                onHover={onHoverBbox}
+                highlight={fieldHighlight("detalle_efectivo.total_billetes")}
+              />
+              <ComputedTotal
+                values={state.detalle_efectivo.billetes.map((b) => b.valor.valor)}
+                extractedValue={state.detalle_efectivo.total_billetes.valor}
+              />
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Monedas
+              </p>
+              <RowsEditor
+                rows={state.detalle_efectivo.monedas}
+                columns={[
+                  {
+                    key: "denominacion",
+                    label: "Denominación",
+                    catalogKey: "detalle_efectivo.monedas.denominacion",
+                  },
+                  { key: "valor", label: "Valor" },
+                ]}
+                createEmpty={newBillete}
+                onChange={(rows) =>
+                  setState((s) => ({
+                    ...s,
+                    detalle_efectivo: { ...s.detalle_efectivo, monedas: rows },
+                  }))
+                }
+                onHoverBbox={onHoverBbox}
+              />
+              <FieldInput
+                editKey="detalle_efectivo.total_monedas"
+                label="Total monedas"
+                value={state.detalle_efectivo.total_monedas}
+                onChange={(val) =>
+                  setState((s) => ({
+                    ...s,
+                    detalle_efectivo: {
+                      ...s.detalle_efectivo,
+                      total_monedas: val,
+                    },
+                  }))
+                }
+                onHover={onHoverBbox}
+                highlight={fieldHighlight("detalle_efectivo.total_monedas")}
+              />
+              <ComputedTotal
+                values={state.detalle_efectivo.monedas.map((b) => b.valor.valor)}
+                extractedValue={state.detalle_efectivo.total_monedas.valor}
+              />
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
               <FieldInput
                 editKey="detalle_efectivo.total_efectivo"
-                label="Total efectivo"
+                label="Total efectivo (detalle)"
                 value={state.detalle_efectivo.total_efectivo}
                 onChange={(val) =>
                   setState((s) => ({
@@ -377,9 +536,13 @@ export function ExtractionForm({
                   }))
                 }
                 onHover={onHoverBbox}
+                highlight={fieldHighlight("detalle_efectivo.total_efectivo")}
               />
               <ComputedTotal
-                values={state.detalle_efectivo.billetes.map((b) => b.valor.valor)}
+                values={[
+                  ...state.detalle_efectivo.billetes.map((b) => b.valor.valor),
+                  ...state.detalle_efectivo.monedas.map((b) => b.valor.valor),
+                ]}
                 extractedValue={state.detalle_efectivo.total_efectivo.valor}
               />
             </div>
@@ -388,79 +551,10 @@ export function ExtractionForm({
 
         <AccordionItem value="rechazos">
           <AccordionTrigger className="text-sm font-semibold">
-            Notas de crédito / Rechazos
+            N/C por negocios
           </AccordionTrigger>
           <AccordionContent className="space-y-4">
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">
-                Rechazo total
-              </p>
-              <RowsEditor
-                rows={state.n_c_rechazo_total}
-                columns={[
-                  {
-                    key: "no_fac",
-                    label: "N° factura",
-                    catalogKey: "n_c_rechazo_total.no_fac",
-                  },
-                  { key: "valor", label: "Valor" },
-                ]}
-                createEmpty={newNc}
-                onChange={(rows) =>
-                  setState((s) => ({ ...s, n_c_rechazo_total: rows }))
-                }
-                onHoverBbox={onHoverBbox}
-              />
-              <FieldInput
-                editKey="total_n_c_rechazo_total"
-                label="Total rechazo total"
-                value={state.total_n_c_rechazo_total}
-                onChange={setField("total_n_c_rechazo_total")}
-                onHover={onHoverBbox}
-              />
-              <ComputedTotal
-                values={state.n_c_rechazo_total.map((r) => r.valor.valor)}
-                extractedValue={state.total_n_c_rechazo_total.valor}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">
-                Rechazo parcial
-              </p>
-              <RowsEditor
-                rows={state.n_c_rechazo_parcial}
-                columns={[
-                  {
-                    key: "no_fac",
-                    label: "N° factura",
-                    catalogKey: "n_c_rechazo_parcial.no_fac",
-                  },
-                  { key: "valor", label: "Valor" },
-                ]}
-                createEmpty={newNc}
-                onChange={(rows) =>
-                  setState((s) => ({ ...s, n_c_rechazo_parcial: rows }))
-                }
-                onHoverBbox={onHoverBbox}
-              />
-              <FieldInput
-                editKey="total_n_c_rechazo_parcial"
-                label="Total rechazo parcial"
-                value={state.total_n_c_rechazo_parcial}
-                onChange={setField("total_n_c_rechazo_parcial")}
-                onHover={onHoverBbox}
-              />
-              <ComputedTotal
-                values={state.n_c_rechazo_parcial.map((r) => r.valor.valor)}
-                extractedValue={state.total_n_c_rechazo_parcial.valor}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">
-                Por negocios
-              </p>
               <RowsEditor
                 rows={state.n_c_por_negocios}
                 columns={[
@@ -479,10 +573,11 @@ export function ExtractionForm({
               />
               <FieldInput
                 editKey="total_n_c_por_negocios"
-                label="Total por negocios"
+                label="Total N/C negocio"
                 value={state.total_n_c_por_negocios}
                 onChange={setField("total_n_c_por_negocios")}
                 onHover={onHoverBbox}
+                highlight={fieldHighlight("total_n_c_por_negocios")}
               />
               <ComputedTotal
                 values={state.n_c_por_negocios.map((r) => r.valor.valor)}
@@ -499,7 +594,7 @@ export function ExtractionForm({
           <AccordionContent>
             <p className="mb-3 text-xs text-muted-foreground">
               Filas extraídas del cuadro inferior &quot;observaciones&quot;: N°
-              factura, cliente y monto.
+              factura, cliente, banco (manual) y monto.
             </p>
             <RowsEditor
               rows={state.detalle_transferencias}
@@ -510,6 +605,7 @@ export function ExtractionForm({
                   catalogKey: "detalle_transferencias.no_fac",
                 },
                 { key: "cliente", label: "Cliente" },
+                { key: "banco", label: "Banco" },
                 { key: "valor", label: "Monto" },
               ]}
               createEmpty={newTransferencia}
@@ -525,6 +621,7 @@ export function ExtractionForm({
                 value={state.total_transferencias}
                 onChange={setField("total_transferencias")}
                 onHover={onHoverBbox}
+                highlight={fieldHighlight("total_transferencias")}
               />
               <ComputedTotal
                 values={state.detalle_transferencias.map((r) => r.valor.valor)}

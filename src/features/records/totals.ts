@@ -83,15 +83,19 @@ export function computeSectionTotals(e: Extraction): SectionState[] {
     }),
     buildSection({
       id: "n_c_rechazo_total",
-      label: "N/C rechazo total",
+      label: "Nulos (rechazo total)",
       values: shaped.n_c_rechazo_total.map((r) => r.valor.valor),
-      declared: shaped.total_n_c_rechazo_total.valor,
+      declared:
+        shaped.total_n_c_rechazo_total.valor ||
+        shaped.rendicion.retorno_total.valor,
     }),
     buildSection({
       id: "n_c_rechazo_parcial",
-      label: "N/C rechazo parcial",
+      label: "Parciales (rechazo parcial)",
       values: shaped.n_c_rechazo_parcial.map((r) => r.valor.valor),
-      declared: shaped.total_n_c_rechazo_parcial.valor,
+      declared:
+        shaped.total_n_c_rechazo_parcial.valor ||
+        shaped.rendicion.retorno_parcial.valor,
     }),
     buildSection({
       id: "n_c_por_negocios",
@@ -112,9 +116,24 @@ export function computeSectionTotals(e: Extraction): SectionState[] {
       declared: shaped.rendicion.credito_vendedor.valor,
     }),
     buildSection({
-      id: "efectivo",
-      label: "Efectivo",
+      id: "billetes",
+      label: "Billetes",
       values: shaped.detalle_efectivo.billetes.map((b) => b.valor.valor),
+      declared: shaped.detalle_efectivo.total_billetes.valor,
+    }),
+    buildSection({
+      id: "monedas",
+      label: "Monedas",
+      values: shaped.detalle_efectivo.monedas.map((b) => b.valor.valor),
+      declared: shaped.detalle_efectivo.total_monedas.valor,
+    }),
+    buildSection({
+      id: "efectivo",
+      label: "Efectivo (total)",
+      values: [
+        ...shaped.detalle_efectivo.billetes.map((b) => b.valor.valor),
+        ...shaped.detalle_efectivo.monedas.map((b) => b.valor.valor),
+      ],
       declared: shaped.detalle_efectivo.total_efectivo.valor,
     }),
   ];
@@ -153,10 +172,53 @@ export function getMismatches(e: Extraction): SectionState[] {
 export interface ExtractionTotalsStatus {
   missing: SectionState[];
   mismatches: SectionState[];
+  /** Total en rendición sin filas detalle (nulos/parciales). */
+  rendicionWithoutRows: SectionState[];
   /** Suma global de todos los totales declarados (cuando existen). */
   declaredGrandTotal: number;
   canSave: boolean;
   cuadrado: boolean;
+}
+
+function getRendicionWithoutRows(e: Extraction): SectionState[] {
+  const shaped = ensureExtractionShape(e);
+  const warnings: SectionState[] = [];
+
+  const retornoTotal = safeNumber(shaped.rendicion.retorno_total.valor);
+  if (
+    retornoTotal !== null &&
+    retornoTotal > 0 &&
+    shaped.n_c_rechazo_total.length === 0
+  ) {
+    warnings.push({
+      id: "rendicion_retorno_total",
+      label: "Nulos (rechazo total)",
+      itemCount: 0,
+      sumItems: 0,
+      declared: retornoTotal,
+      declaredEmpty: false,
+      diff: null,
+    });
+  }
+
+  const retornoParcial = safeNumber(shaped.rendicion.retorno_parcial.valor);
+  if (
+    retornoParcial !== null &&
+    retornoParcial > 0 &&
+    shaped.n_c_rechazo_parcial.length === 0
+  ) {
+    warnings.push({
+      id: "rendicion_retorno_parcial",
+      label: "Parciales (rechazo parcial)",
+      itemCount: 0,
+      sumItems: 0,
+      declared: retornoParcial,
+      declaredEmpty: false,
+      diff: null,
+    });
+  }
+
+  return warnings;
 }
 
 export function getTotalsStatus(e: Extraction): ExtractionTotalsStatus {
@@ -180,8 +242,54 @@ export function getTotalsStatus(e: Extraction): ExtractionTotalsStatus {
   return {
     missing,
     mismatches,
+    rendicionWithoutRows: getRendicionWithoutRows(e),
     declaredGrandTotal,
     canSave: missing.length === 0,
     cuadrado: missing.length === 0 && mismatches.length === 0,
   };
+}
+
+export type TotalFieldIssue = "missing" | "mismatch";
+
+/** editKey del FieldInput vinculado a cada sección con validación de totales. */
+export const SECTION_TOTAL_FIELD_KEYS: Record<string, string> = {
+  cheques: "total_cheques",
+  n_c_rechazo_total: "total_n_c_rechazo_total",
+  n_c_rechazo_parcial: "total_n_c_rechazo_parcial",
+  n_c_por_negocios: "total_n_c_por_negocios",
+  transferencias: "total_transferencias",
+  credito_vendedor: "rendicion.credito_vendedor",
+  billetes: "detalle_efectivo.total_billetes",
+  monedas: "detalle_efectivo.total_monedas",
+  efectivo: "detalle_efectivo.total_efectivo",
+};
+
+/** Totales alternativos en rendición (nulos/parciales) cuando falta el de detalle. */
+const SECTION_RENDICION_FALLBACK_KEYS: Partial<Record<string, string>> = {
+  n_c_rechazo_total: "rendicion.retorno_total",
+  n_c_rechazo_parcial: "rendicion.retorno_parcial",
+};
+
+/**
+ * Mapa editKey → problema para resaltar en rojo el cuadro de total a corregir.
+ * Prioriza "missing" sobre "mismatch".
+ */
+export function getTotalFieldIssues(
+  status: Pick<ExtractionTotalsStatus, "missing" | "mismatches">
+): Map<string, TotalFieldIssue> {
+  const map = new Map<string, TotalFieldIssue>();
+
+  for (const s of status.missing) {
+    const key = SECTION_TOTAL_FIELD_KEYS[s.id];
+    if (key) map.set(key, "missing");
+    const fallback = SECTION_RENDICION_FALLBACK_KEYS[s.id];
+    if (fallback) map.set(fallback, "missing");
+  }
+
+  for (const s of status.mismatches) {
+    const key = SECTION_TOTAL_FIELD_KEYS[s.id];
+    if (key && !map.has(key)) map.set(key, "mismatch");
+  }
+
+  return map;
 }

@@ -58,6 +58,9 @@ function isPathProtected(pathname: string): boolean {
   if (pathname.startsWith("/api/records/") && pathname.endsWith("/excel")) {
     return true;
   }
+  if (pathname === "/api/records/excel/bulk") {
+    return true;
+  }
   return false;
 }
 

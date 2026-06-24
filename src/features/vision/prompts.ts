@@ -71,6 +71,29 @@ Ejemplo (cómo debe quedar el JSON):
   → observaciones: ""
 `.trim();
 
+const EFECTIVO_RULES = `
+Reglas para detalle de efectivo ("detalle_efectivo"):
+- En la hoja impresa hay UN solo cuadro de denominaciones/montos (no hay columnas separadas "billetes" y "monedas"). Lee todas las filas de ese cuadro.
+- Clasifica cada fila en el JSON según la DENOMINACIÓN escrita (no dupliques filas):
+  · "billetes[]": denominaciones de billetes chilenos — $1.000, $2.000, $5.000, $10.000, $20.000 o superior.
+  · "monedas[]": denominaciones de monedas — $500, $100, $50 o $10.
+- Cada fila lleva "denominacion" (valor nominal) y "valor" (monto total en esa denominación).
+- No mezcles: una fila de $500 va en "monedas", no en "billetes"; una de $10.000 va en "billetes", no en "monedas".
+- "total_billetes": total declarado de billetes si está escrito en el resumen; si no, "".
+- "total_monedas": total declarado de monedas si está escrito en el resumen; si no, "".
+- "total_efectivo": total del detalle de efectivo si aparece; si no, "".
+- Si una sección no tiene filas, devuelve [] para ese array.
+`.trim();
+
+const NC_RECHAZO_RULES = `
+Reglas para nulos y parciales (rechazos):
+- "n_c_rechazo_total": filas de rechazo total (nulos). Cada fila: "no_fac" y "valor".
+- "n_c_rechazo_parcial": filas de rechazo parcial. Cada fila: "no_fac" y "valor".
+- "total_n_c_rechazo_total" y "total_n_c_rechazo_parcial": totales de sección si están escritos.
+- "rendicion.retorno_total" es el total de nulos en el cuadro resumen; "rendicion.retorno_parcial" el de parciales.
+- Si hay total en rendicion.retorno_* pero no filas detalle, deja los arrays vacíos y conserva el total en rendicion.
+`.trim();
+
 const MULTIPAGE_RULES = `
 Reglas para hojas adicionales (cuando hay más de una imagen):
 - La PRIMERA hoja es el formulario principal y suele traer todos los campos del encabezado y los recuadros estructurados.
@@ -79,7 +102,7 @@ Reglas para hojas adicionales (cuando hay más de una imagen):
   - Más notas de crédito (continuación de "n_c_rechazo_total", "n_c_rechazo_parcial" o "n_c_por_negocios"). Decide a qué array pertenece según el título o la columna en que están escritas.
   - Más transferencias (continuación de "detalle_transferencias").
   - Más filas de crédito vendedor (continuación de "detalle_credito_vendedor").
-  - Más billetes / denominaciones (continuación de "detalle_efectivo.billetes").
+  - Más billetes / monedas / denominaciones (continuación de "detalle_efectivo.billetes" o "detalle_efectivo.monedas").
   - Texto libre adicional para "observaciones".
 - Para las hojas adicionales: NO repitas filas que ya leíste en hojas anteriores; agrega ÚNICAMENTE las nuevas (filas sin coincidencia exacta de no_fac/valor/banco/fecha respecto a las que ya entregaste).
 - Si en una hoja adicional aparece un nuevo total escrito para una sección (ej. "TOTAL TRANSFERENCIAS = …"), úsalo para sobrescribir el total correspondiente.
@@ -105,7 +128,7 @@ Cada campo de la respuesta es un objeto con dos claves:
 
 Reglas adicionales:
 - Respuesta: únicamente JSON válido, sin texto adicional ni cercas de código.
-- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
+- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes, monedas) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
 - Cada elemento de un array conserva la estructura mostrada en el template (mismas claves, mismo wrap "valor"/"bbox").
 - Mantén EXACTAMENTE la estructura del JSON indicado.
 `.trim();
@@ -122,7 +145,7 @@ Cada campo de la respuesta es un objeto con dos claves:
 
 Reglas adicionales:
 - Respuesta: únicamente JSON válido, sin texto adicional ni cercas de código.
-- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
+- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes, monedas) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
 - Cada elemento de un array conserva la estructura mostrada en el template (mismas claves, mismo wrap "valor"/"bbox").
 - Mantén EXACTAMENTE la estructura del JSON indicado.
 `.trim();
@@ -132,7 +155,7 @@ Cada campo de la respuesta es un objeto con exactamente la clave "valor": string
 
 Reglas adicionales:
 - Respuesta: únicamente JSON válido, sin texto adicional ni cercas de código.
-- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
+- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes, monedas) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
 - Cada elemento de un array conserva la estructura mostrada en el template (mismas claves, mismo wrap "valor").
 - Mantén EXACTAMENTE la estructura del JSON indicado.
 `.trim();
@@ -179,6 +202,11 @@ const TEMPLATE_WITH_BBOX = `{
     "billetes": [
       {"denominacion":{"valor":"","bbox":[0,0,0,0]},"valor":{"valor":"","bbox":[0,0,0,0]}}
     ],
+    "monedas": [
+      {"denominacion":{"valor":"","bbox":[0,0,0,0]},"valor":{"valor":"","bbox":[0,0,0,0]}}
+    ],
+    "total_billetes": {"valor":"","bbox":[0,0,0,0]},
+    "total_monedas": {"valor":"","bbox":[0,0,0,0]},
     "total_efectivo": {"valor":"","bbox":[0,0,0,0]}
   },
   "total_n_c_rechazo_total": {"valor":"","bbox":[0,0,0,0]},
@@ -232,6 +260,11 @@ const TEMPLATE_NO_BBOX = `{
     "billetes": [
       {"denominacion":{"valor":""},"valor":{"valor":""}}
     ],
+    "monedas": [
+      {"denominacion":{"valor":""},"valor":{"valor":""}}
+    ],
+    "total_billetes": {"valor":""},
+    "total_monedas": {"valor":""},
     "total_efectivo": {"valor":""}
   },
   "total_n_c_rechazo_total": {"valor":""},
@@ -271,6 +304,10 @@ ${dateContextBlock()}
 
 ${TRANSFER_RULES}
 
+${EFECTIVO_RULES}
+
+${NC_RECHAZO_RULES}
+
 ${MULTIPAGE_RULES}
 
 ${structureBlock(opts)}`;
@@ -309,7 +346,7 @@ export function buildMergeUserPrompt(
 
 - Rellena campos que estén vacíos en el JSON previo y aparezcan en esta imagen.
 - Si esta imagen muestra claramente un valor distinto y mejor para un campo ya rellenado, corrígelo. Si no, mantén el valor previo.
-- Para los arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes): añade nuevas entradas que aparezcan en esta imagen y no estuvieran antes. Cada entrada del array debe ser única respecto al JSON previo.
+- Para los arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes, monedas): añade nuevas entradas que aparezcan en esta imagen y no estuvieran antes. Cada entrada del array debe ser única respecto al JSON previo.
 ${opts.withBboxes ? "- Las bbox deben referirse a esta NUEVA imagen para los campos que actualizaste.\n" : ""}- Conserva el valor previo cuando el dato no aparezca en esta imagen (o vacío si no había).
 
 ${pickInstructions(opts)}
@@ -317,6 +354,10 @@ ${pickInstructions(opts)}
 ${dateContextBlock()}
 
 ${TRANSFER_RULES}
+
+${EFECTIVO_RULES}
+
+${NC_RECHAZO_RULES}
 
 ${MULTIPAGE_RULES}
 

@@ -86,10 +86,15 @@ export function computeIncomeTotals(extraction: Extraction): IncomeTotals {
   const sumNc = (rows: { valor: { valor: string } }[]) =>
     rows.reduce((acc, r) => acc + parseAmount(r.valor.valor), 0);
 
-  const efectivoSumDetalle = current.detalle_efectivo.billetes.reduce(
-    (acc, b) => acc + parseAmount(b.valor.valor),
-    0
-  );
+  const efectivoSumDetalle =
+    current.detalle_efectivo.billetes.reduce(
+      (acc, b) => acc + parseAmount(b.valor.valor),
+      0
+    ) +
+    current.detalle_efectivo.monedas.reduce(
+      (acc, b) => acc + parseAmount(b.valor.valor),
+      0
+    );
   const efectivoTotalCampo =
     parseAmount(current.detalle_efectivo.total_efectivo.valor) ||
     parseAmount(current.rendicion.efectivo_total.valor);
@@ -103,9 +108,11 @@ export function computeIncomeTotals(extraction: Extraction): IncomeTotals {
 
   const rechazoTotal =
     parseAmount(current.total_n_c_rechazo_total.valor) ||
+    parseAmount(current.rendicion.retorno_total.valor) ||
     sumNc(current.n_c_rechazo_total);
   const rechazoParcial =
     parseAmount(current.total_n_c_rechazo_parcial.valor) ||
+    parseAmount(current.rendicion.retorno_parcial.valor) ||
     sumNc(current.n_c_rechazo_parcial);
   const ncNegocio =
     parseAmount(current.total_n_c_por_negocios.valor) ||
@@ -151,12 +158,14 @@ export interface CashItem {
   denominacion: string;
   cantidad: number;
   valor: number;
+  /** Distingue billetes de monedas en el reporte. */
+  tipo?: "billete" | "moneda";
 }
 
 export interface RowItem {
   /** Texto principal de la fila (fecha, "Fact. 12345", etc.). */
   descripcion: string;
-  /** Banco (cheques). */
+  /** Banco (cheques / transferencias). */
   banco?: string;
   /** Cliente (transferencias / crédito vendedor). */
   cliente?: string;
@@ -211,6 +220,7 @@ export function getDetailItems(
       }));
       const total =
         parseAmount(current.total_n_c_rechazo_total.valor) ||
+        parseAmount(current.rendicion.retorno_total.valor) ||
         items.reduce((acc, r) => acc + r.monto, 0);
       return { items, total };
     }
@@ -221,6 +231,7 @@ export function getDetailItems(
       }));
       const total =
         parseAmount(current.total_n_c_rechazo_parcial.valor) ||
+        parseAmount(current.rendicion.retorno_parcial.valor) ||
         items.reduce((acc, r) => acc + r.monto, 0);
       return { items, total };
     }
@@ -247,8 +258,11 @@ export function getDetailItems(
       return { items, total };
     }
     case "efectivo": {
-      const items: CashItem[] = current.detalle_efectivo.billetes.map(
-        (b) => {
+      const mapCash = (
+        rows: typeof current.detalle_efectivo.billetes,
+        tipo: "billete" | "moneda"
+      ): CashItem[] =>
+        rows.map((b) => {
           const denomNum = parseAmount(b.denominacion.valor);
           const valorNum = parseAmount(b.valor.valor);
           const cantidad =
@@ -257,9 +271,13 @@ export function getDetailItems(
             denominacion: b.denominacion.valor || "—",
             cantidad,
             valor: valorNum,
+            tipo,
           };
-        }
-      );
+        });
+
+      const billetes = mapCash(current.detalle_efectivo.billetes, "billete");
+      const monedas = mapCash(current.detalle_efectivo.monedas, "moneda");
+      const items: CashItem[] = [...billetes, ...monedas];
       const total =
         parseAmount(current.detalle_efectivo.total_efectivo.valor) ||
         parseAmount(current.rendicion.efectivo_total.valor) ||
@@ -270,6 +288,7 @@ export function getDetailItems(
       const items: RowItem[] = current.detalle_transferencias.map((r) => ({
         descripcion: r.no_fac.valor ? `Fact. ${r.no_fac.valor}` : "—",
         cliente: r.cliente.valor,
+        banco: r.banco.valor,
         monto: parseAmount(r.valor.valor),
       }));
       const total =
@@ -316,7 +335,7 @@ export function buildHeaderData(record: Record): HeaderData {
     : "—";
 
   const numeroRecorrido = e?.n_recorrido?.valor || "—";
-  const conductor = e?.conductor?.valor || record.driverName || "—";
+  const conductor = e?.conductor?.valor?.trim() || "—";
   const auxiliar = e?.auxiliar?.valor || "—";
   const patente = e?.patente?.valor || "—";
   const cantidadFacturas = e?.cant_fact?.valor || "—";

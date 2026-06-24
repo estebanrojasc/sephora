@@ -69,6 +69,16 @@ export async function insertRecord(payload: UploadPayload): Promise<Record> {
   return record;
 }
 
+export async function findRecordsByIds(ids: string[]): Promise<Record[]> {
+  if (ids.length === 0) return [];
+  const c = await col();
+  const docs = await c.find({ id: { $in: ids } }).toArray();
+  const byId = new Map(docs.map((d) => [d.id, stripMongoId(d) as Record]));
+  return ids
+    .map((id) => byId.get(id))
+    .filter((r): r is Record => r != null);
+}
+
 async function patchRecord(
   id: string,
   patch: Partial<Record>
@@ -114,6 +124,10 @@ export async function saveExtraction(
   if (attemptId) {
     patch.currentAttemptId = attemptId;
   }
+  const conductor = extraction.conductor?.valor?.trim();
+  if (conductor) {
+    patch.driverName = conductor;
+  }
   return patchRecord(id, patch);
 }
 
@@ -148,7 +162,12 @@ export async function applyExtractionPatch(
       manualOverride: true,
     },
   };
-  const updated = await patchRecord(id, { extraction: next });
+  const recordPatch: Partial<Record> = { extraction: next };
+  const conductor = next.conductor?.valor?.trim();
+  if (conductor) {
+    recordPatch.driverName = conductor;
+  }
+  const updated = await patchRecord(id, recordPatch);
   if (!updated) return null;
   return { record: updated, previousExtraction, nextExtraction: next };
 }

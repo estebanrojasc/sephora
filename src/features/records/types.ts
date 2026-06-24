@@ -1,3 +1,5 @@
+import { splitBilletesAndMonedas } from "./efectivo-utils";
+
 export type RecordStatus =
   | "uploaded"
   | "in_review"
@@ -54,11 +56,12 @@ export interface NCRow {
   valor: ExtractedField;
 }
 
-/** Fila de transferencia: factura, monto y nombre de cliente (si aparece). */
+/** Fila de transferencia: factura, monto, cliente y banco (manual). */
 export interface TransferenciaRow {
   no_fac: ExtractedField;
   valor: ExtractedField;
   cliente: ExtractedField;
+  banco: ExtractedField;
 }
 
 /** Fila de crédito vendedor: factura, cliente, monto y número de vendedor. */
@@ -88,6 +91,9 @@ export interface ExtractedRendicion {
 
 export interface ExtractedDetalleEfectivo {
   billetes: BilleteRow[];
+  monedas: BilleteRow[];
+  total_billetes: ExtractedField;
+  total_monedas: ExtractedField;
   total_efectivo: ExtractedField;
 }
 
@@ -188,6 +194,37 @@ export type UpdateExtractionPayload = Partial<Extraction>;
 
 export const EMPTY_FIELD: ExtractedField = { valor: "", bbox: [0, 0, 0, 0] };
 
+function fillBilleteRow(row: Partial<BilleteRow>): BilleteRow {
+  return {
+    denominacion: row.denominacion ?? { ...EMPTY_FIELD },
+    valor: row.valor ?? { ...EMPTY_FIELD },
+  };
+}
+
+function normalizeDetalleEfectivo(
+  raw: Partial<ExtractedDetalleEfectivo> | undefined
+): ExtractedDetalleEfectivo {
+  const base = createEmptyExtraction().detalle_efectivo;
+  if (!raw) return base;
+
+  let billetes = (raw.billetes ?? []).map((r) => fillBilleteRow(r));
+  let monedas = (raw.monedas ?? []).map((r) => fillBilleteRow(r));
+
+  if (monedas.length === 0 && billetes.length > 0) {
+    const split = splitBilletesAndMonedas(billetes);
+    billetes = split.billetes;
+    monedas = split.monedas;
+  }
+
+  return {
+    billetes,
+    monedas,
+    total_billetes: raw.total_billetes ?? { ...EMPTY_FIELD },
+    total_monedas: raw.total_monedas ?? { ...EMPTY_FIELD },
+    total_efectivo: raw.total_efectivo ?? { ...EMPTY_FIELD },
+  };
+}
+
 /**
  * Garantiza que una extracción persistida (posiblemente de un schema anterior)
  * tenga todos los campos del schema actual con valores por defecto.
@@ -277,14 +314,7 @@ export function ensureExtractionShape(
       ),
       total: mergeField(rendicionIn.total, base.rendicion.total),
     },
-    detalle_efectivo: {
-      ...base.detalle_efectivo,
-      ...(detalleEfectivo ?? {}),
-      billetes:
-        detalleEfectivo?.billetes ?? base.detalle_efectivo.billetes,
-      total_efectivo:
-        detalleEfectivo?.total_efectivo ?? base.detalle_efectivo.total_efectivo,
-    },
+    detalle_efectivo: normalizeDetalleEfectivo(detalleEfectivo),
     detalles_cheques: e.detalles_cheques ?? base.detalles_cheques,
     n_c_rechazo_total: e.n_c_rechazo_total ?? base.n_c_rechazo_total,
     n_c_rechazo_parcial: e.n_c_rechazo_parcial ?? base.n_c_rechazo_parcial,
@@ -294,6 +324,7 @@ export function ensureExtractionShape(
         no_fac: row.no_fac ?? { ...EMPTY_FIELD },
         valor: row.valor ?? { ...EMPTY_FIELD },
         cliente: row.cliente ?? { ...EMPTY_FIELD },
+        banco: row.banco ?? { ...EMPTY_FIELD },
       })
     ),
     detalle_credito_vendedor: (
@@ -337,6 +368,9 @@ export function createEmptyExtraction(): Extraction {
     detalle_credito_vendedor: [],
     detalle_efectivo: {
       billetes: [],
+      monedas: [],
+      total_billetes: { ...EMPTY_FIELD },
+      total_monedas: { ...EMPTY_FIELD },
       total_efectivo: { ...EMPTY_FIELD },
     },
     total_n_c_rechazo_total: { ...EMPTY_FIELD },

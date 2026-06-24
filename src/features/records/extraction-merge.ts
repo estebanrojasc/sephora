@@ -74,6 +74,7 @@ function mergeTransferenciaRows(
       no_fac: mergeField(existing.no_fac, row.no_fac),
       valor: mergeField(existing.valor, row.valor),
       cliente: mergeField(existing.cliente, row.cliente),
+      banco: mergeField(existing.banco, row.banco),
     });
   }
   return [...byKey.values()];
@@ -163,6 +164,18 @@ export function mergeExtractions(a: Extraction, b: Extraction): Extraction {
       billetes: mergeBilletes(
         a.detalle_efectivo.billetes,
         b.detalle_efectivo.billetes
+      ),
+      monedas: mergeBilletes(
+        a.detalle_efectivo.monedas ?? [],
+        b.detalle_efectivo.monedas ?? []
+      ),
+      total_billetes: mergeField(
+        a.detalle_efectivo.total_billetes ?? { valor: "", bbox: [0, 0, 0, 0] },
+        b.detalle_efectivo.total_billetes ?? { valor: "", bbox: [0, 0, 0, 0] }
+      ),
+      total_monedas: mergeField(
+        a.detalle_efectivo.total_monedas ?? { valor: "", bbox: [0, 0, 0, 0] },
+        b.detalle_efectivo.total_monedas ?? { valor: "", bbox: [0, 0, 0, 0] }
       ),
       total_efectivo: mergeField(
         a.detalle_efectivo.total_efectivo,

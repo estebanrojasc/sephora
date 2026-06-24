@@ -7,9 +7,10 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowUpDown, Eye } from "lucide-react";
+import { ArrowUpDown, Eye, FileSpreadsheet } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Table,
@@ -23,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { RecordSummaryCard } from "@/components/common/RecordSummaryCard";
 import { PdfExportButton } from "@/components/admin/PdfExportButton";
+import { BulkExcelExportDialog } from "@/components/admin/BulkExcelExportDialog";
 import type { Record } from "@/features/records/types";
 import { getRecordConductorLabel } from "@/features/records/display";
 import { formatDate } from "@/lib/format";
@@ -32,16 +34,63 @@ import { useIsDesktop } from "@/hooks/use-media-query";
 interface RecordsTableProps {
   records: Record[];
   isLoading?: boolean;
+  /** Habilita selección múltiple y export Excel consolidado (tab Guardado). */
+  enableBulkExcel?: boolean;
 }
 
-export function RecordsTable({ records, isLoading }: RecordsTableProps) {
+export function RecordsTable({
+  records,
+  isLoading,
+  enableBulkExcel = false,
+}: RecordsTableProps) {
   const isDesktop = useIsDesktop();
   const [sorting, setSorting] = useState<SortingState>([
     { id: "createdAt", desc: false },
   ]);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [bulkOpen, setBulkOpen] = useState(false);
 
-  const columns = useMemo<ColumnDef<Record>[]>(
-    () => [
+  const selectedRecords = useMemo(
+    () => records.filter((r) => rowSelection[r.id]),
+    [records, rowSelection]
+  );
+
+  const columns = useMemo<ColumnDef<Record>[]>(() => {
+    const base: ColumnDef<Record>[] = [];
+
+    if (enableBulkExcel) {
+      base.push({
+        id: "select",
+        header: ({ table }) => (
+          <input
+            type="checkbox"
+            className="size-4 rounded border"
+            checked={table.getIsAllPageRowsSelected()}
+            ref={(el) => {
+              if (el) {
+                el.indeterminate =
+                  table.getIsSomePageRowsSelected() &&
+                  !table.getIsAllPageRowsSelected();
+              }
+            }}
+            onChange={table.getToggleAllPageRowsSelectedHandler()}
+            aria-label="Seleccionar todos"
+          />
+        ),
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            className="size-4 rounded border"
+            checked={row.getIsSelected()}
+            onChange={row.getToggleSelectedHandler()}
+            aria-label={`Seleccionar ${row.original.id}`}
+          />
+        ),
+        enableSorting: false,
+      });
+    }
+
+    base.push(
       {
         accessorKey: "id",
         header: "ID",
@@ -118,16 +167,20 @@ export function RecordsTable({ records, isLoading }: RecordsTableProps) {
             <PdfExportButton record={row.original} size="sm" />
           </div>
         ),
-      },
-    ],
-    []
-  );
+      }
+    );
+
+    return base;
+  }, [enableBulkExcel]);
 
   const table = useReactTable({
     data: records,
     columns,
-    state: { sorting },
+    state: { sorting, rowSelection },
     onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    getRowId: (row) => row.id,
+    enableRowSelection: enableBulkExcel,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
@@ -155,7 +208,28 @@ export function RecordsTable({ records, isLoading }: RecordsTableProps) {
   }
 
   return (
-    <div className="rounded-lg border">
+    <div className="space-y-3">
+      {enableBulkExcel && isDesktop && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={selectedRecords.length === 0}
+            onClick={() => setBulkOpen(true)}
+          >
+            <FileSpreadsheet className="size-4" />
+            Excel unificado
+            {selectedRecords.length > 0 && ` (${selectedRecords.length})`}
+          </Button>
+          <BulkExcelExportDialog
+            open={bulkOpen}
+            onOpenChange={setBulkOpen}
+            records={selectedRecords.length > 0 ? selectedRecords : records}
+          />
+        </div>
+      )}
+
+      <div className="rounded-lg border">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((hg) => (
@@ -193,6 +267,7 @@ export function RecordsTable({ records, isLoading }: RecordsTableProps) {
           )}
         </TableBody>
       </Table>
+    </div>
     </div>
   );
 }

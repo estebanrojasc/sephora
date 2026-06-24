@@ -15,5 +15,5 @@ export function getRecordConductorLabel(
   const fromSaved = record.extraction?.conductor?.valor?.trim();
   if (fromSaved) return fromSaved;
 
-  return record.driverName?.trim() || "—";
+  return "—";
 }

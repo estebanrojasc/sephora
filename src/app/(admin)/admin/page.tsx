@@ -23,7 +23,11 @@ export default function AdminPage() {
 
       <RecordsTabs value={statusFilter} onChange={setStatusFilter} />
 
-      <RecordsTable records={records ?? []} isLoading={isLoading} />
+      <RecordsTable
+        records={records ?? []}
+        isLoading={isLoading}
+        enableBulkExcel={statusFilter === "saved"}
+      />
     </div>
   );
 }

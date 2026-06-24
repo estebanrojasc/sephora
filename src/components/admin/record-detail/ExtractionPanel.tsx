@@ -41,7 +41,7 @@ import {
   useUpdateExtraction,
   useUpdateStatus,
 } from "@/features/records/mutations";
-import { getTotalsStatus } from "@/features/records/totals";
+import { getTotalFieldIssues, getTotalsStatus } from "@/features/records/totals";
 import { formatCLP } from "@/lib/parse-number";
 import { toast } from "sonner";
 
@@ -88,6 +88,11 @@ export function ExtractionPanel({
   const totalsStatus = useMemo(
     () => (liveExtraction ? getTotalsStatus(liveExtraction) : null),
     [liveExtraction]
+  );
+
+  const totalFieldIssues = useMemo(
+    () => (totalsStatus ? getTotalFieldIssues(totalsStatus) : undefined),
+    [totalsStatus]
   );
 
   const processedSet = useMemo(
@@ -243,6 +248,7 @@ export function ExtractionPanel({
             formRef={formRef}
             onHoverBbox={onHoverBbox}
             onStateChange={handleFormStateChange}
+            totalFieldIssues={totalFieldIssues}
           />
 
           {totalsStatus && totalsStatus.missing.length > 0 && (

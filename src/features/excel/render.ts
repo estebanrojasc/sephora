@@ -11,6 +11,8 @@ const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
 
 const LIST_ROW = 37;
+/** Detalle billetes/monedas (fila ancla en plantilla). */
+const EFECTIVO_ROW = 11;
 const CREDITO_ROW = 71;
 /** Primera fila de datos del bloque TRANSFERENCIA (debajo de crédito). */
 const TRANSF_ROW = 73;
@@ -50,8 +52,17 @@ const CREDITO_LAYOUT: ListCellLayout[] = [
 const TRANSF_LAYOUT: ListCellLayout[] = [
   { col: "L", list: "transferencias", field: "recorrido", type: "text", extraStyle: 49, placeholder: "{{transf_recorrido}}", firstRowOnly: true },
   { col: "M", list: "transferencias", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{transf_cliente}}" },
+  { col: "O", list: "transferencias", field: "banco", type: "text", extraStyle: 89, placeholder: "{{transf_banco}}" },
   { col: "P", list: "transferencias", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{transf_fac}}" },
   { col: "T", list: "transferencias", field: "valor", type: "number", extraStyle: 69, placeholder: "{{transf_valor}}" },
+];
+
+/** Fila 11: detalle billetes y monedas en la misma fila ancla. */
+const EFECTIVO_LAYOUT: ListCellLayout[] = [
+  { col: "M", list: "billetes", field: "denom", type: "text", extraStyle: 37, placeholder: "{{billete_denom}}" },
+  { col: "N", list: "billetes", field: "valor", type: "number", extraStyle: 39, placeholder: "{{billete_valor}}" },
+  { col: "O", list: "monedas", field: "denom", type: "text", extraStyle: 37, placeholder: "{{moneda_denom}}" },
+  { col: "P", list: "monedas", field: "valor", type: "number", extraStyle: 39, placeholder: "{{moneda_valor}}" },
 ];
 
 interface ListBlock {
@@ -61,6 +72,12 @@ interface ListBlock {
 }
 
 const LIST_BLOCKS: ListBlock[] = [
+  {
+    anchorRow: EFECTIVO_ROW,
+    layout: EFECTIVO_LAYOUT,
+    count: (l) =>
+      Math.max(l.billetes?.length ?? 0, l.monedas?.length ?? 0, 1),
+  },
   {
     anchorRow: LIST_ROW,
     layout: LIST_LAYOUT,
@@ -334,6 +351,23 @@ function processWorksheet(
   }
 
   return clearStalePlaceholderCaches(xml);
+}
+
+export function renderRendicionWorksheet(
+  template: Uint8Array,
+  payload: RendicionPayload
+): string {
+  const files = unzipSync(template);
+  const sharedStringsBytes = files["xl/sharedStrings.xml"];
+  if (!sharedStringsBytes) {
+    throw new Error("La plantilla no contiene xl/sharedStrings.xml");
+  }
+  const indices = parsePlaceholderIndices(decoder.decode(sharedStringsBytes));
+  const worksheetBytes = files["xl/worksheets/sheet1.xml"];
+  if (!worksheetBytes) {
+    throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
+  }
+  return processWorksheet(decoder.decode(worksheetBytes), payload, indices);
 }
 
 export function renderRendicionExcel(

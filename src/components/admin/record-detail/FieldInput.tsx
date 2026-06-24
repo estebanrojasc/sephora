@@ -31,6 +31,8 @@ interface FieldInputProps {
   catalogKey?: string;
   type?: "text" | "date" | "number";
   className?: string;
+  /** Resalta el input cuando falta total o hay descuadre con la suma de filas. */
+  highlight?: "missing" | "mismatch";
 }
 
 export function FieldInput({
@@ -42,6 +44,7 @@ export function FieldInput({
   catalogKey,
   type = "text",
   className,
+  highlight,
 }: FieldInputProps) {
   const current: ExtractedField = value ?? { valor: "", bbox: [0, 0, 0, 0] };
   const hasBbox = current.bbox.some((v) => v !== 0);
@@ -60,6 +63,13 @@ export function FieldInput({
   const catalogs = useActiveCatalogsByField();
   const catalog = catalogKey ? catalogs.get(catalogKey) : undefined;
 
+  const highlightClass =
+    highlight === "missing"
+      ? "border-red-500 bg-red-50 ring-1 ring-red-400 dark:border-red-600 dark:bg-red-950/30 dark:ring-red-700"
+      : highlight === "mismatch"
+        ? "border-red-500 bg-red-50/80 ring-1 ring-red-400 dark:border-red-600 dark:bg-red-950/20 dark:ring-red-700"
+        : undefined;
+
   return (
     <div
       className={cn("space-y-1.5", className)}
@@ -71,7 +81,12 @@ export function FieldInput({
       }}
     >
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">
+        <Label
+          className={cn(
+            "text-xs font-medium text-muted-foreground",
+            highlight && "font-semibold text-red-700 dark:text-red-300"
+          )}
+        >
           {label}
         </Label>
         {showEditButton && bboxEdit && editKey && (
@@ -134,7 +149,8 @@ export function FieldInput({
               }}
               className={cn(
                 "h-8 text-sm",
-                type === "number" && "text-right tabular-nums"
+                type === "number" && "text-right tabular-nums",
+                highlightClass
               )}
             />
           )}

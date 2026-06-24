@@ -61,6 +61,7 @@ export function mockExtractionFromImage(): Extraction {
       () => ({
         no_fac: f(String(faker.number.int({ min: 100000, max: 999999 }))),
         cliente: f(faker.person.fullName()),
+        banco: f(""),
         valor: f(`$${faker.number.int({ min: 5000, max: 150000 })}`),
       })
     ),
@@ -83,6 +84,17 @@ export function mockExtractionFromImage(): Extraction {
           valor: f(`$${faker.number.int({ min: 1000, max: 100000 })}`),
         })
       ),
+      monedas: Array.from(
+        { length: faker.number.int({ min: 0, max: 2 }) },
+        () => ({
+          denominacion: f(
+            faker.helpers.arrayElement(["500", "100", "50", "10"])
+          ),
+          valor: f(`$${faker.number.int({ min: 100, max: 5000 })}`),
+        })
+      ),
+      total_billetes: f(`$${faker.number.int({ min: 10000, max: 400000 })}`),
+      total_monedas: f(`$${faker.number.int({ min: 100, max: 10000 })}`),
       total_efectivo: f(`$${faker.number.int({ min: 50000, max: 500000 })}`),
     },
     observaciones: f(faker.lorem.sentence()),
