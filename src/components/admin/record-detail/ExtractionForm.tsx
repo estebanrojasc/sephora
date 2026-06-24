@@ -29,6 +29,8 @@ import {
   type CreditoVendedorRow,
 } from "@/features/records/types";
 import type { TotalFieldIssue } from "@/features/records/totals";
+import { syncDetalleEfectivoTotals } from "@/features/records/efectivo-totals";
+import { formatCLP, parseNumber } from "@/lib/parse-number";
 
 const EMPTY: ExtractedField = { valor: "", bbox: [0, 0, 0, 0] };
 
@@ -117,6 +119,17 @@ export function ExtractionForm({
     []
   );
 
+  const patchDetalleEfectivo = useCallback(
+    (patch: Partial<Extraction["detalle_efectivo"]>) =>
+      setState((s) =>
+        syncDetalleEfectivoTotals({
+          ...s,
+          detalle_efectivo: { ...s.detalle_efectivo, ...patch },
+        })
+      ),
+    []
+  );
+
   const fieldHighlight = (editKey?: string) =>
     editKey ? totalFieldIssues?.get(editKey) : undefined;
 
@@ -199,6 +212,7 @@ export function ExtractionForm({
                 value={state.rendicion.efectivo_total}
                 onChange={setRendField("efectivo_total")}
                 onHover={onHoverBbox}
+                highlight={fieldHighlight("rendicion.efectivo_total")}
               />
               <FieldInput
                 editKey="rendicion.cheques_al_dia"
@@ -446,30 +460,17 @@ export function ExtractionForm({
                   { key: "valor", label: "Valor" },
                 ]}
                 createEmpty={newBillete}
-                onChange={(rows) =>
-                  setState((s) => ({
-                    ...s,
-                    detalle_efectivo: { ...s.detalle_efectivo, billetes: rows },
-                  }))
-                }
+                onChange={(rows) => patchDetalleEfectivo({ billetes: rows })}
                 onHoverBbox={onHoverBbox}
               />
-              <FieldInput
-                editKey="detalle_efectivo.total_billetes"
-                label="Total billetes"
-                value={state.detalle_efectivo.total_billetes}
-                onChange={(val) =>
-                  setState((s) => ({
-                    ...s,
-                    detalle_efectivo: {
-                      ...s.detalle_efectivo,
-                      total_billetes: val,
-                    },
-                  }))
-                }
-                onHover={onHoverBbox}
-                highlight={fieldHighlight("detalle_efectivo.total_billetes")}
-              />
+              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Total billetes</span>
+                <span className="font-mono tabular-nums font-medium">
+                  {formatCLP(
+                    parseNumber(state.detalle_efectivo.total_billetes.valor) ?? 0
+                  )}
+                </span>
+              </div>
               <ComputedTotal
                 values={state.detalle_efectivo.billetes.map((b) => b.valor.valor)}
                 extractedValue={state.detalle_efectivo.total_billetes.valor}
@@ -491,30 +492,17 @@ export function ExtractionForm({
                   { key: "valor", label: "Valor" },
                 ]}
                 createEmpty={newBillete}
-                onChange={(rows) =>
-                  setState((s) => ({
-                    ...s,
-                    detalle_efectivo: { ...s.detalle_efectivo, monedas: rows },
-                  }))
-                }
+                onChange={(rows) => patchDetalleEfectivo({ monedas: rows })}
                 onHoverBbox={onHoverBbox}
               />
-              <FieldInput
-                editKey="detalle_efectivo.total_monedas"
-                label="Total monedas"
-                value={state.detalle_efectivo.total_monedas}
-                onChange={(val) =>
-                  setState((s) => ({
-                    ...s,
-                    detalle_efectivo: {
-                      ...s.detalle_efectivo,
-                      total_monedas: val,
-                    },
-                  }))
-                }
-                onHover={onHoverBbox}
-                highlight={fieldHighlight("detalle_efectivo.total_monedas")}
-              />
+              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Total monedas</span>
+                <span className="font-mono tabular-nums font-medium">
+                  {formatCLP(
+                    parseNumber(state.detalle_efectivo.total_monedas.valor) ?? 0
+                  )}
+                </span>
+              </div>
               <ComputedTotal
                 values={state.detalle_efectivo.monedas.map((b) => b.valor.valor)}
                 extractedValue={state.detalle_efectivo.total_monedas.valor}
@@ -522,28 +510,28 @@ export function ExtractionForm({
             </div>
 
             <div className="space-y-2 border-t pt-4">
-              <FieldInput
-                editKey="detalle_efectivo.total_efectivo"
-                label="Total efectivo (detalle)"
-                value={state.detalle_efectivo.total_efectivo}
-                onChange={(val) =>
-                  setState((s) => ({
-                    ...s,
-                    detalle_efectivo: {
-                      ...s.detalle_efectivo,
-                      total_efectivo: val,
-                    },
-                  }))
-                }
-                onHover={onHoverBbox}
-                highlight={fieldHighlight("detalle_efectivo.total_efectivo")}
-              />
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Contraste con rendición
+              </p>
+              <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  Billetes + monedas
+                </span>
+                <span className="font-mono tabular-nums font-medium">
+                  {formatCLP(
+                    (parseNumber(state.detalle_efectivo.total_billetes.valor) ??
+                      0) +
+                      (parseNumber(state.detalle_efectivo.total_monedas.valor) ??
+                        0)
+                  )}
+                </span>
+              </div>
               <ComputedTotal
                 values={[
                   ...state.detalle_efectivo.billetes.map((b) => b.valor.valor),
                   ...state.detalle_efectivo.monedas.map((b) => b.valor.valor),
                 ]}
-                extractedValue={state.detalle_efectivo.total_efectivo.valor}
+                extractedValue={state.rendicion.efectivo_total.valor}
               />
             </div>
           </AccordionContent>

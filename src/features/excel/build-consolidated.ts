@@ -18,14 +18,13 @@ interface SummaryField {
   sum?: boolean;
 }
 
+/** Campos del resumen horizontal, alineados con la columna B de la plantilla RUTA. */
 const SUMMARY_FIELDS: SummaryField[] = [
-  { label: "FECHA", pick: (e) => e.fecha.valor },
   { label: "CHOFER", pick: (e) => e.conductor.valor },
-  { label: "AUXILIAR", pick: (e) => e.auxiliar.valor },
+  { label: "PEONETA / AUXILIAR", pick: (e) => e.auxiliar.valor },
   { label: "RECORRIDO", pick: (e) => e.n_recorrido.valor },
-  { label: "PATENTE", pick: (e) => e.patente.valor },
-  { label: "CANT. FACT.", pick: (e) => e.cant_fact.valor, numeric: true, sum: true },
-  { label: "VALOR TOTAL RUTA", pick: (e) => e.valor_total.valor, numeric: true, sum: true },
+  { label: "N° FACT.", pick: (e) => e.cant_fact.valor, numeric: true, sum: true },
+  { label: "TOTAL FACT.", pick: (e) => e.valor_total.valor, numeric: true, sum: true },
   { label: "EFECTIVO", pick: (e) => e.rendicion.efectivo_total.valor, numeric: true, sum: true },
   { label: "BILLETES", pick: (e) => e.detalle_efectivo.total_billetes.valor, numeric: true, sum: true },
   { label: "MONEDAS", pick: (e) => e.detalle_efectivo.total_monedas.valor, numeric: true, sum: true },
@@ -37,6 +36,8 @@ const SUMMARY_FIELDS: SummaryField[] = [
   { label: "N/C NEGOCIO", pick: (e) => e.rendicion.n_c_negocio.valor, numeric: true, sum: true },
   { label: "TRANSFERENCIAS", pick: (e) => e.rendicion.transferencia.valor, numeric: true, sum: true },
   { label: "TOTAL RENDICIÓN", pick: (e) => e.rendicion.total.valor, numeric: true, sum: true },
+  { label: "FECHA", pick: (e) => e.fecha.valor },
+  { label: "PATENTE", pick: (e) => e.patente.valor },
 ];
 
 function excelCol(index: number): string {

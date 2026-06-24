@@ -1,7 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { FileSpreadsheet, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  FileSpreadsheet,
+  Loader2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +53,7 @@ export function BulkExcelExportDialog({
   const [dateFilter, setDateFilter] = useState("");
   const [dateMode, setDateMode] = useState<"created" | "fecha">("created");
   const [loading, setLoading] = useState(false);
+  const [orderedRecords, setOrderedRecords] = useState<Record[]>([]);
 
   const filtered = useMemo(() => {
     if (!dateFilter) return records;
@@ -56,12 +62,26 @@ export function BulkExcelExportDialog({
     );
   }, [records, dateFilter, dateMode]);
 
+  useEffect(() => {
+    setOrderedRecords(filtered);
+  }, [filtered]);
+
+  function moveRecord(index: number, direction: -1 | 1) {
+    setOrderedRecords((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      return next;
+    });
+  }
+
   async function handleExport() {
-    if (filtered.length === 0) {
+    if (orderedRecords.length === 0) {
       toast.error("No hay registros para exportar con el filtro actual");
       return;
     }
-    if (filtered.length > 50) {
+    if (orderedRecords.length > 50) {
       toast.error("Máximo 50 registros por exportación");
       return;
     }
@@ -71,7 +91,9 @@ export function BulkExcelExportDialog({
       const res = await fetch("/api/records/excel/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recordIds: filtered.map((r) => r.id) }),
+        body: JSON.stringify({
+          recordIds: orderedRecords.map((r) => r.id),
+        }),
       });
 
       if (!res.ok) {
@@ -89,7 +111,7 @@ export function BulkExcelExportDialog({
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(`Excel consolidado (${filtered.length} registros)`);
+      toast.success(`Excel consolidado (${orderedRecords.length} registros)`);
       onOpenChange(false);
     } catch (error) {
       toast.error(
@@ -107,7 +129,7 @@ export function BulkExcelExportDialog({
           <DialogTitle>Excel unificado</DialogTitle>
           <DialogDescription>
             Genera un archivo con hoja resumen horizontal y una hoja RUTA por
-            registro. Máximo 50 registros.
+            registro. Ordena las filas antes de exportar. Máximo 50 registros.
           </DialogDescription>
         </DialogHeader>
 
@@ -141,14 +163,20 @@ export function BulkExcelExportDialog({
             </Button>
           </div>
 
-          <div className="max-h-48 overflow-y-auto rounded-md border p-2 text-sm">
-            {filtered.length === 0 ? (
+          <div className="max-h-56 overflow-y-auto rounded-md border p-2 text-sm">
+            {orderedRecords.length === 0 ? (
               <p className="text-muted-foreground">Sin registros en el filtro.</p>
             ) : (
               <ul className="space-y-1">
-                {filtered.map((r) => (
-                  <li key={r.id} className="flex justify-between gap-2">
-                    <span className="truncate">
+                {orderedRecords.map((r, index) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center gap-2 rounded-sm px-1 py-0.5 hover:bg-muted/50"
+                  >
+                    <span className="w-5 shrink-0 text-center text-xs text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">
                       {r.extraction?.n_recorrido?.valor || r.id.slice(0, 8)}
                       {" · "}
                       {getRecordConductorLabel(r)}
@@ -156,6 +184,30 @@ export function BulkExcelExportDialog({
                     <span className="shrink-0 text-muted-foreground">
                       {recordDayKey(r, dateMode)}
                     </span>
+                    <div className="flex shrink-0 flex-col">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6"
+                        disabled={index === 0}
+                        onClick={() => moveRecord(index, -1)}
+                        aria-label="Subir"
+                      >
+                        <ChevronUp className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6"
+                        disabled={index === orderedRecords.length - 1}
+                        onClick={() => moveRecord(index, 1)}
+                        aria-label="Bajar"
+                      >
+                        <ChevronDown className="size-3.5" />
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -163,8 +215,9 @@ export function BulkExcelExportDialog({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            {filtered.length} registro(s) seleccionado(s)
-            {filtered.length > 50 && " — reduce la selección (máx. 50)"}
+            {orderedRecords.length} registro(s) · el orden define las columnas
+            del resumen y el orden de las hojas RUTA
+            {orderedRecords.length > 50 && " — reduce la selección (máx. 50)"}
           </p>
         </div>
 
@@ -174,7 +227,9 @@ export function BulkExcelExportDialog({
           </Button>
           <Button
             onClick={handleExport}
-            disabled={loading || filtered.length === 0 || filtered.length > 50}
+            disabled={
+              loading || orderedRecords.length === 0 || orderedRecords.length > 50
+            }
           >
             {loading ? (
               <Loader2 className="size-4 animate-spin" />

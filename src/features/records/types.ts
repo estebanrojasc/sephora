@@ -1,4 +1,5 @@
 import { splitBilletesAndMonedas } from "./efectivo-utils";
+import { syncDetalleEfectivoTotals } from "./efectivo-totals";
 
 export type RecordStatus =
   | "uploaded"
@@ -243,7 +244,7 @@ export function ensureExtractionShape(
     fallback: ExtractedField
   ): ExtractedField => incoming ?? fallback;
 
-  return {
+  const merged: Extraction = {
     ...base,
     ...e,
     fecha: mergeField(e.fecha, base.fecha),
@@ -337,6 +338,8 @@ export function ensureExtractionShape(
     })),
     _meta: e._meta ?? base._meta,
   };
+
+  return syncDetalleEfectivoTotals(merged);
 }
 
 export function createEmptyExtraction(): Extraction {

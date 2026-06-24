@@ -88,7 +88,15 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     "{{extraction.conductor.valor}}": { value: text(e.conductor), numeric: false },
     "{{extraction.n_recorrido.valor}}": { value: text(e.n_recorrido), numeric: false },
     "{{extraction.cant_fact.valor}}": { value: text(e.cant_fact), numeric: true },
+    "{{extraction.rendicion.cant_fact.valor}}": {
+      value: text(e.cant_fact),
+      numeric: true,
+    },
     "{{extraction.valor_total.valor}}": { value: text(e.valor_total), numeric: true },
+    "{{extraction.rendicion.valor_total.valor}}": {
+      value: text(e.valor_total),
+      numeric: true,
+    },
     "{{extraction.rendicion.efectivo_total.valor}}": {
       value: text(e.rendicion.efectivo_total),
       numeric: true,

@@ -116,25 +116,13 @@ export function computeSectionTotals(e: Extraction): SectionState[] {
       declared: shaped.rendicion.credito_vendedor.valor,
     }),
     buildSection({
-      id: "billetes",
-      label: "Billetes",
-      values: shaped.detalle_efectivo.billetes.map((b) => b.valor.valor),
-      declared: shaped.detalle_efectivo.total_billetes.valor,
-    }),
-    buildSection({
-      id: "monedas",
-      label: "Monedas",
-      values: shaped.detalle_efectivo.monedas.map((b) => b.valor.valor),
-      declared: shaped.detalle_efectivo.total_monedas.valor,
-    }),
-    buildSection({
       id: "efectivo",
-      label: "Efectivo (total)",
+      label: "Efectivo (rendición)",
       values: [
         ...shaped.detalle_efectivo.billetes.map((b) => b.valor.valor),
         ...shaped.detalle_efectivo.monedas.map((b) => b.valor.valor),
       ],
-      declared: shaped.detalle_efectivo.total_efectivo.valor,
+      declared: shaped.rendicion.efectivo_total.valor,
     }),
   ];
 }
@@ -259,9 +247,7 @@ export const SECTION_TOTAL_FIELD_KEYS: Record<string, string> = {
   n_c_por_negocios: "total_n_c_por_negocios",
   transferencias: "total_transferencias",
   credito_vendedor: "rendicion.credito_vendedor",
-  billetes: "detalle_efectivo.total_billetes",
-  monedas: "detalle_efectivo.total_monedas",
-  efectivo: "detalle_efectivo.total_efectivo",
+  efectivo: "rendicion.efectivo_total",
 };
 
 /** Totales alternativos en rendición (nulos/parciales) cuando falta el de detalle. */
