@@ -6,101 +6,29 @@ import type {
   RendicionPayload,
   ScalarValue,
 } from "./build-rendicion";
+import {
+  LIST_BLOCK_GROUPS,
+  LIST_PLACEHOLDER_REGISTRY,
+  type ListBlockGroup,
+} from "./placeholder-registry";
+import {
+  parseTemplatePlaceholderIndices,
+  scanWorksheetPlaceholders,
+} from "./template-scan";
 
 const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
 
-const LIST_ROW = 37;
-/** Detalle billetes/monedas (fila ancla en plantilla). */
-const EFECTIVO_ROW = 11;
-const CREDITO_ROW = 71;
-/** Primera fila de datos del bloque TRANSFERENCIA (debajo de crédito). */
-const TRANSF_ROW = 73;
-
-interface ListCellLayout {
+interface ResolvedListCell {
+  placeholder: string;
   col: string;
+  row: number;
+  extraStyle: number;
   list: keyof RendicionLists;
   field: string;
   type: "text" | "number";
-  extraStyle: number;
-  placeholder: string;
-  /** Solo rellena en la fila i = 0 del bloque (p. ej. n° recorrido). */
   firstRowOnly?: boolean;
 }
-
-const LIST_LAYOUT: ListCellLayout[] = [
-  { col: "M", list: "cheques", field: "fecha", type: "text", extraStyle: 37, placeholder: "{{chq_fechas}}" },
-  { col: "N", list: "cheques", field: "banco", type: "text", extraStyle: 38, placeholder: "{{chq_bancos}}" },
-  { col: "O", list: "cheques", field: "valor", type: "number", extraStyle: 39, placeholder: "{{chq_valores}}" },
-  { col: "P", list: "rech_total", field: "fac", type: "number", extraStyle: 42, placeholder: "{{rech_tot_fac}}" },
-  { col: "Q", list: "rech_total", field: "val", type: "number", extraStyle: 72, placeholder: "{{rech_tot_val}}" },
-  { col: "R", list: "rech_parcial", field: "fac", type: "number", extraStyle: 44, placeholder: "{{rech_par_fac}}" },
-  { col: "S", list: "rech_parcial", field: "val", type: "number", extraStyle: 77, placeholder: "{{rech_par_val}}" },
-  { col: "T", list: "negocio", field: "fac", type: "number", extraStyle: 42, placeholder: "{{neg_fac}}" },
-  { col: "U", list: "negocio", field: "val", type: "number", extraStyle: 72, placeholder: "{{neg_val}}" },
-];
-
-/** Fila 71: primera fila del bloque CREDITO. Solo esa fila lleva placeholders. */
-const CREDITO_LAYOUT: ListCellLayout[] = [
-  { col: "M", list: "credito_vendedor", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{cred_cliente}}" },
-  { col: "P", list: "credito_vendedor", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{cred_fac}}" },
-  { col: "T", list: "credito_vendedor", field: "valor", type: "number", extraStyle: 69, placeholder: "{{cred_valor}}" },
-  { col: "V", list: "credito_vendedor", field: "nro_vendedor", type: "text", extraStyle: 55, placeholder: "{{cred_vend}}" },
-];
-
-/** Fila 73: primera fila del bloque TRANSFERENCIA. Solo esa fila lleva placeholders. */
-const TRANSF_LAYOUT: ListCellLayout[] = [
-  { col: "L", list: "transferencias", field: "recorrido", type: "text", extraStyle: 49, placeholder: "{{transf_recorrido}}", firstRowOnly: true },
-  { col: "M", list: "transferencias", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{transf_cliente}}" },
-  { col: "O", list: "transferencias", field: "banco", type: "text", extraStyle: 89, placeholder: "{{transf_banco}}" },
-  { col: "P", list: "transferencias", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{transf_fac}}" },
-  { col: "T", list: "transferencias", field: "valor", type: "number", extraStyle: 69, placeholder: "{{transf_valor}}" },
-];
-
-/** Fila 11: detalle billetes y monedas en la misma fila ancla. */
-const EFECTIVO_LAYOUT: ListCellLayout[] = [
-  { col: "M", list: "billetes", field: "denom", type: "text", extraStyle: 37, placeholder: "{{billete_denom}}" },
-  { col: "N", list: "billetes", field: "valor", type: "number", extraStyle: 39, placeholder: "{{billete_valor}}" },
-  { col: "O", list: "monedas", field: "denom", type: "text", extraStyle: 37, placeholder: "{{moneda_denom}}" },
-  { col: "P", list: "monedas", field: "valor", type: "number", extraStyle: 39, placeholder: "{{moneda_valor}}" },
-];
-
-interface ListBlock {
-  anchorRow: number;
-  layout: ListCellLayout[];
-  count: (lists: RendicionLists) => number;
-}
-
-const LIST_BLOCKS: ListBlock[] = [
-  {
-    anchorRow: EFECTIVO_ROW,
-    layout: EFECTIVO_LAYOUT,
-    count: (l) =>
-      Math.max(l.billetes?.length ?? 0, l.monedas?.length ?? 0, 1),
-  },
-  {
-    anchorRow: LIST_ROW,
-    layout: LIST_LAYOUT,
-    count: (l) =>
-      Math.max(
-        l.cheques?.length ?? 0,
-        l.rech_total?.length ?? 0,
-        l.rech_parcial?.length ?? 0,
-        l.negocio?.length ?? 0,
-        1
-      ),
-  },
-  {
-    anchorRow: CREDITO_ROW,
-    layout: CREDITO_LAYOUT,
-    count: (l) => Math.max(l.credito_vendedor?.length ?? 0, 1),
-  },
-  {
-    anchorRow: TRANSF_ROW,
-    layout: TRANSF_LAYOUT,
-    count: (l) => Math.max(l.transferencias?.length ?? 0, 1),
-  },
-];
 
 function escapeXmlText(value: string): string {
   return value
@@ -113,19 +41,83 @@ function isEmpty(value: string | undefined | null): boolean {
   return !value || !value.trim();
 }
 
-function parsePlaceholderIndices(sharedStringsXml: string): Map<string, number> {
-  const map = new Map<string, number>();
-  const re = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
-  let idx = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(sharedStringsXml)) !== null) {
-    const text = m[1].replace(/<[^>]+>/g, "");
-    if (/^\{\{[\w.]+\}\}$/.test(text)) {
-      map.set(text, idx);
+function blockCanExpand(
+  resolved: ResolvedListCell[],
+  group: ListBlockGroup
+): boolean {
+  const dataPlaceholders = group.placeholders.filter(
+    (ph) => !LIST_PLACEHOLDER_REGISTRY[ph]?.firstRowOnly
+  );
+  const dataCells = resolved.filter((r) =>
+    dataPlaceholders.includes(r.placeholder)
+  );
+  if (dataCells.length !== dataPlaceholders.length) return false;
+  const rows = new Set(dataCells.map((r) => r.row));
+  return rows.size === 1;
+}
+
+function blockAnchorRow(resolved: ResolvedListCell[]): number {
+  const dataCells = resolved.filter((r) => !r.firstRowOnly);
+  const rows = dataCells.length > 0 ? dataCells : resolved;
+  return Math.min(...rows.map((r) => r.row));
+}
+
+function effectiveBlockCount(
+  resolved: ResolvedListCell[],
+  group: ListBlockGroup,
+  rawCount: number
+): number {
+  if (!blockCanExpand(resolved, group)) return 1;
+  return rawCount;
+}
+
+function discoverBlockStates(
+  xml: string,
+  indices: Map<string, number>,
+  lists: RendicionLists
+): Array<{
+  anchorRow: number;
+  resolved: ResolvedListCell[];
+  group: ListBlockGroup;
+  n: number;
+}> {
+  const cells = scanWorksheetPlaceholders(xml, indices);
+  const byPlaceholder = new Map(cells.map((c) => [c.placeholder, c]));
+  const states: Array<{
+    anchorRow: number;
+    resolved: ResolvedListCell[];
+    group: ListBlockGroup;
+    n: number;
+  }> = [];
+
+  for (const group of LIST_BLOCK_GROUPS) {
+    const resolved: ResolvedListCell[] = [];
+    for (const ph of group.placeholders) {
+      const def = LIST_PLACEHOLDER_REGISTRY[ph];
+      const cell = byPlaceholder.get(ph);
+      if (!def || !cell) continue;
+      resolved.push({
+        placeholder: ph,
+        col: cell.col,
+        row: cell.row,
+        extraStyle: cell.style,
+        list: def.list,
+        field: def.field,
+        type: def.type,
+        firstRowOnly: def.firstRowOnly,
+      });
     }
-    idx++;
+    if (resolved.length === 0) continue;
+    const n = effectiveBlockCount(resolved, group, group.count(lists));
+    states.push({
+      anchorRow: blockAnchorRow(resolved),
+      resolved,
+      group,
+      n,
+    });
   }
-  return map;
+
+  return states.sort((a, b) => a.anchorRow - b.anchorRow);
 }
 
 function forceFullRecalc(workbookXml: string): string {
@@ -218,6 +210,21 @@ function replaceCellsByStringIndex(
   });
 }
 
+function replaceInlinePlaceholder(
+  xml: string,
+  placeholder: string,
+  scalar: ScalarValue
+): string {
+  const esc = placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(
+    `(<c r="([A-Z]+)(\\d+)"([^>]*) t="inlineStr"[^>]*><is><t(?: xml:space="preserve")?> )${esc}(</t></is></c>)`,
+    "g"
+  );
+  return xml.replace(re, (_, _open, col, row, attrs) =>
+    buildCellFromAttrs(` r="${col}${row}"${attrs}`, scalar)
+  );
+}
+
 function buildCellFromAttrs(originalAttrs: string, scalar: ScalarValue): string {
   const cleaned = originalAttrs.replace(/\s+t="s"/g, "");
   if (isEmpty(scalar.value)) {
@@ -258,45 +265,47 @@ function buildCellXml(
 
 function listValueAt(
   lists: RendicionLists,
-  layout: ListCellLayout,
+  cell: ResolvedListCell,
   i: number
 ): string | undefined {
-  const rows = lists[layout.list] as
+  const rows = lists[cell.list] as
     | Array<DetalleTablaRow | { [key: string]: string }>
     | undefined;
   if (!Array.isArray(rows)) return undefined;
   const item = rows[i] as { [key: string]: string } | undefined;
   if (!item) return undefined;
-  if (layout.firstRowOnly && i > 0) return undefined;
-  return item[layout.field];
+  if (cell.firstRowOnly && i > 0) return undefined;
+  return item[cell.field];
 }
 
 function buildExtraListRowXml(
   rowNum: number,
-  layout: ListCellLayout[],
+  resolved: ResolvedListCell[],
   lists: RendicionLists,
   i: number
 ): string {
-  const cells = layout.map((cell) =>
-    buildCellXml(
-      `${cell.col}${rowNum}`,
-      cell.extraStyle,
-      listValueAt(lists, cell, i),
-      cell.type
-    )
-  );
+  const cells = resolved
+    .filter((cell) => !cell.firstRowOnly)
+    .map((cell) =>
+      buildCellXml(
+        `${cell.col}${rowNum}`,
+        cell.extraStyle,
+        listValueAt(lists, cell, i),
+        cell.type
+      )
+    );
   return `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${cells.join("")}</row>`;
 }
 
 function expandListBlock(
   xml: string,
   anchorRow: number,
-  layout: ListCellLayout[],
+  resolved: ResolvedListCell[],
   lists: RendicionLists,
   indices: Map<string, number>,
   n: number
 ): string {
-  for (const cell of layout) {
+  for (const cell of resolved) {
     const idx = indices.get(cell.placeholder);
     if (idx === undefined) continue;
     const scalar: ScalarValue = {
@@ -313,7 +322,7 @@ function expandListBlock(
 
   const extra: string[] = [];
   for (let i = 1; i < n; i++) {
-    extra.push(buildExtraListRowXml(anchorRow + i, layout, lists, i));
+    extra.push(buildExtraListRowXml(anchorRow + i, resolved, lists, i));
   }
 
   const anchorRe = new RegExp(
@@ -331,23 +340,26 @@ function processWorksheet(
 
   for (const [placeholder, scalar] of Object.entries(payload.scalars)) {
     const idx = indices.get(placeholder);
-    if (idx === undefined) continue;
-    xml = replaceCellsByStringIndex(xml, idx, scalar);
+    if (idx !== undefined) {
+      xml = replaceCellsByStringIndex(xml, idx, scalar);
+    }
+    xml = replaceInlinePlaceholder(xml, placeholder, scalar);
   }
 
+  const blockStates = discoverBlockStates(xml, indices, payload.lists);
   let rowShift = 0;
-  for (const block of LIST_BLOCKS) {
-    const anchorRow = block.anchorRow + rowShift;
-    const n = block.count(payload.lists);
+
+  for (const state of blockStates) {
+    const anchorRow = state.anchorRow + rowShift;
     xml = expandListBlock(
       xml,
       anchorRow,
-      block.layout,
+      state.resolved,
       payload.lists,
       indices,
-      n
+      state.n
     );
-    if (n > 1) rowShift += n - 1;
+    if (state.n > 1) rowShift += state.n - 1;
   }
 
   return clearStalePlaceholderCaches(xml);
@@ -362,7 +374,9 @@ export function renderRendicionWorksheet(
   if (!sharedStringsBytes) {
     throw new Error("La plantilla no contiene xl/sharedStrings.xml");
   }
-  const indices = parsePlaceholderIndices(decoder.decode(sharedStringsBytes));
+  const indices = parseTemplatePlaceholderIndices(
+    decoder.decode(sharedStringsBytes)
+  );
   const worksheetBytes = files["xl/worksheets/sheet1.xml"];
   if (!worksheetBytes) {
     throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
@@ -380,7 +394,9 @@ export function renderRendicionExcel(
   if (!sharedStringsBytes) {
     throw new Error("La plantilla no contiene xl/sharedStrings.xml");
   }
-  const indices = parsePlaceholderIndices(decoder.decode(sharedStringsBytes));
+  const indices = parseTemplatePlaceholderIndices(
+    decoder.decode(sharedStringsBytes)
+  );
 
   const worksheetPath = "xl/worksheets/sheet1.xml";
   const worksheetBytes = files[worksheetPath];

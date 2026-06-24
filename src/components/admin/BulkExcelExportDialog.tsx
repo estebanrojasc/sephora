@@ -128,8 +128,9 @@ export function BulkExcelExportDialog({
         <DialogHeader>
           <DialogTitle>Excel unificado</DialogTitle>
           <DialogDescription>
-            Genera un archivo con hoja resumen horizontal y una hoja RUTA por
-            registro. Ordena las filas antes de exportar. Máximo 50 registros.
+            Genera un archivo con una hoja RUTA por registro (misma plantilla
+            que el Excel individual). Ordena las filas antes de exportar. Máximo
+            50 registros.
           </DialogDescription>
         </DialogHeader>
 
@@ -215,8 +216,8 @@ export function BulkExcelExportDialog({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            {orderedRecords.length} registro(s) · el orden define las columnas
-            del resumen y el orden de las hojas RUTA
+            {orderedRecords.length} registro(s) · el orden define el orden de las
+            hojas RUTA en el archivo
             {orderedRecords.length > 50 && " — reduce la selección (máx. 50)"}
           </p>
         </div>

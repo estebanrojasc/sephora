@@ -4,6 +4,7 @@ import {
   type Record as AppRecord,
 } from "@/features/records/types";
 import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
+import { buildExtractionScalars } from "./build-extraction-scalars";
 
 export interface ScalarValue {
   value: string;
@@ -82,82 +83,7 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
 
   if (!e) return empty;
 
-  const scalars: globalThis.Record<string, ScalarValue> = {
-    "{{extraction.fecha.valor}}": { value: text(e.fecha), numeric: false },
-    "{{extraction.auxiliar.valor}}": { value: text(e.auxiliar), numeric: false },
-    "{{extraction.conductor.valor}}": { value: text(e.conductor), numeric: false },
-    "{{extraction.n_recorrido.valor}}": { value: text(e.n_recorrido), numeric: false },
-    "{{extraction.cant_fact.valor}}": { value: text(e.cant_fact), numeric: true },
-    "{{extraction.rendicion.cant_fact.valor}}": {
-      value: text(e.cant_fact),
-      numeric: true,
-    },
-    "{{extraction.valor_total.valor}}": { value: text(e.valor_total), numeric: true },
-    "{{extraction.rendicion.valor_total.valor}}": {
-      value: text(e.valor_total),
-      numeric: true,
-    },
-    "{{extraction.rendicion.efectivo_total.valor}}": {
-      value: text(e.rendicion.efectivo_total),
-      numeric: true,
-    },
-    "{{extraction.detalle_efectivo.total_billetes.valor}}": {
-      value: text(e.detalle_efectivo.total_billetes),
-      numeric: true,
-    },
-    "{{extraction.detalle_efectivo.total_monedas.valor}}": {
-      value: text(e.detalle_efectivo.total_monedas),
-      numeric: true,
-    },
-    "{{extraction.detalle_efectivo.total_efectivo.valor}}": {
-      value: text(e.detalle_efectivo.total_efectivo),
-      numeric: true,
-    },
-    "{{extraction.rendicion.cheques_al_dia.valor}}": {
-      value: text(e.rendicion.cheques_al_dia),
-      numeric: true,
-    },
-    "{{extraction.rendicion.cheques_a_fecha.valor}}": {
-      value: text(e.rendicion.cheques_a_fecha),
-      numeric: true,
-    },
-    "{{extraction.rendicion.credito_vendedor.valor}}": {
-      value: text(e.rendicion.credito_vendedor),
-      numeric: true,
-    },
-    "{{extraction.rendicion.retorno_total.valor}}": {
-      value: text(e.rendicion.retorno_total),
-      numeric: true,
-    },
-    "{{extraction.rendicion.retorno_parcial.valor}}": {
-      value: text(e.rendicion.retorno_parcial),
-      numeric: true,
-    },
-    "{{extraction.rendicion.n_c_negocio.valor}}": {
-      value: text(e.rendicion.n_c_negocio),
-      numeric: true,
-    },
-    "{{extraction.rendicion.transferencia.valor}}": {
-      value: text(e.rendicion.transferencia),
-      numeric: true,
-    },
-    "{{extraction.rendicion.total.valor}}": {
-      value: text(e.rendicion.total),
-      numeric: true,
-    },
-    "{{extraction.total_n_c_rechazo_total.valor}}": {
-      value: text(e.total_n_c_rechazo_total),
-      numeric: true,
-    },
-    "{{extraction.total_n_c_rechazo_parcial.valor}}": {
-      value: text(e.total_n_c_rechazo_parcial),
-      numeric: true,
-    },
-    "{{extraction.total_n_c_por_negocios.valor}}": {
-      value: text(e.total_n_c_por_negocios),
-      numeric: true,
-    },
-  };
+  const scalars = buildExtractionScalars(e);
 
   const lists: RendicionLists = {
     cheques: (e.detalles_cheques ?? []).map((c) => ({
