@@ -35,6 +35,7 @@ import type {
   Extraction,
   Record,
 } from "@/features/records/types";
+import { ensureExtractionShape } from "@/features/records/types";
 import {
   useProcessAI,
   useUpdateExtraction,
@@ -64,8 +65,8 @@ export function ExtractionPanel({
   const [resetOpen, setResetOpen] = useState(false);
   const [errorsOpen, setErrorsOpen] = useState(false);
   const [errorComment, setErrorComment] = useState("");
-  const [liveExtraction, setLiveExtraction] = useState<Extraction | null>(
-    record.extraction ?? null
+  const [liveExtraction, setLiveExtraction] = useState<Extraction | null>(() =>
+    record.extraction ? ensureExtractionShape(record.extraction) : null
   );
 
   const handleFormStateChange = useCallback(
@@ -77,7 +78,9 @@ export function ExtractionPanel({
   );
 
   useEffect(() => {
-    const next = record.extraction ?? null;
+    const next = record.extraction
+      ? ensureExtractionShape(record.extraction)
+      : null;
     setLiveExtraction(next);
     onLiveExtractionChange?.(next);
   }, [record.extraction, record.id, onLiveExtractionChange]);

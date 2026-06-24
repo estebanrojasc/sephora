@@ -19,21 +19,22 @@ import {
  * vez que el operador haga "Aplicar IA" la BD queda en el formato nuevo.
  */
 export function migrateLegacyTransfers(extraction: Extraction): Extraction {
-  const obsValor = extraction.observaciones?.valor ?? "";
-  if (!obsValor.trim()) return extraction;
+  const shaped = ensureExtractionShape(extraction);
+  const obsValor = shaped.observaciones?.valor ?? "";
+  if (!obsValor.trim()) return shaped;
   const harvested = harvestTransfersFromObservations(obsValor);
-  if (harvested.rows.length === 0) return extraction;
+  if (harvested.rows.length === 0) return shaped;
 
   const merged = dedupeTransferenciaRows([
-    ...extraction.detalle_transferencias,
+    ...shaped.detalle_transferencias,
     ...harvested.rows,
   ]);
   const observaciones: ExtractedField = {
-    ...extraction.observaciones,
+    ...shaped.observaciones,
     valor: harvested.leftover,
   };
   return {
-    ...extraction,
+    ...shaped,
     detalle_transferencias: merged,
     observaciones,
   };

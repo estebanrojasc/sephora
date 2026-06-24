@@ -1,5 +1,5 @@
 import { parseNumber } from "@/lib/parse-number";
-import type { Extraction } from "./types";
+import { ensureExtractionShape, type Extraction } from "./types";
 
 /** Tolerancia absoluta (en pesos) para considerar que un total cuadra. */
 export const TOTAL_MATCH_TOLERANCE = 1;
@@ -73,48 +73,49 @@ function buildSection(input: SectionInput): SectionState {
  * efectivo). El orden coincide con cómo se muestra en el reporte.
  */
 export function computeSectionTotals(e: Extraction): SectionState[] {
+  const shaped = ensureExtractionShape(e);
   return [
     buildSection({
       id: "cheques",
       label: "Cheques",
-      values: e.detalles_cheques.map((r) => r.valor.valor),
-      declared: e.total_cheques.valor,
+      values: shaped.detalles_cheques.map((r) => r.valor.valor),
+      declared: shaped.total_cheques.valor,
     }),
     buildSection({
       id: "n_c_rechazo_total",
       label: "N/C rechazo total",
-      values: e.n_c_rechazo_total.map((r) => r.valor.valor),
-      declared: e.total_n_c_rechazo_total.valor,
+      values: shaped.n_c_rechazo_total.map((r) => r.valor.valor),
+      declared: shaped.total_n_c_rechazo_total.valor,
     }),
     buildSection({
       id: "n_c_rechazo_parcial",
       label: "N/C rechazo parcial",
-      values: e.n_c_rechazo_parcial.map((r) => r.valor.valor),
-      declared: e.total_n_c_rechazo_parcial.valor,
+      values: shaped.n_c_rechazo_parcial.map((r) => r.valor.valor),
+      declared: shaped.total_n_c_rechazo_parcial.valor,
     }),
     buildSection({
       id: "n_c_por_negocios",
       label: "N/C por negocios",
-      values: e.n_c_por_negocios.map((r) => r.valor.valor),
-      declared: e.total_n_c_por_negocios.valor,
+      values: shaped.n_c_por_negocios.map((r) => r.valor.valor),
+      declared: shaped.total_n_c_por_negocios.valor,
     }),
     buildSection({
       id: "transferencias",
       label: "Transferencias",
-      values: e.detalle_transferencias.map((r) => r.valor.valor),
-      declared: e.total_transferencias.valor,
+      values: shaped.detalle_transferencias.map((r) => r.valor.valor),
+      declared: shaped.total_transferencias.valor,
     }),
     buildSection({
       id: "credito_vendedor",
       label: "Crédito vendedor",
-      values: e.detalle_credito_vendedor.map((r) => r.valor.valor),
-      declared: e.rendicion.credito_vendedor.valor,
+      values: shaped.detalle_credito_vendedor.map((r) => r.valor.valor),
+      declared: shaped.rendicion.credito_vendedor.valor,
     }),
     buildSection({
       id: "efectivo",
       label: "Efectivo",
-      values: e.detalle_efectivo.billetes.map((b) => b.valor.valor),
-      declared: e.detalle_efectivo.total_efectivo.valor,
+      values: shaped.detalle_efectivo.billetes.map((b) => b.valor.valor),
+      declared: shaped.detalle_efectivo.total_efectivo.valor,
     }),
   ];
 }
@@ -159,7 +160,7 @@ export interface ExtractionTotalsStatus {
 }
 
 export function getTotalsStatus(e: Extraction): ExtractionTotalsStatus {
-  const sections = computeSectionTotals(e);
+  const sections = computeSectionTotals(ensureExtractionShape(e));
   const missing = sections.filter(
     (s) => s.itemCount > 0 && s.declaredEmpty
   );

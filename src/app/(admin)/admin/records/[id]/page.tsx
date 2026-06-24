@@ -24,6 +24,7 @@ import {
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { formatDate } from "@/lib/format";
 import type { Bbox, Extraction } from "@/features/records/types";
+import { ensureExtractionShape } from "@/features/records/types";
 import { getRecordConductorLabel } from "@/features/records/display";
 import {
   collectOverlays,
@@ -50,7 +51,7 @@ export default function RecordDetailPage() {
   const [liveExtraction, setLiveExtraction] = useState<Extraction | null>(null);
 
   useEffect(() => {
-    setLiveExtraction(record?.extraction ?? null);
+    setLiveExtraction(record?.extraction ? ensureExtractionShape(record.extraction) : null);
   }, [record?.id, record?.extraction]);
 
   const conductorLabel = useMemo(

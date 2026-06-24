@@ -61,9 +61,28 @@ interface ListBlock {
 }
 
 const LIST_BLOCKS: ListBlock[] = [
-  { anchorRow: LIST_ROW, layout: LIST_LAYOUT, count: (l) => Math.max(l.cheques.length, l.rech_total.length, l.rech_parcial.length, l.negocio.length, 1) },
-  { anchorRow: CREDITO_ROW, layout: CREDITO_LAYOUT, count: (l) => Math.max(l.credito_vendedor.length, 1) },
-  { anchorRow: TRANSF_ROW, layout: TRANSF_LAYOUT, count: (l) => Math.max(l.transferencias.length, 1) },
+  {
+    anchorRow: LIST_ROW,
+    layout: LIST_LAYOUT,
+    count: (l) =>
+      Math.max(
+        l.cheques?.length ?? 0,
+        l.rech_total?.length ?? 0,
+        l.rech_parcial?.length ?? 0,
+        l.negocio?.length ?? 0,
+        1
+      ),
+  },
+  {
+    anchorRow: CREDITO_ROW,
+    layout: CREDITO_LAYOUT,
+    count: (l) => Math.max(l.credito_vendedor?.length ?? 0, 1),
+  },
+  {
+    anchorRow: TRANSF_ROW,
+    layout: TRANSF_LAYOUT,
+    count: (l) => Math.max(l.transferencias?.length ?? 0, 1),
+  },
 ];
 
 function escapeXmlText(value: string): string {
@@ -225,7 +244,10 @@ function listValueAt(
   layout: ListCellLayout,
   i: number
 ): string | undefined {
-  const rows = lists[layout.list] as DetalleTablaRow[] | { [key: string]: string }[];
+  const rows = lists[layout.list] as
+    | Array<DetalleTablaRow | { [key: string]: string }>
+    | undefined;
+  if (!Array.isArray(rows)) return undefined;
   const item = rows[i] as { [key: string]: string } | undefined;
   if (!item) return undefined;
   if (layout.firstRowOnly && i > 0) return undefined;

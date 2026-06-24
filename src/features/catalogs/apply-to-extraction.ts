@@ -1,4 +1,4 @@
-import type { Extraction, ExtractedField } from "@/features/records/types";
+import { ensureExtractionShape, type Extraction, type ExtractedField } from "@/features/records/types";
 import type { Catalog } from "./types";
 
 function normalizeAgainstCatalog(raw: string, catalog: Catalog): string {
@@ -30,9 +30,9 @@ export function applyCatalogsToExtraction(
   const byKey = new Map(
     catalogs.filter((c) => c.active).map((c) => [c.fieldKey, c])
   );
-  if (byKey.size === 0) return extraction;
+  if (byKey.size === 0) return ensureExtractionShape(extraction);
 
-  const next: Extraction = { ...extraction };
+  const next: Extraction = ensureExtractionShape(extraction);
 
   for (const key of ["conductor", "auxiliar", "patente", "n_recorrido"] as const) {
     const cat = byKey.get(key);
@@ -75,18 +75,22 @@ export function applyCatalogsToExtraction(
 
   const transfCat = byKey.get("detalle_transferencias.no_fac");
   if (transfCat) {
-    next.detalle_transferencias = next.detalle_transferencias.map((row) => ({
+    next.detalle_transferencias = (next.detalle_transferencias ?? []).map(
+      (row) => ({
       ...row,
       no_fac: applyField(row.no_fac, transfCat),
-    }));
+    })
+    );
   }
 
   const credVendCat = byKey.get("detalle_credito_vendedor.no_fac");
   if (credVendCat) {
-    next.detalle_credito_vendedor = next.detalle_credito_vendedor.map((row) => ({
+    next.detalle_credito_vendedor = (next.detalle_credito_vendedor ?? []).map(
+      (row) => ({
       ...row,
       no_fac: applyField(row.no_fac, credVendCat),
-    }));
+    })
+    );
   }
 
   return next;

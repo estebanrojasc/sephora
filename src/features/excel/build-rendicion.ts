@@ -130,30 +130,30 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
   };
 
   const lists: RendicionLists = {
-    cheques: e.detalles_cheques.map((c) => ({
+    cheques: (e.detalles_cheques ?? []).map((c) => ({
       fecha: text(c.fecha),
       banco: text(c.banco),
       valor: text(c.valor),
     })),
-    rech_total: e.n_c_rechazo_total.map((r) => ({
+    rech_total: (e.n_c_rechazo_total ?? []).map((r) => ({
       fac: text(r.no_fac),
       val: text(r.valor),
     })),
-    rech_parcial: e.n_c_rechazo_parcial.map((r) => ({
+    rech_parcial: (e.n_c_rechazo_parcial ?? []).map((r) => ({
       fac: text(r.no_fac),
       val: text(r.valor),
     })),
-    negocio: e.n_c_por_negocios.map((r) => ({
+    negocio: (e.n_c_por_negocios ?? []).map((r) => ({
       fac: text(r.no_fac),
       val: text(r.valor),
     })),
-    credito_vendedor: e.detalle_credito_vendedor.map((r) => ({
+    credito_vendedor: (e.detalle_credito_vendedor ?? []).map((r) => ({
       cliente: text(r.cliente),
       no_fac: text(r.no_fac),
       valor: text(r.valor),
       nro_vendedor: text(r.nro_vendedor),
     })),
-    transferencias: e.detalle_transferencias.map((r, i) => ({
+    transferencias: (e.detalle_transferencias ?? []).map((r, i) => ({
       cliente: text(r.cliente),
       no_fac: text(r.no_fac),
       valor: text(r.valor),

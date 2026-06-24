@@ -1,4 +1,4 @@
-import type { Bbox, ExtractedField, Extraction } from "./types";
+import { ensureExtractionShape, type Bbox, type ExtractedField, type Extraction } from "./types";
 
 export interface BboxOverlay {
   bbox: Bbox;
@@ -23,7 +23,8 @@ function push(out: BboxOverlay[], label: string, f: ExtractedField | undefined) 
  * Recopila todos los bboxes de la extracción con su etiqueta legible para
  * pintarlos sobre la imagen en modo "calibración".
  */
-export function collectOverlays(e: Extraction): BboxOverlay[] {
+export function collectOverlays(extraction: Extraction | Partial<Extraction>): BboxOverlay[] {
+  const e = ensureExtractionShape(extraction);
   const out: BboxOverlay[] = [];
 
   push(out, "fecha", e.fecha);
@@ -44,32 +45,32 @@ export function collectOverlays(e: Extraction): BboxOverlay[] {
   push(out, "rend.transferencia", e.rendicion.transferencia);
   push(out, "rend.total", e.rendicion.total);
 
-  e.detalles_cheques.forEach((row, i) => {
+  (e.detalles_cheques ?? []).forEach((row, i) => {
     push(out, `chq[${i}].fecha`, row.fecha);
     push(out, `chq[${i}].banco`, row.banco);
     push(out, `chq[${i}].valor`, row.valor);
   });
   push(out, "total_cheques", e.total_cheques);
 
-  e.detalle_efectivo.billetes.forEach((row, i) => {
+  (e.detalle_efectivo?.billetes ?? []).forEach((row, i) => {
     push(out, `bill[${i}].denom`, row.denominacion);
     push(out, `bill[${i}].valor`, row.valor);
   });
   push(out, "total_efectivo", e.detalle_efectivo.total_efectivo);
 
-  e.n_c_rechazo_total.forEach((row, i) => {
+  (e.n_c_rechazo_total ?? []).forEach((row, i) => {
     push(out, `rechT[${i}].fac`, row.no_fac);
     push(out, `rechT[${i}].val`, row.valor);
   });
   push(out, "total_rech_total", e.total_n_c_rechazo_total);
 
-  e.n_c_rechazo_parcial.forEach((row, i) => {
+  (e.n_c_rechazo_parcial ?? []).forEach((row, i) => {
     push(out, `rechP[${i}].fac`, row.no_fac);
     push(out, `rechP[${i}].val`, row.valor);
   });
   push(out, "total_rech_parcial", e.total_n_c_rechazo_parcial);
 
-  e.n_c_por_negocios.forEach((row, i) => {
+  (e.n_c_por_negocios ?? []).forEach((row, i) => {
     push(out, `negoc[${i}].fac`, row.no_fac);
     push(out, `negoc[${i}].val`, row.valor);
   });

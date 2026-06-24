@@ -192,18 +192,91 @@ export const EMPTY_FIELD: ExtractedField = { valor: "", bbox: [0, 0, 0, 0] };
  * Garantiza que una extracción persistida (posiblemente de un schema anterior)
  * tenga todos los campos del schema actual con valores por defecto.
  */
-export function ensureExtractionShape(extraction: Extraction): Extraction {
+export function ensureExtractionShape(
+  extraction: Extraction | Partial<Extraction>
+): Extraction {
   const base = createEmptyExtraction();
-  // Casteamos a Partial para soportar extracciones persistidas con un schema
-  // anterior (campos faltantes en runtime aunque el tipo TS diga lo contrario).
   const e = extraction as Partial<Extraction>;
   const detalleEfectivo = e.detalle_efectivo as
     | Partial<Extraction["detalle_efectivo"]>
     | undefined;
+  const rendicionIn = (e.rendicion ?? {}) as Partial<Extraction["rendicion"]>;
+  const mergeField = (
+    incoming: ExtractedField | undefined,
+    fallback: ExtractedField
+  ): ExtractedField => incoming ?? fallback;
+
   return {
     ...base,
     ...e,
-    rendicion: { ...base.rendicion, ...(e.rendicion ?? {}) },
+    fecha: mergeField(e.fecha, base.fecha),
+    conductor: mergeField(e.conductor, base.conductor),
+    auxiliar: mergeField(e.auxiliar, base.auxiliar),
+    n_recorrido: mergeField(e.n_recorrido, base.n_recorrido),
+    patente: mergeField(e.patente, base.patente),
+    cant_fact: mergeField(e.cant_fact, base.cant_fact),
+    valor_total: mergeField(e.valor_total, base.valor_total),
+    total_cheques: mergeField(e.total_cheques, base.total_cheques),
+    total_n_c_rechazo_total: mergeField(
+      e.total_n_c_rechazo_total,
+      base.total_n_c_rechazo_total
+    ),
+    total_n_c_rechazo_parcial: mergeField(
+      e.total_n_c_rechazo_parcial,
+      base.total_n_c_rechazo_parcial
+    ),
+    total_n_c_por_negocios: mergeField(
+      e.total_n_c_por_negocios,
+      base.total_n_c_por_negocios
+    ),
+    total_transferencias: mergeField(
+      e.total_transferencias,
+      base.total_transferencias
+    ),
+    numero_deposito_en_efectivo: mergeField(
+      e.numero_deposito_en_efectivo,
+      base.numero_deposito_en_efectivo
+    ),
+    monto_deposito_en_efectivo: mergeField(
+      e.monto_deposito_en_efectivo,
+      base.monto_deposito_en_efectivo
+    ),
+    observaciones: mergeField(e.observaciones, base.observaciones),
+    rendicion: {
+      efectivo_total: mergeField(
+        rendicionIn.efectivo_total,
+        base.rendicion.efectivo_total
+      ),
+      cheques_al_dia: mergeField(
+        rendicionIn.cheques_al_dia,
+        base.rendicion.cheques_al_dia
+      ),
+      cheques_a_fecha: mergeField(
+        rendicionIn.cheques_a_fecha,
+        base.rendicion.cheques_a_fecha
+      ),
+      credito_vendedor: mergeField(
+        rendicionIn.credito_vendedor,
+        base.rendicion.credito_vendedor
+      ),
+      retorno_total: mergeField(
+        rendicionIn.retorno_total,
+        base.rendicion.retorno_total
+      ),
+      retorno_parcial: mergeField(
+        rendicionIn.retorno_parcial,
+        base.rendicion.retorno_parcial
+      ),
+      n_c_negocio: mergeField(
+        rendicionIn.n_c_negocio,
+        base.rendicion.n_c_negocio
+      ),
+      transferencia: mergeField(
+        rendicionIn.transferencia,
+        base.rendicion.transferencia
+      ),
+      total: mergeField(rendicionIn.total, base.rendicion.total),
+    },
     detalle_efectivo: {
       ...base.detalle_efectivo,
       ...(detalleEfectivo ?? {}),
@@ -231,7 +304,6 @@ export function ensureExtractionShape(extraction: Extraction): Extraction {
       cliente: row.cliente ?? { ...EMPTY_FIELD },
       nro_vendedor: row.nro_vendedor ?? { ...EMPTY_FIELD },
     })),
-    total_transferencias: e.total_transferencias ?? base.total_transferencias,
     _meta: e._meta ?? base._meta,
   };
 }
