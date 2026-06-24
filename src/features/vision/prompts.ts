@@ -78,6 +78,7 @@ Reglas para hojas adicionales (cuando hay más de una imagen):
   - Más cheques (continuación de "detalles_cheques").
   - Más notas de crédito (continuación de "n_c_rechazo_total", "n_c_rechazo_parcial" o "n_c_por_negocios"). Decide a qué array pertenece según el título o la columna en que están escritas.
   - Más transferencias (continuación de "detalle_transferencias").
+  - Más filas de crédito vendedor (continuación de "detalle_credito_vendedor").
   - Más billetes / denominaciones (continuación de "detalle_efectivo.billetes").
   - Texto libre adicional para "observaciones".
 - Para las hojas adicionales: NO repitas filas que ya leíste en hojas anteriores; agrega ÚNICAMENTE las nuevas (filas sin coincidencia exacta de no_fac/valor/banco/fecha respecto a las que ya entregaste).
@@ -104,7 +105,7 @@ Cada campo de la respuesta es un objeto con dos claves:
 
 Reglas adicionales:
 - Respuesta: únicamente JSON válido, sin texto adicional ni cercas de código.
-- En arrays (detalles_cheques, n_c_*, detalle_transferencias, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
+- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
 - Cada elemento de un array conserva la estructura mostrada en el template (mismas claves, mismo wrap "valor"/"bbox").
 - Mantén EXACTAMENTE la estructura del JSON indicado.
 `.trim();
@@ -121,7 +122,7 @@ Cada campo de la respuesta es un objeto con dos claves:
 
 Reglas adicionales:
 - Respuesta: únicamente JSON válido, sin texto adicional ni cercas de código.
-- En arrays (detalles_cheques, n_c_*, detalle_transferencias, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
+- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
 - Cada elemento de un array conserva la estructura mostrada en el template (mismas claves, mismo wrap "valor"/"bbox").
 - Mantén EXACTAMENTE la estructura del JSON indicado.
 `.trim();
@@ -131,7 +132,7 @@ Cada campo de la respuesta es un objeto con exactamente la clave "valor": string
 
 Reglas adicionales:
 - Respuesta: únicamente JSON válido, sin texto adicional ni cercas de código.
-- En arrays (detalles_cheques, n_c_*, detalle_transferencias, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
+- En arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes) incluye UNA entrada por cada fila CON al menos un dato escrito en la imagen. Si la sección está totalmente vacía, devuelve [].
 - Cada elemento de un array conserva la estructura mostrada en el template (mismas claves, mismo wrap "valor").
 - Mantén EXACTAMENTE la estructura del JSON indicado.
 `.trim();
@@ -170,6 +171,9 @@ const TEMPLATE_WITH_BBOX = `{
   ],
   "detalle_transferencias": [
     {"no_fac":{"valor":"","bbox":[0,0,0,0]},"cliente":{"valor":"","bbox":[0,0,0,0]},"valor":{"valor":"","bbox":[0,0,0,0]}}
+  ],
+  "detalle_credito_vendedor": [
+    {"no_fac":{"valor":"","bbox":[0,0,0,0]},"cliente":{"valor":"","bbox":[0,0,0,0]},"nro_vendedor":{"valor":"","bbox":[0,0,0,0]},"valor":{"valor":"","bbox":[0,0,0,0]}}
   ],
   "detalle_efectivo": {
     "billetes": [
@@ -220,6 +224,9 @@ const TEMPLATE_NO_BBOX = `{
   ],
   "detalle_transferencias": [
     {"no_fac":{"valor":""},"cliente":{"valor":""},"valor":{"valor":""}}
+  ],
+  "detalle_credito_vendedor": [
+    {"no_fac":{"valor":""},"cliente":{"valor":""},"nro_vendedor":{"valor":""},"valor":{"valor":""}}
   ],
   "detalle_efectivo": {
     "billetes": [
@@ -302,7 +309,7 @@ export function buildMergeUserPrompt(
 
 - Rellena campos que estén vacíos en el JSON previo y aparezcan en esta imagen.
 - Si esta imagen muestra claramente un valor distinto y mejor para un campo ya rellenado, corrígelo. Si no, mantén el valor previo.
-- Para los arrays (detalles_cheques, n_c_*, detalle_transferencias, billetes): añade nuevas entradas que aparezcan en esta imagen y no estuvieran antes. Cada entrada del array debe ser única respecto al JSON previo.
+- Para los arrays (detalles_cheques, n_c_*, detalle_transferencias, detalle_credito_vendedor, billetes): añade nuevas entradas que aparezcan en esta imagen y no estuvieran antes. Cada entrada del array debe ser única respecto al JSON previo.
 ${opts.withBboxes ? "- Las bbox deben referirse a esta NUEVA imagen para los campos que actualizaste.\n" : ""}- Conserva el valor previo cuando el dato no aparezca en esta imagen (o vacío si no había).
 
 ${pickInstructions(opts)}

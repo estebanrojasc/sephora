@@ -21,11 +21,23 @@ export interface NcRow {
   val: string;
 }
 
+/** Fila del cuadro inferior (crédito vendedor / transferencias). */
+export interface DetalleTablaRow {
+  cliente: string;
+  no_fac: string;
+  valor: string;
+  nro_vendedor?: string;
+  /** Solo se rellena en la primera fila del bloque de transferencias. */
+  recorrido?: string;
+}
+
 export interface RendicionLists {
   cheques: ChequeRow[];
   rech_total: NcRow[];
   rech_parcial: NcRow[];
   negocio: NcRow[];
+  credito_vendedor: DetalleTablaRow[];
+  transferencias: DetalleTablaRow[];
 }
 
 export interface RendicionPayload {
@@ -48,7 +60,14 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
 
   const empty: RendicionPayload = {
     scalars: {},
-    lists: { cheques: [], rech_total: [], rech_parcial: [], negocio: [] },
+    lists: {
+      cheques: [],
+      rech_total: [],
+      rech_parcial: [],
+      negocio: [],
+      credito_vendedor: [],
+      transferencias: [],
+    },
   };
 
   if (!e) return empty;
@@ -127,6 +146,18 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     negocio: e.n_c_por_negocios.map((r) => ({
       fac: text(r.no_fac),
       val: text(r.valor),
+    })),
+    credito_vendedor: e.detalle_credito_vendedor.map((r) => ({
+      cliente: text(r.cliente),
+      no_fac: text(r.no_fac),
+      valor: text(r.valor),
+      nro_vendedor: text(r.nro_vendedor),
+    })),
+    transferencias: e.detalle_transferencias.map((r, i) => ({
+      cliente: text(r.cliente),
+      no_fac: text(r.no_fac),
+      valor: text(r.valor),
+      ...(i === 0 ? { recorrido: text(e.n_recorrido) } : {}),
     })),
   };
 

@@ -78,6 +78,13 @@ export function diffExtractions(
     ["no_fac", "cliente", "valor"] as const,
     modified
   );
+  diffRowArray(
+    "detalle_credito_vendedor",
+    before.detalle_credito_vendedor,
+    after.detalle_credito_vendedor,
+    ["no_fac", "cliente", "nro_vendedor", "valor"] as const,
+    modified
+  );
   diffRowArray<BilleteRow, "denominacion" | "valor">(
     "detalle_efectivo.billetes",
     before.detalle_efectivo.billetes,
@@ -194,6 +201,12 @@ function walkExtraction(
     visit(`detalle_transferencias[${i}].no_fac`, row.no_fac.valor);
     visit(`detalle_transferencias[${i}].cliente`, row.cliente.valor);
     visit(`detalle_transferencias[${i}].valor`, row.valor.valor);
+  });
+  (ex.detalle_credito_vendedor ?? []).forEach((row, i) => {
+    visit(`detalle_credito_vendedor[${i}].no_fac`, row.no_fac.valor);
+    visit(`detalle_credito_vendedor[${i}].cliente`, row.cliente.valor);
+    visit(`detalle_credito_vendedor[${i}].nro_vendedor`, row.nro_vendedor.valor);
+    visit(`detalle_credito_vendedor[${i}].valor`, row.valor.valor);
   });
   ex.detalle_efectivo.billetes.forEach((row, i) => {
     visit(`detalle_efectivo.billetes[${i}].denominacion`, row.denominacion.valor);

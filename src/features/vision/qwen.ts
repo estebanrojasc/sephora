@@ -57,7 +57,7 @@ export async function extractWithQwen(
 
   const multiPageNote =
     opts.imageDataUrls.length > 1
-      ? `\n\nNota: Se adjuntan ${opts.imageDataUrls.length} imágenes que corresponden a páginas del MISMO documento. Combina la información de todas ellas en UN solo JSON. Los arrays (detalles_cheques, n_c_rechazo_*, n_c_por_negocios, detalle_transferencias, detalle_efectivo.billetes) deben incluir filas de cualquier página, sin duplicar entradas.`
+      ? `\n\nNota: Se adjuntan ${opts.imageDataUrls.length} imágenes que corresponden a páginas del MISMO documento. Combina la información de todas ellas en UN solo JSON. Los arrays (detalles_cheques, n_c_rechazo_*, n_c_por_negocios, detalle_transferencias, detalle_credito_vendedor, detalle_efectivo.billetes) deben incluir filas de cualquier página, sin duplicar entradas.`
       : "";
 
   const body: {

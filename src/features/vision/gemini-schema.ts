@@ -60,6 +60,19 @@ function chequeRowSchema(withBboxes: boolean): SchemaObject {
   };
 }
 
+function creditoVendedorRowSchema(withBboxes: boolean): SchemaObject {
+  return {
+    type: "OBJECT",
+    properties: {
+      no_fac: fieldSchema(withBboxes),
+      cliente: fieldSchema(withBboxes),
+      nro_vendedor: fieldSchema(withBboxes),
+      valor: fieldSchema(withBboxes),
+    },
+    required: ["no_fac", "cliente", "nro_vendedor", "valor"],
+  };
+}
+
 function transferenciaRowSchema(withBboxes: boolean): SchemaObject {
   return {
     type: "OBJECT",
@@ -145,6 +158,10 @@ export function buildGeminiExtractionSchema(
         type: "ARRAY",
         items: transferenciaRowSchema(withBboxes),
       },
+      detalle_credito_vendedor: {
+        type: "ARRAY",
+        items: creditoVendedorRowSchema(withBboxes),
+      },
       detalle_efectivo: {
         type: "OBJECT",
         properties: {
@@ -176,6 +193,7 @@ export function buildGeminiExtractionSchema(
       "n_c_rechazo_parcial",
       "n_c_por_negocios",
       "detalle_transferencias",
+      "detalle_credito_vendedor",
       "detalle_efectivo",
       "total_n_c_rechazo_total",
       "total_n_c_rechazo_parcial",

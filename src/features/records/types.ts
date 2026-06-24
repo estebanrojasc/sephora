@@ -61,6 +61,14 @@ export interface TransferenciaRow {
   cliente: ExtractedField;
 }
 
+/** Fila de crédito vendedor: factura, cliente, monto y número de vendedor. */
+export interface CreditoVendedorRow {
+  no_fac: ExtractedField;
+  cliente: ExtractedField;
+  valor: ExtractedField;
+  nro_vendedor: ExtractedField;
+}
+
 export interface BilleteRow {
   denominacion: ExtractedField;
   valor: ExtractedField;
@@ -103,6 +111,8 @@ export interface Extraction {
    * y monto.
    */
   detalle_transferencias: TransferenciaRow[];
+  /** Detalle del cuadro de crédito vendedor (factura, cliente, monto, n° vendedor). */
+  detalle_credito_vendedor: CreditoVendedorRow[];
   detalle_efectivo: ExtractedDetalleEfectivo;
   total_n_c_rechazo_total: ExtractedField;
   total_n_c_rechazo_parcial: ExtractedField;
@@ -213,6 +223,14 @@ export function ensureExtractionShape(extraction: Extraction): Extraction {
         cliente: row.cliente ?? { ...EMPTY_FIELD },
       })
     ),
+    detalle_credito_vendedor: (
+      e.detalle_credito_vendedor ?? base.detalle_credito_vendedor
+    ).map((row) => ({
+      no_fac: row.no_fac ?? { ...EMPTY_FIELD },
+      valor: row.valor ?? { ...EMPTY_FIELD },
+      cliente: row.cliente ?? { ...EMPTY_FIELD },
+      nro_vendedor: row.nro_vendedor ?? { ...EMPTY_FIELD },
+    })),
     total_transferencias: e.total_transferencias ?? base.total_transferencias,
     _meta: e._meta ?? base._meta,
   };
@@ -244,6 +262,7 @@ export function createEmptyExtraction(): Extraction {
     n_c_rechazo_parcial: [],
     n_c_por_negocios: [],
     detalle_transferencias: [],
+    detalle_credito_vendedor: [],
     detalle_efectivo: {
       billetes: [],
       total_efectivo: { ...EMPTY_FIELD },

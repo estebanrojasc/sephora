@@ -64,6 +64,15 @@ export function mockExtractionFromImage(): Extraction {
         valor: f(`$${faker.number.int({ min: 5000, max: 150000 })}`),
       })
     ),
+    detalle_credito_vendedor: Array.from(
+      { length: faker.number.int({ min: 0, max: 2 }) },
+      () => ({
+        no_fac: f(String(faker.number.int({ min: 100000, max: 999999 }))),
+        cliente: f(faker.person.fullName()),
+        nro_vendedor: f(String(faker.number.int({ min: 1, max: 99 }))),
+        valor: f(`$${faker.number.int({ min: 5000, max: 150000 })}`),
+      })
+    ),
     detalle_efectivo: {
       billetes: Array.from(
         { length: faker.number.int({ min: 0, max: 4 }) },

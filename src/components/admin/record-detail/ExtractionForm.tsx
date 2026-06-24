@@ -26,6 +26,7 @@ import {
   type Extraction,
   type NCRow,
   type TransferenciaRow,
+  type CreditoVendedorRow,
 } from "@/features/records/types";
 
 const EMPTY: ExtractedField = { valor: "", bbox: [0, 0, 0, 0] };
@@ -43,6 +44,12 @@ const newTransferencia = (): TransferenciaRow => ({
   no_fac: { ...EMPTY },
   valor: { ...EMPTY },
   cliente: { ...EMPTY },
+});
+const newCreditoVendedor = (): CreditoVendedorRow => ({
+  no_fac: { ...EMPTY },
+  valor: { ...EMPTY },
+  cliente: { ...EMPTY },
+  nro_vendedor: { ...EMPTY },
 });
 const newBillete = (): BilleteRow => ({
   denominacion: { ...EMPTY },
@@ -256,6 +263,38 @@ export function ExtractionForm({
                   state.rendicion.transferencia.valor,
                 ]}
                 extractedValue={state.rendicion.total.valor}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="credito_vendedor">
+          <AccordionTrigger className="text-sm font-semibold">
+            Detalle crédito vendedor
+          </AccordionTrigger>
+          <AccordionContent>
+            <RowsEditor
+              rows={state.detalle_credito_vendedor}
+              columns={[
+                {
+                  key: "no_fac",
+                  label: "N° factura",
+                  catalogKey: "detalle_credito_vendedor.no_fac",
+                },
+                { key: "cliente", label: "Cliente" },
+                { key: "nro_vendedor", label: "N° vendedor" },
+                { key: "valor", label: "Monto" },
+              ]}
+              createEmpty={newCreditoVendedor}
+              onChange={(rows) =>
+                setState((s) => ({ ...s, detalle_credito_vendedor: rows }))
+              }
+              onHoverBbox={onHoverBbox}
+            />
+            <div className="mt-3">
+              <ComputedTotal
+                values={state.detalle_credito_vendedor.map((r) => r.valor.valor)}
+                extractedValue={state.rendicion.credito_vendedor.valor}
               />
             </div>
           </AccordionContent>

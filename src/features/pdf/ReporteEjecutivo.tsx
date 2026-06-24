@@ -23,6 +23,27 @@ type ReporteEjecutivoProps = {
   record: Record;
 };
 
+type RowExtraColumn = {
+  key: keyof Pick<RowItem, "banco" | "cliente" | "vendedor">;
+  label: string;
+};
+
+function getDetailExtraColumns(catId: DetailCategoryId): RowExtraColumn[] {
+  switch (catId) {
+    case "cheques":
+      return [{ key: "banco", label: "Banco" }];
+    case "transferencias":
+      return [{ key: "cliente", label: "Cliente" }];
+    case "creditoVendedor":
+      return [
+        { key: "cliente", label: "Cliente" },
+        { key: "vendedor", label: "N° vendedor" },
+      ];
+    default:
+      return [];
+  }
+}
+
 const FILAS_RESUMEN: { key: keyof IncomeTotals; label: string }[] = [
   { key: "efectivo", label: "Efectivo" },
   { key: "chequesAlDia", label: "Cheques al día" },
@@ -359,10 +380,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
             <div className="grid grid-cols-2 gap-3 print:gap-2">
               {detalles.map(({ catId, data }) => {
                 const nombre = NOMBRES_CATEGORIA[catId];
-                const tieneColumnaExtra =
-                  catId === "cheques" || catId === "transferencias";
-                const etiquetaColumnaExtra =
-                  catId === "cheques" ? "Banco" : "Cliente";
+                const columnasExtra = getDetailExtraColumns(catId);
                 return (
                   <div
                     key={catId}
@@ -425,11 +443,11 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                         <thead>
                           <tr className="border-b border-slate-300 font-semibold text-slate-700 print:border-slate-400 print:text-slate-800">
                             <th className="py-0.5 text-left">Descripción</th>
-                            {tieneColumnaExtra && (
-                              <th className="py-0.5 text-left">
-                                {etiquetaColumnaExtra}
+                            {columnasExtra.map((col) => (
+                              <th key={col.key} className="py-0.5 text-left">
+                                {col.label}
                               </th>
-                            )}
+                            ))}
                             <th className="py-0.5 text-right">Monto</th>
                           </tr>
                         </thead>
@@ -440,14 +458,14 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                                 <td className="py-0.5 text-slate-900 break-words min-w-0 print:text-slate-700">
                                   {item.descripcion}
                                 </td>
-                                {tieneColumnaExtra && (
-                                  <td className="py-0.5 text-slate-900 break-words min-w-0 print:text-slate-700">
-                                    {(catId === "cheques"
-                                      ? item.banco
-                                      : item.cliente
-                                    )?.trim() || "—"}
+                                {columnasExtra.map((col) => (
+                                  <td
+                                    key={col.key}
+                                    className="py-0.5 text-slate-900 break-words min-w-0 print:text-slate-700"
+                                  >
+                                    {item[col.key]?.trim() || "—"}
                                   </td>
-                                )}
+                                ))}
                                 <td className="py-0.5 text-right font-medium whitespace-nowrap text-slate-900 print:text-slate-800">
                                   {formatearMoneda(item.monto)}
                                 </td>
@@ -456,7 +474,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                           ))}
                           <tr className="font-semibold text-slate-900 print:text-slate-800">
                             <td
-                              colSpan={tieneColumnaExtra ? 2 : 1}
+                              colSpan={1 + columnasExtra.length}
                               className="py-0.5 pt-1"
                             >
                               Subtotal

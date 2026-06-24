@@ -5,6 +5,7 @@ import type {
   ChequeRow,
   NCRow,
   TransferenciaRow,
+  CreditoVendedorRow,
 } from "./types";
 
 function isFieldFilled(f: ExtractedField | undefined): boolean {
@@ -78,6 +79,31 @@ function mergeTransferenciaRows(
   return [...byKey.values()];
 }
 
+function mergeCreditoVendedorRows(
+  prev: CreditoVendedorRow[] | undefined,
+  next: CreditoVendedorRow[] | undefined
+): CreditoVendedorRow[] {
+  const a = prev ?? [];
+  const b = next ?? [];
+  const byKey = new Map<string, CreditoVendedorRow>();
+  for (const row of [...a, ...b]) {
+    const key = `${row.no_fac.valor}|${row.valor.valor}|${row.nro_vendedor.valor}`;
+    if (key === "||") continue;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, row);
+      continue;
+    }
+    byKey.set(key, {
+      no_fac: mergeField(existing.no_fac, row.no_fac),
+      valor: mergeField(existing.valor, row.valor),
+      cliente: mergeField(existing.cliente, row.cliente),
+      nro_vendedor: mergeField(existing.nro_vendedor, row.nro_vendedor),
+    });
+  }
+  return [...byKey.values()];
+}
+
 function mergeBilletes(
   prev: BilleteRow[] | undefined,
   next: BilleteRow[] | undefined
@@ -128,6 +154,10 @@ export function mergeExtractions(a: Extraction, b: Extraction): Extraction {
     detalle_transferencias: mergeTransferenciaRows(
       a.detalle_transferencias ?? [],
       b.detalle_transferencias ?? []
+    ),
+    detalle_credito_vendedor: mergeCreditoVendedorRows(
+      a.detalle_credito_vendedor ?? [],
+      b.detalle_credito_vendedor ?? []
     ),
     detalle_efectivo: {
       billetes: mergeBilletes(

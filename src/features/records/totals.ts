@@ -105,6 +105,12 @@ export function computeSectionTotals(e: Extraction): SectionState[] {
       declared: e.total_transferencias.valor,
     }),
     buildSection({
+      id: "credito_vendedor",
+      label: "Crédito vendedor",
+      values: e.detalle_credito_vendedor.map((r) => r.valor.valor),
+      declared: e.rendicion.credito_vendedor.valor,
+    }),
+    buildSection({
       id: "efectivo",
       label: "Efectivo",
       values: e.detalle_efectivo.billetes.map((b) => b.valor.valor),

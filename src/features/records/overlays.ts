@@ -82,6 +82,13 @@ export function collectOverlays(e: Extraction): BboxOverlay[] {
   });
   push(out, "total_transferencias", e.total_transferencias);
 
+  (e.detalle_credito_vendedor ?? []).forEach((row, i) => {
+    push(out, `cred_vend[${i}].fac`, row.no_fac);
+    push(out, `cred_vend[${i}].cliente`, row.cliente);
+    push(out, `cred_vend[${i}].vend`, row.nro_vendedor);
+    push(out, `cred_vend[${i}].val`, row.valor);
+  });
+
   push(out, "num_dep_efect", e.numero_deposito_en_efectivo);
   push(out, "monto_dep_efect", e.monto_deposito_en_efectivo);
   push(out, "observaciones", e.observaciones);

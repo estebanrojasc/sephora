@@ -157,8 +157,10 @@ export interface RowItem {
   descripcion: string;
   /** Banco (cheques). */
   banco?: string;
-  /** Cliente (transferencias). */
+  /** Cliente (transferencias / crédito vendedor). */
   cliente?: string;
+  /** N° vendedor (crédito vendedor). */
+  vendedor?: string;
   /** Monto en pesos. */
   monto: number;
 }
@@ -232,9 +234,16 @@ export function getDetailItems(
       return { items, total };
     }
     case "creditoVendedor": {
-      // No se desglosa: solo subtotal del campo de rendición.
-      const total = parseAmount(current.rendicion.credito_vendedor.valor);
-      return { items: [], total };
+      const items: RowItem[] = current.detalle_credito_vendedor.map((r) => ({
+        descripcion: r.no_fac.valor ? `Fact. ${r.no_fac.valor}` : "—",
+        cliente: r.cliente.valor,
+        vendedor: r.nro_vendedor.valor,
+        monto: parseAmount(r.valor.valor),
+      }));
+      const total =
+        parseAmount(current.rendicion.credito_vendedor.valor) ||
+        items.reduce((acc, r) => acc + r.monto, 0);
+      return { items, total };
     }
     case "efectivo": {
       const items: CashItem[] = current.detalle_efectivo.billetes.map(

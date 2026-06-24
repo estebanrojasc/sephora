@@ -81,5 +81,13 @@ export function applyCatalogsToExtraction(
     }));
   }
 
+  const credVendCat = byKey.get("detalle_credito_vendedor.no_fac");
+  if (credVendCat) {
+    next.detalle_credito_vendedor = next.detalle_credito_vendedor.map((row) => ({
+      ...row,
+      no_fac: applyField(row.no_fac, credVendCat),
+    }));
+  }
+
   return next;
 }

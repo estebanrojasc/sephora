@@ -87,6 +87,11 @@ export const CATALOG_FIELD_KEYS: CatalogFieldOption[] = [
     value: "detalle_transferencias.no_fac",
     label: "Transferencias · Nº factura",
   },
+  {
+    group: "Crédito vendedor",
+    value: "detalle_credito_vendedor.no_fac",
+    label: "Crédito vendedor · Nº factura",
+  },
 
   // Detalle de efectivo (denominaciones)
   {

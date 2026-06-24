@@ -7,6 +7,7 @@ import {
   type Extraction,
   type NCRow,
   type TransferenciaRow,
+  type CreditoVendedorRow,
 } from "@/features/records/types";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
 
@@ -80,6 +81,16 @@ function fillTransferenciaRow(input: unknown): TransferenciaRow {
   };
 }
 
+function fillCreditoVendedorRow(input: unknown): CreditoVendedorRow {
+  const obj = asObject(input) ?? {};
+  return {
+    no_fac: fillField(obj.no_fac),
+    valor: fillField(obj.valor),
+    cliente: fillField(obj.cliente),
+    nro_vendedor: fillField(obj.nro_vendedor),
+  };
+}
+
 function fillBilleteRow(input: unknown): BilleteRow {
   const obj = asObject(input) ?? {};
   return {
@@ -113,6 +124,15 @@ function ncFilled(row: NCRow): boolean {
 
 function transferenciaFilled(row: TransferenciaRow): boolean {
   return ncFilled(row);
+}
+
+function creditoVendedorFilled(row: CreditoVendedorRow): boolean {
+  return (
+    !!row.no_fac.valor.trim() ||
+    !!row.valor.valor.trim() ||
+    !!row.cliente.valor.trim() ||
+    !!row.nro_vendedor.valor.trim()
+  );
 }
 
 function billeteFilled(row: BilleteRow): boolean {
@@ -389,6 +409,11 @@ export function normalizeExtractionShape(raw: unknown): Extraction {
     ),
     n_c_por_negocios: fillArray(obj.n_c_por_negocios, fillNcRow, ncFilled),
     detalle_transferencias: detalleTransferencias,
+    detalle_credito_vendedor: fillArray(
+      obj.detalle_credito_vendedor,
+      fillCreditoVendedorRow,
+      creditoVendedorFilled
+    ),
     detalle_efectivo: {
       billetes: fillArray(efectIn.billetes, fillBilleteRow, billeteFilled),
       total_efectivo: fillField(efectIn.total_efectivo),
@@ -454,6 +479,15 @@ function swapTransferenciaRow(row: TransferenciaRow): TransferenciaRow {
   };
 }
 
+function swapCreditoVendedorRow(row: CreditoVendedorRow): CreditoVendedorRow {
+  return {
+    no_fac: swapField(row.no_fac),
+    valor: swapField(row.valor),
+    cliente: swapField(row.cliente),
+    nro_vendedor: swapField(row.nro_vendedor),
+  };
+}
+
 function swapBilleteRow(row: BilleteRow): BilleteRow {
   return {
     denominacion: swapField(row.denominacion),
@@ -492,6 +526,9 @@ export function swapBboxAxes(extraction: Extraction): Extraction {
     n_c_rechazo_parcial: extraction.n_c_rechazo_parcial.map(swapNcRow),
     n_c_por_negocios: extraction.n_c_por_negocios.map(swapNcRow),
     detalle_transferencias: extraction.detalle_transferencias.map(swapTransferenciaRow),
+    detalle_credito_vendedor: extraction.detalle_credito_vendedor.map(
+      swapCreditoVendedorRow
+    ),
     detalle_efectivo: {
       billetes: extraction.detalle_efectivo.billetes.map(swapBilleteRow),
       total_efectivo: swapField(extraction.detalle_efectivo.total_efectivo),

@@ -1,6 +1,7 @@
 import { unzipSync, zipSync } from "fflate";
 import { parseNumber } from "@/lib/parse-number";
 import type {
+  DetalleTablaRow,
   RendicionLists,
   RendicionPayload,
   ScalarValue,
@@ -9,26 +10,22 @@ import type {
 const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
 
-/** Fila base que contiene los placeholders de listas en la plantilla. */
 const LIST_ROW = 37;
+const CREDITO_ROW = 71;
+/** Primera fila de datos del bloque TRANSFERENCIA (debajo de crédito). */
+const TRANSF_ROW = 73;
 
 interface ListCellLayout {
   col: string;
   list: keyof RendicionLists;
-  field: "fecha" | "banco" | "valor" | "fac" | "val";
+  field: string;
   type: "text" | "number";
-  /** Estilo a usar en las filas adicionales clonadas (i >= 1). */
   extraStyle: number;
   placeholder: string;
+  /** Solo rellena en la fila i = 0 del bloque (p. ej. n° recorrido). */
+  firstRowOnly?: boolean;
 }
 
-/**
- * Mapeo de cada placeholder de lista a su columna física en la plantilla.
- *
- * Los estilos `extraStyle` corresponden a los que la plantilla ya usa en las
- * filas 39+ (vacías formateadas), así las filas nuevas mantienen el mismo
- * borde y formato moneda que esperaríamos ver en el resto de la tabla.
- */
 const LIST_LAYOUT: ListCellLayout[] = [
   { col: "M", list: "cheques", field: "fecha", type: "text", extraStyle: 37, placeholder: "{{chq_fechas}}" },
   { col: "N", list: "cheques", field: "banco", type: "text", extraStyle: 38, placeholder: "{{chq_bancos}}" },
@@ -39,6 +36,34 @@ const LIST_LAYOUT: ListCellLayout[] = [
   { col: "S", list: "rech_parcial", field: "val", type: "number", extraStyle: 77, placeholder: "{{rech_par_val}}" },
   { col: "T", list: "negocio", field: "fac", type: "number", extraStyle: 42, placeholder: "{{neg_fac}}" },
   { col: "U", list: "negocio", field: "val", type: "number", extraStyle: 72, placeholder: "{{neg_val}}" },
+];
+
+/** Fila 71: primera fila del bloque CREDITO. Solo esa fila lleva placeholders. */
+const CREDITO_LAYOUT: ListCellLayout[] = [
+  { col: "M", list: "credito_vendedor", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{cred_cliente}}" },
+  { col: "P", list: "credito_vendedor", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{cred_fac}}" },
+  { col: "T", list: "credito_vendedor", field: "valor", type: "number", extraStyle: 69, placeholder: "{{cred_valor}}" },
+  { col: "V", list: "credito_vendedor", field: "nro_vendedor", type: "text", extraStyle: 55, placeholder: "{{cred_vend}}" },
+];
+
+/** Fila 73: primera fila del bloque TRANSFERENCIA. Solo esa fila lleva placeholders. */
+const TRANSF_LAYOUT: ListCellLayout[] = [
+  { col: "L", list: "transferencias", field: "recorrido", type: "text", extraStyle: 49, placeholder: "{{transf_recorrido}}", firstRowOnly: true },
+  { col: "M", list: "transferencias", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{transf_cliente}}" },
+  { col: "P", list: "transferencias", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{transf_fac}}" },
+  { col: "T", list: "transferencias", field: "valor", type: "number", extraStyle: 69, placeholder: "{{transf_valor}}" },
+];
+
+interface ListBlock {
+  anchorRow: number;
+  layout: ListCellLayout[];
+  count: (lists: RendicionLists) => number;
+}
+
+const LIST_BLOCKS: ListBlock[] = [
+  { anchorRow: LIST_ROW, layout: LIST_LAYOUT, count: (l) => Math.max(l.cheques.length, l.rech_total.length, l.rech_parcial.length, l.negocio.length, 1) },
+  { anchorRow: CREDITO_ROW, layout: CREDITO_LAYOUT, count: (l) => Math.max(l.credito_vendedor.length, 1) },
+  { anchorRow: TRANSF_ROW, layout: TRANSF_LAYOUT, count: (l) => Math.max(l.transferencias.length, 1) },
 ];
 
 function escapeXmlText(value: string): string {
@@ -52,10 +77,6 @@ function isEmpty(value: string | undefined | null): boolean {
   return !value || !value.trim();
 }
 
-/**
- * Recorre `xl/sharedStrings.xml` y devuelve el índice de cada placeholder.
- * Asume que cada placeholder es un `<si>` con un único `<t>`.
- */
 function parsePlaceholderIndices(sharedStringsXml: string): Map<string, number> {
   const map = new Map<string, number>();
   const re = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
@@ -72,10 +93,6 @@ function parsePlaceholderIndices(sharedStringsXml: string): Map<string, number> 
 }
 
 function forceFullRecalc(workbookXml: string): string {
-  // Sólo `fullCalcOnLoad`: Excel recalcula una vez al abrir y luego sigue en
-  // modo automático normal. `forceFullCalc` obliga a recálculo completo en
-  // cada cambio y, con plantillas grandes o fórmulas en `#VALUE!`, deja a
-  // Excel "rendering" indefinidamente.
   const calcPr = /<calcPr\b[^/>]*\/>|<calcPr\b[^>]*>[\s\S]*?<\/calcPr>/;
   const replacement = '<calcPr calcMode="auto" fullCalcOnLoad="1"/>';
   if (calcPr.test(workbookXml)) {
@@ -84,11 +101,6 @@ function forceFullRecalc(workbookXml: string): string {
   return workbookXml.replace("</workbook>", `${replacement}</workbook>`);
 }
 
-/**
- * Limpia los `<v>` cacheados de celdas con fórmula que aún contengan un
- * placeholder `{{...}}`. Sin esto, Excel mostraría el texto literal del
- * placeholder hasta que el usuario fuerce el recálculo manualmente.
- */
 function clearStalePlaceholderCaches(xml: string): string {
   return xml.replace(
     /(<f\b[^>]*>[\s\S]*?<\/f>)\s*<v>[^<]*\{\{[^<]*\}\}[^<]*<\/v>/g,
@@ -96,12 +108,6 @@ function clearStalePlaceholderCaches(xml: string): string {
   );
 }
 
-/**
- * La plantilla deja un par de filas en posiciones cercanas al límite de
- * Excel (1048525/1048529) que inflan `dimension` a ~1M filas y enlentecen
- * el render. Las quitamos y recalculamos `<dimension>` al rango realmente
- * usado.
- */
 function trimSparseTailRows(xml: string, maxRealisticRow = 1000): string {
   let lastRow = 0;
   xml = xml.replace(
@@ -122,11 +128,6 @@ function trimSparseTailRows(xml: string, maxRealisticRow = 1000): string {
   return xml;
 }
 
-/**
- * Desplaza todas las referencias a fila >= `fromRow` en `delta` filas hacia
- * abajo. Cubre atributos `r="A1"` y `r="N"`, fórmulas `<f>...</f>` y rangos
- * `ref="A1:B2"` (mergeCells, dimension, etc.).
- */
 function shiftRowsInWorksheet(
   xml: string,
   fromRow: number,
@@ -140,14 +141,12 @@ function shiftRowsInWorksheet(
       return row >= fromRow ? `${col}${row + delta}` : `${col}${row}`;
     });
 
-  // <row r="N"
   xml = xml.replace(/<row\b([^>]*?)\br="(\d+)"/g, (_, attrs, rowStr) => {
     const row = parseInt(rowStr, 10);
     const newRow = row >= fromRow ? row + delta : row;
     return `<row${attrs}r="${newRow}"`;
   });
 
-  // <c r="A1"
   xml = xml.replace(
     /<c\b([^>]*?)\br="([A-Z]+)(\d+)"/g,
     (_, attrs, col, rowStr) => {
@@ -157,14 +156,11 @@ function shiftRowsInWorksheet(
     }
   );
 
-  // Cualquier ref="X1:Y2" (mergeCell, dimension, autoFilter, etc.).
   xml = xml.replace(
     /(\bref=")([^"]+)(")/g,
     (_, p1, val, p3) => p1 + shiftCellRefs(val) + p3
   );
 
-  // Fórmulas: las referencias a celdas dentro de `<f>...</f>` se ajustan
-  // igual que las celdas que apuntan.
   xml = xml.replace(
     /(<f\b[^>]*>)([\s\S]*?)(<\/f>)/g,
     (_, open, body, close) => open + shiftCellRefs(body) + close
@@ -173,14 +169,6 @@ function shiftRowsInWorksheet(
   return xml;
 }
 
-/**
- * Reemplaza TODAS las celdas del XML que apunten al sharedString `idx`
- * (vía `t="s"` y `<v>idx</v>`) por una nueva celda con `value` en su tipo
- * correcto.
- *
- * Se mantienen los atributos originales (incluyendo el estilo `s="..."`),
- * solo se reemplaza el tipo y el contenido.
- */
 function replaceCellsByStringIndex(
   xml: string,
   idx: number,
@@ -195,7 +183,6 @@ function replaceCellsByStringIndex(
 }
 
 function buildCellFromAttrs(originalAttrs: string, scalar: ScalarValue): string {
-  // Sacamos el atributo t="s"; el resto (r="...", s="...") lo mantenemos.
   const cleaned = originalAttrs.replace(/\s+t="s"/g, "");
   if (isEmpty(scalar.value)) {
     return `<c${cleaned}/>`;
@@ -203,8 +190,6 @@ function buildCellFromAttrs(originalAttrs: string, scalar: ScalarValue): string 
   if (scalar.numeric) {
     const n = parseNumber(scalar.value);
     if (n === null) {
-      // Si el modelo escribió texto no numérico en un campo monetario,
-      // preferimos no romper: caemos a inline string.
       return `<c${cleaned} t="inlineStr"><is><t xml:space="preserve">${escapeXmlText(
         scalar.value
       )}</t></is></c>`;
@@ -235,39 +220,67 @@ function buildCellXml(
   return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${escapeXmlText(value!)}</t></is></c>`;
 }
 
-/**
- * Construye una `<row>` que solo contiene las columnas M-U con los datos
- * de la posición `i` de cada lista. Se usa para las filas que se insertan
- * debajo de la fila 37 (i >= 1) cuando una lista tiene más de 1 elemento.
- *
- * Si una lista en particular no tiene un elemento en la posición `i`, su
- * celda queda vacía pero con el estilo correcto para mantener bordes.
- */
 function listValueAt(
   lists: RendicionLists,
   layout: ListCellLayout,
   i: number
 ): string | undefined {
-  const item = lists[layout.list][i] as
-    | { [K in ListCellLayout["field"]]?: string }
-    | undefined;
-  return item?.[layout.field];
+  const rows = lists[layout.list] as DetalleTablaRow[] | { [key: string]: string }[];
+  const item = rows[i] as { [key: string]: string } | undefined;
+  if (!item) return undefined;
+  if (layout.firstRowOnly && i > 0) return undefined;
+  return item[layout.field];
 }
 
 function buildExtraListRowXml(
   rowNum: number,
+  layout: ListCellLayout[],
   lists: RendicionLists,
   i: number
 ): string {
-  const cells = LIST_LAYOUT.map((layout) =>
+  const cells = layout.map((cell) =>
     buildCellXml(
-      `${layout.col}${rowNum}`,
-      layout.extraStyle,
-      listValueAt(lists, layout, i),
-      layout.type
+      `${cell.col}${rowNum}`,
+      cell.extraStyle,
+      listValueAt(lists, cell, i),
+      cell.type
     )
   );
   return `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${cells.join("")}</row>`;
+}
+
+function expandListBlock(
+  xml: string,
+  anchorRow: number,
+  layout: ListCellLayout[],
+  lists: RendicionLists,
+  indices: Map<string, number>,
+  n: number
+): string {
+  for (const cell of layout) {
+    const idx = indices.get(cell.placeholder);
+    if (idx === undefined) continue;
+    const scalar: ScalarValue = {
+      value: listValueAt(lists, cell, 0) ?? "",
+      numeric: cell.type === "number",
+    };
+    xml = replaceCellsByStringIndex(xml, idx, scalar);
+  }
+
+  if (n <= 1) return xml;
+
+  const delta = n - 1;
+  xml = shiftRowsInWorksheet(xml, anchorRow + 1, delta);
+
+  const extra: string[] = [];
+  for (let i = 1; i < n; i++) {
+    extra.push(buildExtraListRowXml(anchorRow + i, layout, lists, i));
+  }
+
+  const anchorRe = new RegExp(
+    `(<row\\b[^>]*\\br="${anchorRow}"[^>]*>[\\s\\S]*?</row>)`
+  );
+  return xml.replace(anchorRe, `$1${extra.join("")}`);
 }
 
 function processWorksheet(
@@ -275,65 +288,30 @@ function processWorksheet(
   payload: RendicionPayload,
   indices: Map<string, number>
 ): string {
-  // 0) Quitamos filas residuales cerca del fin de la hoja para que Excel no
-  //    tenga que renderizar ~1M filas vacías.
   xml = trimSparseTailRows(xml);
 
-  // 1) Escalares: reemplazo cada celda que apunte a un placeholder por su
-  //    valor real (número o texto inline) preservando el estilo original.
   for (const [placeholder, scalar] of Object.entries(payload.scalars)) {
     const idx = indices.get(placeholder);
     if (idx === undefined) continue;
     xml = replaceCellsByStringIndex(xml, idx, scalar);
   }
 
-  // 2) Listas: en la fila 37 se llenan las celdas con el primer elemento
-  //    (i = 0) de cada lista. Si la lista está vacía, la celda queda vacía.
-  for (const layout of LIST_LAYOUT) {
-    const idx = indices.get(layout.placeholder);
-    if (idx === undefined) continue;
-    const value = listValueAt(payload.lists, layout, 0);
-    const scalar: ScalarValue = {
-      value: value ?? "",
-      numeric: layout.type === "number",
-    };
-    xml = replaceCellsByStringIndex(xml, idx, scalar);
-  }
-
-  // 3) Calculamos cuántas filas necesitamos como máximo (una por elemento
-  //    de la lista más larga). Si N <= 1 no insertamos nada.
-  const N = Math.max(
-    payload.lists.cheques.length,
-    payload.lists.rech_total.length,
-    payload.lists.rech_parcial.length,
-    payload.lists.negocio.length,
-    1
-  );
-
-  if (N > 1) {
-    const delta = N - 1;
-    // Primero desplazamos todo lo que está debajo de la fila 37 para
-    // dejarle espacio a las filas adicionales.
-    xml = shiftRowsInWorksheet(xml, LIST_ROW + 1, delta);
-
-    // Construimos las filas adicionales (i = 1..N-1) y las insertamos
-    // inmediatamente después de la fila 37 (ya con sus placeholders
-    // reemplazados por los datos de i = 0).
-    const extra: string[] = [];
-    for (let i = 1; i < N; i++) {
-      extra.push(buildExtraListRowXml(LIST_ROW + i, payload.lists, i));
-    }
-    const row37Re = new RegExp(
-      `(<row\\b[^>]*\\br="${LIST_ROW}"[^>]*>[\\s\\S]*?</row>)`
+  let rowShift = 0;
+  for (const block of LIST_BLOCKS) {
+    const anchorRow = block.anchorRow + rowShift;
+    const n = block.count(payload.lists);
+    xml = expandListBlock(
+      xml,
+      anchorRow,
+      block.layout,
+      payload.lists,
+      indices,
+      n
     );
-    xml = xml.replace(row37Re, `$1${extra.join("")}`);
+    if (n > 1) rowShift += n - 1;
   }
 
-  // 4) Limpiamos cachés residuales `<v>{{...}}</v>` para que Excel recalcule
-  //    al abrir y muestre los valores nuevos en celdas con fórmula.
-  xml = clearStalePlaceholderCaches(xml);
-
-  return xml;
+  return clearStalePlaceholderCaches(xml);
 }
 
 export function renderRendicionExcel(
@@ -368,8 +346,6 @@ export function renderRendicionExcel(
     );
   }
 
-  // calcChain.xml puede quedar inconsistente luego del shift; Excel lo
-  // reconstruye automáticamente al abrir.
   delete files["xl/calcChain.xml"];
 
   return zipSync(files, { level: 6 });
