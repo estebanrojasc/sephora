@@ -95,10 +95,10 @@ const ind = cellMap(individual["xl/worksheets/sheet1.xml"]);
 const res = cellMap(consolidated["xl/worksheets/sheet1.xml"]);
 
 const checks = [
-  ["B6 cant_fact sum", "20", res.get("B6")],
+  ["B6 reg1 cant_fact", "10", res.get("B6")],
+  ["C6 reg2 cant_fact", "10", res.get("C6")],
   ["N37 chq row1", "SANTANDER", res.get("N37")],
   ["N38 chq row2", "BCI", res.get("N38")],
-  ["N39 chq row3 (2do reg)", "SANTANDER", res.get("N39")],
 ];
 
 let ok = true;

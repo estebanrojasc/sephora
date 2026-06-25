@@ -8,6 +8,12 @@ import type {
   ScalarValue,
 } from "./build-rendicion";
 import { buildRendicionPayload, mergeRendicionPayloads } from "./build-rendicion";
+import {
+  TEMPLATE_RESUMEN_ROWS,
+  recordLabel,
+  scalarForPlaceholder,
+  summaryColumnForRecord,
+} from "./consolidated-resumen";
 
 const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
@@ -342,10 +348,90 @@ function processWorksheet(
   return clearStalePlaceholderCaches(xml);
 }
 
+function cellStyleFromAttrs(attrs: string): number {
+  const m = attrs.match(/\bs="(\d+)"/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+function writeCellAt(xml: string, ref: string, scalar: ScalarValue): string {
+  const type = scalar.numeric ? ("number" as const) : ("text" as const);
+  const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const cellRe = new RegExp(
+    `<c r="${escapedRef}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`
+  );
+  const match = xml.match(cellRe);
+  const style = match ? cellStyleFromAttrs(match[1]) : 0;
+  const built = buildCellXml(ref, style, scalar.value, type);
+  if (match) {
+    return xml.replace(cellRe, built);
+  }
+  const rowMatch = ref.match(/(\d+)$/);
+  if (!rowMatch) return xml;
+  const rowNum = rowMatch[1]!;
+  const rowRe = new RegExp(
+    `(<row\\b[^>]*\\br="${rowNum}"[^>]*>)([\\s\\S]*?)(</row>)`
+  );
+  return xml.replace(rowRe, `$1${built}$2$3`);
+}
+
+/** Resumen superior (filas 1–21): un registro por columna B, C, D… */
+function fillUpperSummarySection(
+  xml: string,
+  records: AppRecord[],
+  payloads: RendicionPayload[]
+): string {
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]!;
+    const payload = payloads[i]!;
+    const col = summaryColumnForRecord(i);
+
+    xml = writeCellAt(xml, `${col}4`, {
+      value: recordLabel(record),
+      numeric: false,
+    });
+
+    for (const field of TEMPLATE_RESUMEN_ROWS) {
+      const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
+      if (!scalar) continue;
+      xml = writeCellAt(xml, `${col}${field.row}`, scalar);
+    }
+  }
+
+  if (records.length > 1) {
+    const aggStart = 21;
+    xml = writeCellAt(xml, `A${aggStart}`, {
+      value: "TOTALES CONSOLIDADOS",
+      numeric: false,
+    });
+    let aggRow = aggStart + 1;
+    for (const field of TEMPLATE_RESUMEN_ROWS.filter((f) => f.sum)) {
+      let sum = 0;
+      let any = false;
+      for (const payload of payloads) {
+        const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
+        if (!scalar?.value.trim()) continue;
+        const n = parseNumber(scalar.value);
+        if (n !== null) {
+          sum += n;
+          any = true;
+        }
+      }
+      if (!any) continue;
+      xml = writeCellAt(xml, `B${aggRow}`, {
+        value: String(sum),
+        numeric: true,
+      });
+      aggRow++;
+    }
+  }
+
+  return xml;
+}
+
 /**
- * Hoja Resumen: misma plantilla y mismo motor que el Excel individual.
- * Solo rellena celdas con {{}}; listas con todas las filas (cheques, NC, crédito, transferencias).
- * Varios registros se fusionan (sumas en totales, todas las líneas de detalle).
+ * Hoja Resumen híbrida:
+ * - Filas 1–21: un registro por columna (B, C, D…) como antes.
+ * - Fila 22+: mismo motor que el individual con listas fusionadas (todas las líneas).
  */
 export function renderConsolidatedResumenWorksheet(
   template: Uint8Array,
@@ -365,7 +451,11 @@ export function renderConsolidatedResumenWorksheet(
   const payloads = records.map((r) => buildRendicionPayload(r));
   const merged = mergeRendicionPayloads(payloads);
 
-  return processWorksheet(decoder.decode(worksheetBytes), merged, indices);
+  let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
+  xml = fillUpperSummarySection(xml, records, payloads);
+  xml = processWorksheet(xml, merged, indices);
+
+  return clearStalePlaceholderCaches(xml);
 }
 
 export function renderRendicionWorksheet(
