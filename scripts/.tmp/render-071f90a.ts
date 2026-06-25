@@ -1,4 +1,4 @@
-import { unzipSync, zipSync } from "fflate";
+﻿import { unzipSync, zipSync } from "fflate";
 import { parseNumber } from "@/lib/parse-number";
 import type {
   DetalleTablaRow,
@@ -12,7 +12,7 @@ const encoder = new TextEncoder();
 
 const LIST_ROW = 37;
 const CREDITO_ROW = 71;
-/** Primera fila de datos del bloque TRANSFERENCIA (debajo de crédito). */
+/** Primera fila de datos del bloque TRANSFERENCIA (debajo de cr├®dito). */
 const TRANSF_ROW = 73;
 
 interface ListCellLayout {
@@ -22,7 +22,7 @@ interface ListCellLayout {
   type: "text" | "number";
   extraStyle: number;
   placeholder: string;
-  /** Solo rellena en la fila i = 0 del bloque (p. ej. n° recorrido). */
+  /** Solo rellena en la fila i = 0 del bloque (p. ej. n┬░ recorrido). */
   firstRowOnly?: boolean;
 }
 
@@ -50,7 +50,6 @@ const CREDITO_LAYOUT: ListCellLayout[] = [
 const TRANSF_LAYOUT: ListCellLayout[] = [
   { col: "L", list: "transferencias", field: "recorrido", type: "text", extraStyle: 49, placeholder: "{{transf_recorrido}}", firstRowOnly: true },
   { col: "M", list: "transferencias", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{transf_cliente}}" },
-  { col: "O", list: "transferencias", field: "banco", type: "text", extraStyle: 89, placeholder: "{{transf_banco}}" },
   { col: "P", list: "transferencias", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{transf_fac}}" },
   { col: "T", list: "transferencias", field: "valor", type: "number", extraStyle: 69, placeholder: "{{transf_valor}}" },
 ];
@@ -335,23 +334,6 @@ function processWorksheet(
   }
 
   return clearStalePlaceholderCaches(xml);
-}
-
-export function renderRendicionWorksheet(
-  template: Uint8Array,
-  payload: RendicionPayload
-): string {
-  const files = unzipSync(template);
-  const sharedStringsBytes = files["xl/sharedStrings.xml"];
-  if (!sharedStringsBytes) {
-    throw new Error("La plantilla no contiene xl/sharedStrings.xml");
-  }
-  const indices = parsePlaceholderIndices(decoder.decode(sharedStringsBytes));
-  const worksheetBytes = files["xl/worksheets/sheet1.xml"];
-  if (!worksheetBytes) {
-    throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
-  }
-  return processWorksheet(decoder.decode(worksheetBytes), payload, indices);
 }
 
 export function renderRendicionExcel(

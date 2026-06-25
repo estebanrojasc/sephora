@@ -1,4 +1,4 @@
-import {
+﻿import {
   ensureExtractionShape,
   type Extraction,
   type Record as AppRecord,
@@ -21,13 +21,12 @@ export interface NcRow {
   val: string;
 }
 
-/** Fila del cuadro inferior (crédito vendedor / transferencias). */
+/** Fila del cuadro inferior (cr├®dito vendedor / transferencias). */
 export interface DetalleTablaRow {
   cliente: string;
   no_fac: string;
   valor: string;
   nro_vendedor?: string;
-  banco?: string;
   /** Solo se rellena en la primera fila del bloque de transferencias. */
   recorrido?: string;
 }
@@ -56,15 +55,6 @@ function text(value: { valor: string } | undefined): string {
   return value?.valor ?? "";
 }
 
-function aliasScalar(
-  scalars: globalThis.Record<string, ScalarValue>,
-  alias: string,
-  canonical: string
-): void {
-  const target = scalars[canonical];
-  if (target) scalars[alias] = { ...target };
-}
-
 export function buildRendicionPayload(record: AppRecord): RendicionPayload {
   const e = getExtraction(record);
 
@@ -91,18 +81,6 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     "{{extraction.valor_total.valor}}": { value: text(e.valor_total), numeric: true },
     "{{extraction.rendicion.efectivo_total.valor}}": {
       value: text(e.rendicion.efectivo_total),
-      numeric: true,
-    },
-    "{{extraction.detalle_efectivo.total_billetes.valor}}": {
-      value: text(e.detalle_efectivo.total_billetes),
-      numeric: true,
-    },
-    "{{extraction.detalle_efectivo.total_monedas.valor}}": {
-      value: text(e.detalle_efectivo.total_monedas),
-      numeric: true,
-    },
-    "{{extraction.detalle_efectivo.total_efectivo.valor}}": {
-      value: text(e.detalle_efectivo.total_efectivo),
       numeric: true,
     },
     "{{extraction.rendicion.cheques_al_dia.valor}}": {
@@ -151,17 +129,6 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     },
   };
 
-  aliasScalar(
-    scalars,
-    "{{extraction.rendicion.detalles_cheques.total_billetes.valor}}",
-    "{{extraction.detalle_efectivo.total_billetes.valor}}"
-  );
-  aliasScalar(
-    scalars,
-    "{{extraction.rendicion.detalles_cheques.total_monedas.valor}}",
-    "{{extraction.detalle_efectivo.total_monedas.valor}}"
-  );
-
   const lists: RendicionLists = {
     cheques: (e.detalles_cheques ?? []).map((c) => ({
       fecha: text(c.fecha),
@@ -190,7 +157,6 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
       cliente: text(r.cliente),
       no_fac: text(r.no_fac),
       valor: text(r.valor),
-      banco: text(r.banco),
       ...(i === 0 ? { recorrido: text(e.n_recorrido) } : {}),
     })),
   };
