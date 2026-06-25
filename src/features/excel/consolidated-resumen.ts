@@ -1,104 +1,102 @@
-import type { Record as AppRecord } from "@/features/records/types";
-import type { ScalarValue } from "./build-rendicion";
+import {
+  createEmptyExtraction,
+  ensureExtractionShape,
+  type Extraction,
+  type Record as AppRecord,
+} from "@/features/records/types";
+import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
 
-/** Filas de la columna B de la plantilla usadas en el resumen consolidado. */
-export interface ResumenField {
-  row: number;
-  placeholder: string;
+export interface SummaryField {
   label: string;
-  numeric: boolean;
+  pick: (e: Extraction) => string;
+  numeric?: boolean;
+  sum?: boolean;
 }
 
-export const RESUMEN_SUMMARY_FIELDS: ResumenField[] = [
+/** Campos del resumen consolidado (columna A = etiqueta, B+ = un registro por columna). */
+export const SUMMARY_FIELDS: SummaryField[] = [
+  { label: "FECHA", pick: (e) => e.fecha.valor },
+  { label: "CHOFER", pick: (e) => e.conductor.valor },
+  { label: "AUXILIAR / PEONETA", pick: (e) => e.auxiliar.valor },
+  { label: "RECORRIDO", pick: (e) => e.n_recorrido.valor },
+  { label: "PATENTE", pick: (e) => e.patente.valor },
   {
-    row: 1,
-    placeholder: "{{extraction.conductor.valor}}",
-    label: "CHOFER",
-    numeric: false,
-  },
-  {
-    row: 2,
-    placeholder: "{{extraction.auxiliar.valor}}",
-    label: "AUXILIAR / PEONETA",
-    numeric: false,
-  },
-  {
-    row: 5,
-    placeholder: "{{extraction.n_recorrido.valor}}",
-    label: "RECORRIDO",
-    numeric: false,
-  },
-  {
-    row: 6,
-    placeholder: "{{extraction.cant_fact.valor}}",
     label: "N° FACT.",
+    pick: (e) => e.cant_fact.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 7,
-    placeholder: "{{extraction.valor_total.valor}}",
     label: "TOTAL FACT.",
+    pick: (e) => e.valor_total.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 9,
-    placeholder: "{{extraction.rendicion.detalles_cheques.total_billetes.valor}}",
+    label: "EFECTIVO TOTAL",
+    pick: (e) => e.rendicion.efectivo_total.valor,
+    numeric: true,
+    sum: true,
+  },
+  {
     label: "BILLETES",
+    pick: (e) => e.detalle_efectivo.total_billetes.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 10,
-    placeholder: "{{extraction.rendicion.detalles_cheques.total_monedas.valor}}",
     label: "MONEDAS",
+    pick: (e) => e.detalle_efectivo.total_monedas.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 11,
-    placeholder: "{{extraction.rendicion.cheques_al_dia.valor}}",
     label: "CHEQUES AL DÍA",
+    pick: (e) => e.rendicion.cheques_al_dia.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 12,
-    placeholder: "{{extraction.rendicion.cheques_a_fecha.valor}}",
     label: "CHEQUES A FECHA",
+    pick: (e) => e.rendicion.cheques_a_fecha.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 13,
-    placeholder: "{{extraction.rendicion.credito_vendedor.valor}}",
     label: "CRÉDITO VENDEDOR",
+    pick: (e) => e.rendicion.credito_vendedor.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 14,
-    placeholder: "{{extraction.rendicion.retorno_total.valor}}",
     label: "NULOS (RETORNO TOTAL)",
+    pick: (e) => e.rendicion.retorno_total.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 15,
-    placeholder: "{{extraction.rendicion.retorno_parcial.valor}}",
     label: "PARCIALES (RETORNO PARCIAL)",
+    pick: (e) => e.rendicion.retorno_parcial.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 16,
-    placeholder: "{{extraction.rendicion.n_c_negocio.valor}}",
     label: "N/C NEGOCIO",
+    pick: (e) => e.rendicion.n_c_negocio.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 17,
-    placeholder: "{{extraction.rendicion.transferencia.valor}}",
     label: "TRANSFERENCIAS",
+    pick: (e) => e.rendicion.transferencia.valor,
     numeric: true,
+    sum: true,
   },
   {
-    row: 23,
-    placeholder: "{{extraction.fecha.valor}}",
-    label: "FECHA",
-    numeric: false,
+    label: "TOTAL RENDICIÓN",
+    pick: (e) => e.rendicion.total.valor,
+    numeric: true,
+    sum: true,
   },
 ];
 
@@ -113,18 +111,8 @@ export function excelColumn(index: number): string {
 }
 
 /** Columna B = índice 1; registro i va en columna B+i. */
-export function resumenColumnForRecord(recordIndex: number): string {
+export function summaryColumnForRecord(recordIndex: number): string {
   return excelColumn(1 + recordIndex);
-}
-
-export function scalarForPlaceholder(
-  scalars: Record<string, ScalarValue>,
-  placeholder: string
-): ScalarValue | undefined {
-  return (
-    scalars[placeholder] ??
-    scalars[placeholder.replace("detalles_cheques", "detalle_efectivo")]
-  );
 }
 
 export function recordLabel(record: AppRecord): string {
@@ -132,4 +120,11 @@ export function recordLabel(record: AppRecord): string {
   const conductor = record.extraction?.conductor?.valor?.trim();
   if (rec && conductor) return `${rec} · ${conductor}`;
   return rec || conductor || record.id.slice(0, 8);
+}
+
+export function extractionForRecord(record: AppRecord): Extraction {
+  if (!record.extraction) {
+    return createEmptyExtraction();
+  }
+  return migrateLegacyTransfers(ensureExtractionShape(record.extraction));
 }

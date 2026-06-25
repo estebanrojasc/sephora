@@ -16,11 +16,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import type { Record } from "@/features/records/types";
 import { getRecordConductorLabel } from "@/features/records/display";
-import { formatExtractedDateChilean } from "@/lib/date-utils";
+import { duplicateRecorridoKeys } from "@/features/records/filter-by-day";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface BulkExcelExportDialogProps {
@@ -29,20 +28,8 @@ interface BulkExcelExportDialogProps {
   records: Record[];
 }
 
-function recordDayKey(record: Record, mode: "created" | "fecha"): string {
-  if (mode === "fecha") {
-    const raw = record.extraction?.fecha?.valor?.trim();
-    if (raw) {
-      try {
-        return formatExtractedDateChilean(raw);
-      } catch {
-        /* fallback */
-      }
-    }
-  }
-  return new Date(record.createdAt).toLocaleDateString("en-CA", {
-    timeZone: "America/Santiago",
-  });
+function recorridoKey(record: Record): string {
+  return record.extraction?.n_recorrido?.valor?.trim().toLowerCase() ?? "";
 }
 
 export function BulkExcelExportDialog({
@@ -50,21 +37,19 @@ export function BulkExcelExportDialog({
   onOpenChange,
   records,
 }: BulkExcelExportDialogProps) {
-  const [dateFilter, setDateFilter] = useState("");
-  const [dateMode, setDateMode] = useState<"created" | "fecha">("created");
   const [loading, setLoading] = useState(false);
   const [orderedRecords, setOrderedRecords] = useState<Record[]>([]);
 
-  const filtered = useMemo(() => {
-    if (!dateFilter) return records;
-    return records.filter(
-      (r) => recordDayKey(r, dateMode) === dateFilter
-    );
-  }, [records, dateFilter, dateMode]);
+  const duplicateRecorridos = useMemo(
+    () => duplicateRecorridoKeys(records),
+    [records]
+  );
 
   useEffect(() => {
-    setOrderedRecords(filtered);
-  }, [filtered]);
+    if (open) {
+      setOrderedRecords(records);
+    }
+  }, [open, records]);
 
   function moveRecord(index: number, direction: -1 | 1) {
     setOrderedRecords((prev) => {
@@ -78,7 +63,7 @@ export function BulkExcelExportDialog({
 
   async function handleExport() {
     if (orderedRecords.length === 0) {
-      toast.error("No hay registros para exportar con el filtro actual");
+      toast.error("No hay registros para exportar");
       return;
     }
     if (orderedRecords.length > 50) {
@@ -128,96 +113,76 @@ export function BulkExcelExportDialog({
         <DialogHeader>
           <DialogTitle>Excel unificado</DialogTitle>
           <DialogDescription>
-            Genera un archivo con una hoja RUTA por registro (misma plantilla
-            que el Excel individual). Ordena las filas antes de exportar. Máximo
-            50 registros.
+            Exporta los registros visibles en la tabla (día y tab actuales).
+            Incluye hoja Resumen y una hoja RUTA por registro. Ordena las filas
+            antes de descargar. Máximo 50 registros.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="bulk-date-filter">Filtrar por día (opcional)</Label>
-            <Input
-              id="bulk-date-filter"
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            />
-          </div>
-
-          <div className="flex gap-2 text-sm">
-            <Button
-              type="button"
-              size="sm"
-              variant={dateMode === "created" ? "default" : "outline"}
-              onClick={() => setDateMode("created")}
-            >
-              Fecha de carga
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={dateMode === "fecha" ? "default" : "outline"}
-              onClick={() => setDateMode("fecha")}
-            >
-              Fecha recorrido
-            </Button>
-          </div>
-
           <div className="max-h-56 overflow-y-auto rounded-md border p-2 text-sm">
             {orderedRecords.length === 0 ? (
-              <p className="text-muted-foreground">Sin registros en el filtro.</p>
+              <p className="text-muted-foreground">
+                No hay registros en la tabla para exportar.
+              </p>
             ) : (
               <ul className="space-y-1">
-                {orderedRecords.map((r, index) => (
-                  <li
-                    key={r.id}
-                    className="flex items-center gap-2 rounded-sm px-1 py-0.5 hover:bg-muted/50"
-                  >
-                    <span className="w-5 shrink-0 text-center text-xs text-muted-foreground">
-                      {index + 1}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">
-                      {r.extraction?.n_recorrido?.valor || r.id.slice(0, 8)}
-                      {" · "}
-                      {getRecordConductorLabel(r)}
-                    </span>
-                    <span className="shrink-0 text-muted-foreground">
-                      {recordDayKey(r, dateMode)}
-                    </span>
-                    <div className="flex shrink-0 flex-col">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-6"
-                        disabled={index === 0}
-                        onClick={() => moveRecord(index, -1)}
-                        aria-label="Subir"
+                {orderedRecords.map((r, index) => {
+                  const rec = r.extraction?.n_recorrido?.valor || r.id.slice(0, 8);
+                  const isDupe = duplicateRecorridos.has(recorridoKey(r));
+                  return (
+                    <li
+                      key={r.id}
+                      className="flex items-center gap-2 rounded-sm px-1 py-0.5 hover:bg-muted/50"
+                    >
+                      <span className="w-5 shrink-0 text-center text-xs text-muted-foreground">
+                        {index + 1}
+                      </span>
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 truncate rounded-full px-2 py-0.5",
+                          isDupe && "animate-recorrido-blink ring-2 ring-red-500"
+                        )}
+                        title={isDupe ? "Recorrido duplicado" : undefined}
                       >
-                        <ChevronUp className="size-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-6"
-                        disabled={index === orderedRecords.length - 1}
-                        onClick={() => moveRecord(index, 1)}
-                        aria-label="Bajar"
-                      >
-                        <ChevronDown className="size-3.5" />
-                      </Button>
-                    </div>
-                  </li>
-                ))}
+                        {rec}
+                        {" · "}
+                        {getRecordConductorLabel(r)}
+                      </span>
+                      <div className="flex shrink-0 flex-col">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          disabled={index === 0}
+                          onClick={() => moveRecord(index, -1)}
+                          aria-label="Subir"
+                        >
+                          <ChevronUp className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          disabled={index === orderedRecords.length - 1}
+                          onClick={() => moveRecord(index, 1)}
+                          aria-label="Bajar"
+                        >
+                          <ChevronDown className="size-3.5" />
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
 
           <p className="text-xs text-muted-foreground">
             {orderedRecords.length} registro(s) · el orden define el orden de las
-            hojas RUTA en el archivo
+            hojas RUTA
             {orderedRecords.length > 50 && " — reduce la selección (máx. 50)"}
           </p>
         </div>

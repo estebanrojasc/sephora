@@ -141,3 +141,25 @@ function pad2(n: number): string {
 function pad4(n: number): string {
   return n.toString().padStart(4, "0");
 }
+
+/** Fecha de hoy en Chile como `YYYY-MM-DD` (para inputs type="date"). */
+export function todayIsoDateChile(): string {
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Santiago",
+  });
+}
+
+/** Clave de día ISO para filtrar registros por fecha de carga o recorrido. */
+export function recordDayKeyIso(
+  createdAt: string,
+  fechaRecorrido: string | undefined,
+  mode: "created" | "fecha"
+): string {
+  if (mode === "fecha") {
+    const iso = parseToIso(fechaRecorrido?.trim());
+    if (iso) return iso;
+  }
+  return new Date(createdAt).toLocaleDateString("en-CA", {
+    timeZone: "America/Santiago",
+  });
+}

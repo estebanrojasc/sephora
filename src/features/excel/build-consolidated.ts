@@ -3,12 +3,12 @@ import type { Record as AppRecord } from "@/features/records/types";
 import { parseNumber } from "@/lib/parse-number";
 import { buildRendicionPayload } from "./build-rendicion";
 import {
-  RESUMEN_SUMMARY_FIELDS,
+  SUMMARY_FIELDS,
+  extractionForRecord,
   recordLabel,
-  resumenColumnForRecord,
-  scalarForPlaceholder,
+  summaryColumnForRecord,
 } from "./consolidated-resumen";
-import { renderRendicionWorksheet, renderScalarWorksheet, writeCellAtRef } from "./render";
+import { renderRendicionWorksheet } from "./render";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -18,6 +18,87 @@ function escapeXml(value: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function cellXml(ref: string, value: string, numeric?: boolean): string {
+  if (!value.trim()) return `<c r="${ref}"/>`;
+  if (numeric) {
+    const n = parseNumber(value);
+    if (n !== null) return `<c r="${ref}"><v>${n}</v></c>`;
+  }
+  return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
+}
+
+/**
+ * Hoja Resumen dedicada: etiquetas en A, un registro por columna (B, C, D…),
+ * totales consolidados al final. No reutiliza la plantilla RUTA (evita placeholders
+ * sin rellenar y celdas duplicadas por índice de sharedStrings).
+ */
+function buildSummaryWorksheet(records: AppRecord[]): string {
+  const extractions = records.map((r) => extractionForRecord(r));
+  const rows: string[] = [];
+
+  const headerCells = [
+    `<c r="A1" t="inlineStr"><is><t>CAMPO</t></is></c>`,
+  ];
+  for (let ri = 0; ri < extractions.length; ri++) {
+    headerCells.push(
+      cellXml(`${summaryColumnForRecord(ri)}1`, recordLabel(records[ri]!))
+    );
+  }
+  rows.push(`<row r="1">${headerCells.join("")}</row>`);
+
+  for (let fi = 0; fi < SUMMARY_FIELDS.length; fi++) {
+    const field = SUMMARY_FIELDS[fi]!;
+    const rowNum = fi + 2;
+    const cells = [
+      `<c r="A${rowNum}" t="inlineStr"><is><t>${escapeXml(field.label)}</t></is></c>`,
+    ];
+    for (let ri = 0; ri < extractions.length; ri++) {
+      const col = summaryColumnForRecord(ri);
+      cells.push(
+        cellXml(`${col}${rowNum}`, field.pick(extractions[ri]!), field.numeric)
+      );
+    }
+    rows.push(`<row r="${rowNum}">${cells.join("")}</row>`);
+  }
+
+  const aggStart = SUMMARY_FIELDS.length + 4;
+  let maxRow = SUMMARY_FIELDS.length + 1;
+
+  if (extractions.length > 1) {
+    rows.push(
+      `<row r="${aggStart}"><c r="A${aggStart}" t="inlineStr"><is><t>TOTALES CONSOLIDADOS</t></is></c></row>`
+    );
+
+    let aggRow = aggStart + 1;
+    for (const field of SUMMARY_FIELDS.filter((f) => f.sum)) {
+      let sum = 0;
+      let any = false;
+      for (const e of extractions) {
+        const n = parseNumber(field.pick(e));
+        if (n !== null) {
+          sum += n;
+          any = true;
+        }
+      }
+      if (!any) continue;
+      rows.push(
+        `<row r="${aggRow}"><c r="A${aggRow}" t="inlineStr"><is><t>${escapeXml(field.label)}</t></is></c>${cellXml(`B${aggRow}`, String(sum), true)}</row>`
+      );
+      aggRow++;
+    }
+    maxRow = aggRow - 1;
+  }
+  const maxCol = summaryColumnForRecord(Math.max(extractions.length - 1, 0));
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<dimension ref="A1:${maxCol}${maxRow}"/>
+<sheetViews><sheetView workbookViewId="0"/></sheetViews>
+<sheetFormatPr defaultRowHeight="15"/>
+<sheetData>${rows.join("")}</sheetData>
+</worksheet>`;
 }
 
 function sanitizeSheetName(name: string): string {
@@ -39,67 +120,9 @@ function sheetNameForRecord(record: AppRecord, used: Set<string>): string {
   return candidate;
 }
 
-/** Hoja Resumen: columna B = registro 0; C, D… = resto; totales consolidados desde fila 22. */
-function buildResumenWorksheet(
-  template: Uint8Array,
-  records: AppRecord[]
-): string {
-  const firstPayload = buildRendicionPayload(records[0]!);
-  let xml = renderScalarWorksheet(template, firstPayload);
-
-  for (let i = 0; i < records.length; i++) {
-    const col = resumenColumnForRecord(i);
-    xml = writeCellAtRef(xml, `${col}4`, {
-      value: recordLabel(records[i]!),
-      numeric: false,
-    });
-  }
-
-  for (let i = 1; i < records.length; i++) {
-    const payload = buildRendicionPayload(records[i]!);
-    const col = resumenColumnForRecord(i);
-    for (const field of RESUMEN_SUMMARY_FIELDS) {
-      const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
-      if (!scalar) continue;
-      xml = writeCellAtRef(xml, `${col}${field.row}`, scalar);
-    }
-  }
-
-  if (records.length > 1) {
-    const aggStart = 22;
-    xml = writeCellAtRef(xml, `A${aggStart}`, {
-      value: "TOTALES CONSOLIDADOS",
-      numeric: false,
-    });
-    let r = aggStart + 1;
-    for (const field of RESUMEN_SUMMARY_FIELDS.filter((f) => f.numeric)) {
-      let sum = 0;
-      let any = false;
-      for (const rec of records) {
-        const scalar = scalarForPlaceholder(
-          buildRendicionPayload(rec).scalars,
-          field.placeholder
-        );
-        if (!scalar?.value.trim()) continue;
-        const n = parseNumber(scalar.value);
-        if (n !== null) {
-          sum += n;
-          any = true;
-        }
-      }
-      if (!any) continue;
-      xml = writeCellAtRef(xml, `A${r}`, { value: field.label, numeric: false });
-      xml = writeCellAtRef(xml, `B${r}`, { value: String(sum), numeric: true });
-      r++;
-    }
-  }
-
-  return xml;
-}
-
 /**
- * Arma un libro con hoja Resumen (totales por registro) y una hoja RUTA
- * completa por registro, usando la misma plantilla que el Excel individual.
+ * Libro consolidado: hoja 1 = Resumen (tabla horizontal + totales),
+ * hojas 2+ = detalle RUTA por registro (misma plantilla que el Excel individual).
  */
 export function buildConsolidatedWorkbook(
   template: Uint8Array,
@@ -115,16 +138,16 @@ export function buildConsolidatedWorkbook(
   const totalSheets = 1 + records.length;
 
   files["xl/worksheets/sheet1.xml"] = encoder.encode(
-    buildResumenWorksheet(template, records)
+    buildSummaryWorksheet(records)
   );
-  if (sheetRelsTemplate) {
-    files["xl/worksheets/_rels/sheet1.xml.rels"] = sheetRelsTemplate;
-  }
+  delete files["xl/worksheets/_rels/sheet1.xml.rels"];
 
   const usedNames = new Set<string>(["Resumen"]);
   const sheetEntries: { name: string; path: string; rId: string }[] = [
     { name: "Resumen", path: "worksheets/sheet1.xml", rId: "rId1" },
   ];
+
+  let nextRId = 6;
 
   for (let i = 0; i < records.length; i++) {
     const record = records[i]!;
@@ -142,7 +165,7 @@ export function buildConsolidatedWorkbook(
     sheetEntries.push({
       name: sheetNameForRecord(record, usedNames),
       path: `worksheets/sheet${sheetNum}.xml`,
-      rId: `rId${5 + i}`,
+      rId: `rId${nextRId++}`,
     });
   }
 

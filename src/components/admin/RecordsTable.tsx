@@ -30,6 +30,8 @@ import { getRecordConductorLabel } from "@/features/records/display";
 import { formatDate } from "@/lib/format";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
+import { duplicateRecorridoKeys } from "@/features/records/filter-by-day";
 
 interface RecordsTableProps {
   records: Record[];
@@ -53,6 +55,11 @@ export function RecordsTable({
   const selectedRecords = useMemo(
     () => records.filter((r) => rowSelection[r.id]),
     [records, rowSelection]
+  );
+
+  const duplicateRecorridos = useMemo(
+    () => duplicateRecorridoKeys(records),
+    [records]
   );
 
   const columns = useMemo<ColumnDef<Record>[]>(() => {
@@ -125,8 +132,23 @@ export function RecordsTable({
       {
         id: "recorrido",
         header: "Recorrido",
-        cell: ({ row }) =>
-          row.original.extraction?.n_recorrido?.valor || "—",
+        cell: ({ row }) => {
+          const raw = row.original.extraction?.n_recorrido?.valor;
+          const display = raw?.trim() || "—";
+          const key = raw?.trim().toLowerCase() ?? "";
+          const isDupe = key && duplicateRecorridos.has(key);
+          return (
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5",
+                isDupe && "animate-recorrido-blink ring-2 ring-red-500"
+              )}
+              title={isDupe ? "Recorrido duplicado en esta lista" : undefined}
+            >
+              {display}
+            </span>
+          );
+        },
       },
       {
         id: "fecha_recorrido",
@@ -171,7 +193,7 @@ export function RecordsTable({
     );
 
     return base;
-  }, [enableBulkExcel]);
+  }, [enableBulkExcel, duplicateRecorridos]);
 
   const table = useReactTable({
     data: records,

@@ -130,6 +130,22 @@
   }
 }
 
+@keyframes recorrido-blink {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgb(239 68 68);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 2px rgb(239 68 68 / 0.25);
+  }
+}
+
+.animate-recorrido-blink {
+  animation: recorrido-blink 1s ease-in-out infinite;
+}
+
 @media print {
   header,
   aside,
