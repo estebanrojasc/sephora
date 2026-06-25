@@ -9,9 +9,12 @@ import type {
 } from "./build-rendicion";
 import { buildRendicionPayload } from "./build-rendicion";
 import {
+  RECORD_DETAIL_COL_SPAN,
+  TEMPLATE_LOWER_SCALAR_CELLS,
   TEMPLATE_RESUMEN_ROWS,
   recordLabel,
   scalarForPlaceholder,
+  shiftColumn,
   summaryColumnForRecord,
 } from "./consolidated-resumen";
 
@@ -393,9 +396,79 @@ function writeCellAt(xml: string, ref: string, scalar: ScalarValue): string {
 }
 
 /**
- * Hoja Resumen sobre la misma plantilla RUTA: filas 1–17, columnas B+ por registro.
- * Escribe por referencia de celda (no por índice sharedString) para no duplicar
- * valores en U23/W24 ni dejar placeholders en el bloque resumen.
+ * Detalle inferior (filas 23+, listas 37/71/73): misma plantilla que el individual,
+ * un bloque M–W por registro desplazado horizontalmente.
+ */
+function fillConsolidatedLowerSection(
+  xml: string,
+  payloads: RendicionPayload[]
+): string {
+  const span = RECORD_DETAIL_COL_SPAN;
+
+  for (let ri = 0; ri < payloads.length; ri++) {
+    const payload = payloads[ri]!;
+    const colOffset = ri * span;
+    for (const cell of TEMPLATE_LOWER_SCALAR_CELLS.filter((c) => c.row < 40)) {
+      const scalar = scalarForPlaceholder(payload.scalars, cell.placeholder);
+      if (!scalar) continue;
+      xml = writeCellAt(
+        xml,
+        `${shiftColumn(cell.col, colOffset)}${cell.row}`,
+        scalar
+      );
+    }
+  }
+
+  for (let ri = 0; ri < payloads.length; ri++) {
+    const payload = payloads[ri]!;
+    const colOffset = ri * span;
+    for (const cell of TEMPLATE_LOWER_SCALAR_CELLS.filter((c) => c.row === 65)) {
+      const scalar = scalarForPlaceholder(payload.scalars, cell.placeholder);
+      if (!scalar) continue;
+      xml = writeCellAt(
+        xml,
+        `${shiftColumn(cell.col, colOffset)}${cell.row}`,
+        scalar
+      );
+    }
+  }
+
+  let rowShift = 0;
+  for (const block of LIST_BLOCKS) {
+    const anchorRow = block.anchorRow + rowShift;
+    let n = 1;
+    for (const payload of payloads) {
+      n = Math.max(n, block.count(payload.lists));
+    }
+
+    if (n > 1) {
+      xml = shiftRowsInWorksheet(xml, anchorRow + 1, n - 1);
+    }
+
+    for (let li = 0; li < n; li++) {
+      const rowNum = anchorRow + li;
+      for (let ri = 0; ri < payloads.length; ri++) {
+        const payload = payloads[ri]!;
+        const colOffset = ri * span;
+        for (const layout of block.layout) {
+          const value = listValueAt(payload.lists, layout, li) ?? "";
+          xml = writeCellAt(xml, `${shiftColumn(layout.col, colOffset)}${rowNum}`, {
+            value,
+            numeric: layout.type === "number",
+          });
+        }
+      }
+    }
+
+    if (n > 1) rowShift += n - 1;
+  }
+
+  return xml;
+}
+
+/**
+ * Hoja Resumen sobre la misma plantilla RUTA: filas 1–17 + detalle inferior,
+ * columnas B+ (resumen) y bloques M–W desplazados por registro.
  */
 export function renderConsolidatedResumenWorksheet(
   template: Uint8Array,
@@ -412,13 +485,15 @@ export function renderConsolidatedResumenWorksheet(
     throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
   }
 
+  const payloads = records.map((r) => buildRendicionPayload(r));
+
   let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
   const placeholderIdx = new Set(indices.values());
   xml = clearSharedStringPlaceholderCells(xml, placeholderIdx);
 
   for (let i = 0; i < records.length; i++) {
     const record = records[i]!;
-    const payload = buildRendicionPayload(record);
+    const payload = payloads[i]!;
     const col = summaryColumnForRecord(i);
 
     xml = writeCellAt(xml, `${col}4`, {
@@ -433,6 +508,8 @@ export function renderConsolidatedResumenWorksheet(
     }
   }
 
+  xml = fillConsolidatedLowerSection(xml, payloads);
+
   if (records.length > 1) {
     const aggStart = 21;
     xml = writeCellAt(xml, `A${aggStart}`, {
@@ -443,11 +520,8 @@ export function renderConsolidatedResumenWorksheet(
     for (const field of TEMPLATE_RESUMEN_ROWS.filter((f) => f.sum)) {
       let sum = 0;
       let any = false;
-      for (const rec of records) {
-        const scalar = scalarForPlaceholder(
-          buildRendicionPayload(rec).scalars,
-          field.placeholder
-        );
+      for (const payload of payloads) {
+        const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
         if (!scalar?.value.trim()) continue;
         const n = parseNumber(scalar.value);
         if (n !== null) {

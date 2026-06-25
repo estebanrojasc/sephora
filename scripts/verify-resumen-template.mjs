@@ -11,6 +11,7 @@ function mockRecord(id, rec, conductor, extra = {}) {
   const extraction = createEmptyExtraction();
   extraction.conductor.valor = conductor;
   extraction.n_recorrido.valor = rec;
+  extraction.fecha.valor = "24/06/2026";
   extraction.auxiliar.valor = "AUX " + conductor;
   extraction.cant_fact.valor = "10";
   extraction.valor_total.valor = "1000000";
@@ -19,6 +20,21 @@ function mockRecord(id, rec, conductor, extra = {}) {
   extraction.detalle_efectivo.total_monedas.valor = "50000";
   extraction.rendicion.cheques_al_dia.valor = "300000";
   extraction.rendicion.total.valor = "1000000";
+  extraction.detalles_cheques = [
+    {
+      fecha: { valor: "01/01/2026", bbox: [0, 0, 0, 0] },
+      banco: { valor: "SANTANDER", bbox: [0, 0, 0, 0] },
+      valor: { valor: "100000", bbox: [0, 0, 0, 0] },
+    },
+  ];
+  extraction.detalle_transferencias = [
+    {
+      no_fac: { valor: "F001", bbox: [0, 0, 0, 0] },
+      valor: { valor: "150000", bbox: [0, 0, 0, 0] },
+      cliente: { valor: "CLIENTE UNO", bbox: [0, 0, 0, 0] },
+      banco: { valor: "SANTANDER", bbox: [0, 0, 0, 0] },
+    },
+  ];
   Object.assign(extraction, extra);
   return {
     id,
@@ -72,6 +88,11 @@ const checks = [
   ["B6 cant_fact", ind.get("B6"), res.get("B6")],
   ["B7 valor_total", ind.get("B7"), res.get("B7")],
   ["B9 billetes", ind.get("B9"), res.get("B9")],
+  ["N23 fecha", ind.get("N23"), res.get("N23")],
+  ["U23 cant_fact", ind.get("U23"), res.get("U23")],
+  ["N37 chq banco", ind.get("N37"), res.get("N37")],
+  ["O37 chq valor", ind.get("O37"), res.get("O37")],
+  ["M73 transf cliente", ind.get("M73"), res.get("M73")],
   ["C1 conductor r2", "BOB", res.get("C1")],
   ["C5 recorrido r2", "222", res.get("C5")],
 ];

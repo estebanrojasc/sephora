@@ -65,6 +65,38 @@ export const TEMPLATE_RESUMEN_ROWS: TemplateResumenRow[] = [
   },
 ];
 
+/** Celdas de detalle inferior (misma plantilla que el individual). */
+export interface TemplateCellRef {
+  row: number;
+  col: string;
+  placeholder: string;
+}
+
+/** Filas 23–24: cabecera inferior; fila 65: totales NC. */
+export const TEMPLATE_LOWER_SCALAR_CELLS: TemplateCellRef[] = [
+  { row: 23, col: "N", placeholder: "{{extraction.fecha.valor}}" },
+  { row: 23, col: "U", placeholder: "{{extraction.cant_fact.valor}}" },
+  { row: 24, col: "U", placeholder: "{{extraction.valor_total.valor}}" },
+  {
+    row: 65,
+    col: "Q",
+    placeholder: "{{extraction.total_n_c_rechazo_total.valor}}",
+  },
+  {
+    row: 65,
+    col: "S",
+    placeholder: "{{extraction.total_n_c_rechazo_parcial.valor}}",
+  },
+  {
+    row: 65,
+    col: "U",
+    placeholder: "{{extraction.total_n_c_por_negocios.valor}}",
+  },
+];
+
+/** Ancho del bloque M–W por registro en la zona de detalle (columnas horizontales). */
+export const RECORD_DETAIL_COL_SPAN = 11;
+
 export function excelColumn(index: number): string {
   let n = index;
   let s = "";
@@ -73,6 +105,18 @@ export function excelColumn(index: number): string {
     n = Math.floor(n / 26) - 1;
   }
   return s;
+}
+
+export function columnIndex(col: string): number {
+  let n = 0;
+  for (let i = 0; i < col.length; i++) {
+    n = n * 26 + (col.charCodeAt(i) - 65 + 1);
+  }
+  return n - 1;
+}
+
+export function shiftColumn(col: string, delta: number): string {
+  return excelColumn(columnIndex(col) + delta);
 }
 
 /** Columna B = índice 1; registro i va en columna B+i. */
@@ -97,5 +141,5 @@ export function recordLabel(record: AppRecord): string {
   return rec || conductor || record.id.slice(0, 8);
 }
 
-/** Primera fila del bloque de detalle (listas) — no se usa en hoja Resumen. */
+/** Primera fila del bloque de detalle (listas). */
 export const TEMPLATE_DETAIL_START_ROW = 23;
