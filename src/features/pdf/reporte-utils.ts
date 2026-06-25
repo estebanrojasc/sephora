@@ -4,6 +4,7 @@ import {
   type ExtractedField,
   type Record,
 } from "@/features/records/types";
+import { isChequeAlDia } from "@/features/records/cheque-utils";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
 import {
   dedupeTransferenciaRows,
@@ -193,25 +194,30 @@ export function getDetailItems(
 
   switch (catId) {
     case "cheques": {
-      // Mientras la IA no separe "al día" vs "a fecha" por cheque, mostramos
-      // TODOS los cheques bajo "Cheques al día". El bloque "chequesAFecha"
-      // solo aporta el subtotal cuando existe.
-      const items: RowItem[] = current.detalles_cheques.map((c) => ({
-        descripcion: c.fecha.valor || "—",
-        banco: c.banco.valor,
-        monto: parseAmount(c.valor.valor),
-      }));
+      const items: RowItem[] = current.detalles_cheques
+        .filter((c) => isChequeAlDia(c.fecha.valor))
+        .map((c) => ({
+          descripcion: c.fecha.valor || "—",
+          banco: c.banco.valor,
+          monto: parseAmount(c.valor.valor),
+        }));
       const total =
         parseAmount(current.rendicion.cheques_al_dia.valor) ||
-        parseAmount(current.total_cheques.valor) ||
         items.reduce((acc, r) => acc + r.monto, 0);
       return { items, total };
     }
     case "chequesAFecha": {
-      const total = parseAmount(current.rendicion.cheques_a_fecha.valor);
-      // Sin items individuales (la IA mete todos los cheques en un solo array).
-      // Solo se muestra el subtotal si hay valor.
-      return { items: [], total };
+      const items: RowItem[] = current.detalles_cheques
+        .filter((c) => !isChequeAlDia(c.fecha.valor))
+        .map((c) => ({
+          descripcion: c.fecha.valor || "—",
+          banco: c.banco.valor,
+          monto: parseAmount(c.valor.valor),
+        }));
+      const total =
+        parseAmount(current.rendicion.cheques_a_fecha.valor) ||
+        items.reduce((acc, r) => acc + r.monto, 0);
+      return { items, total };
     }
     case "rechazoTotal": {
       const items: RowItem[] = current.n_c_rechazo_total.map((r) => ({

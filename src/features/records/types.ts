@@ -1,5 +1,7 @@
 import { splitBilletesAndMonedas } from "./efectivo-utils";
 import { syncDetalleEfectivoTotals } from "./efectivo-totals";
+import { formatExtractedDateChilean } from "@/lib/date-utils";
+import { normalizeThousandsDisplay } from "@/lib/parse-number";
 
 export type RecordStatus =
   | "uploaded"
@@ -142,6 +144,22 @@ export interface Extraction {
     lastProvider?: "qwen" | "gemini" | "mock";
     /** Si el modelo devolvió bboxes en la última corrida. */
     lastWithBboxes?: boolean;
+    /** Vínculo con fila de bitácora matinal (pista, no verdad absoluta). */
+    bitacora?: {
+      bitacoraId: string;
+      rowId: string;
+      version: number;
+      matchScore: number;
+      suggested: {
+        patente?: string;
+        conductor?: string;
+        auxiliar?: string;
+        n_recorrido?: string;
+        cant_fact?: string;
+        valor_total?: string;
+        sector?: string;
+      };
+    };
   };
 }
 
@@ -195,6 +213,18 @@ export type UpdateExtractionPayload = Partial<Extraction>;
 
 export const EMPTY_FIELD: ExtractedField = { valor: "", bbox: [0, 0, 0, 0] };
 
+function normalizeAmountOnLoad(field: ExtractedField): ExtractedField {
+  if (!field.valor.includes(",")) return field;
+  const next = normalizeThousandsDisplay(field.valor);
+  return next === field.valor ? field : { ...field, valor: next };
+}
+
+function normalizeDateOnLoad(field: ExtractedField): ExtractedField {
+  if (!field.valor.trim()) return field;
+  const next = formatExtractedDateChilean(field.valor);
+  return next === field.valor ? field : { ...field, valor: next };
+}
+
 function fillBilleteRow(row: Partial<BilleteRow>): BilleteRow {
   return {
     denominacion: row.denominacion ?? { ...EMPTY_FIELD },
@@ -247,7 +277,7 @@ export function ensureExtractionShape(
   const merged: Extraction = {
     ...base,
     ...e,
-    fecha: mergeField(e.fecha, base.fecha),
+    fecha: normalizeDateOnLoad(mergeField(e.fecha, base.fecha)),
     conductor: mergeField(e.conductor, base.conductor),
     auxiliar: mergeField(e.auxiliar, base.auxiliar),
     n_recorrido: mergeField(e.n_recorrido, base.n_recorrido),
@@ -316,7 +346,13 @@ export function ensureExtractionShape(
       total: mergeField(rendicionIn.total, base.rendicion.total),
     },
     detalle_efectivo: normalizeDetalleEfectivo(detalleEfectivo),
-    detalles_cheques: e.detalles_cheques ?? base.detalles_cheques,
+    detalles_cheques: (e.detalles_cheques ?? base.detalles_cheques).map(
+      (row) => ({
+        fecha: normalizeDateOnLoad(row.fecha ?? { ...EMPTY_FIELD }),
+        banco: row.banco ?? { ...EMPTY_FIELD },
+        valor: normalizeAmountOnLoad(row.valor ?? { ...EMPTY_FIELD }),
+      })
+    ),
     n_c_rechazo_total: e.n_c_rechazo_total ?? base.n_c_rechazo_total,
     n_c_rechazo_parcial: e.n_c_rechazo_parcial ?? base.n_c_rechazo_parcial,
     n_c_por_negocios: e.n_c_por_negocios ?? base.n_c_por_negocios,

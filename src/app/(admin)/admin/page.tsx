@@ -9,6 +9,7 @@ import {
   type RecordsDayFilterMode,
 } from "@/components/admin/RecordsDayFilter";
 import { useRecords } from "@/features/records/queries";
+import { useActiveBitacora } from "@/features/bitacora/queries";
 import { filterRecordsByDay } from "@/features/records/filter-by-day";
 import type { RecordStatus } from "@/features/records/types";
 import { todayIsoDateChile } from "@/lib/date-utils";
@@ -22,6 +23,7 @@ export default function AdminPage() {
   const [dayMode, setDayMode] = useState<RecordsDayFilterMode>("created");
 
   const { data: records, isLoading } = useRecords({ status: statusFilter });
+  const { data: activeBitacora } = useActiveBitacora(dayFilter);
 
   const filteredRecords = filterRecordsByDay(
     records ?? [],
@@ -50,6 +52,7 @@ export default function AdminPage() {
         records={filteredRecords}
         isLoading={isLoading}
         enableBulkExcel={statusFilter === "saved"}
+        activeBitacora={activeBitacora}
       />
     </div>
   );

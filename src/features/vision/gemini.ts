@@ -71,6 +71,7 @@ export async function extractWithGemini(
     withBboxes: opts.withBboxes,
     bboxOrder,
     includeTemplate: false,
+    bitacoraHint: opts.bitacoraHint,
   };
 
   const baseUserPrompt = opts.previousExtraction

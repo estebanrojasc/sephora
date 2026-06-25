@@ -69,6 +69,20 @@ export async function insertRecord(payload: UploadPayload): Promise<Record> {
   return record;
 }
 
+export async function insertRecordFromBitacora(
+  partial: Omit<Record, "id" | "createdAt" | "updatedAt">
+): Promise<Record> {
+  const now = new Date().toISOString();
+  const record: Record = {
+    id: randomUUID(),
+    ...partial,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await (await col()).insertOne(record);
+  return record;
+}
+
 export async function findRecordsByIds(ids: string[]): Promise<Record[]> {
   if (ids.length === 0) return [];
   const c = await col();

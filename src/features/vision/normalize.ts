@@ -12,6 +12,7 @@ import {
 } from "@/features/records/types";
 import { splitBilletesAndMonedas } from "@/features/records/efectivo-utils";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
+import { normalizeThousandsDisplay } from "@/lib/parse-number";
 
 const EMPTY_BBOX: Bbox = [0, 0, 0, 0];
 
@@ -29,9 +30,17 @@ function coerceDateField(field: ExtractedField): ExtractedField {
   };
 }
 
+function coerceAmountField(field: ExtractedField): ExtractedField {
+  if (!field.valor.trim()) return field;
+  return {
+    ...field,
+    valor: normalizeThousandsDisplay(field.valor),
+  };
+}
+
 function fillField(input: unknown): ExtractedField {
   if (typeof input === "string") {
-    return { valor: input, bbox: [...EMPTY_BBOX] };
+    return { valor: normalizeThousandsDisplay(input), bbox: [...EMPTY_BBOX] };
   }
   if (typeof input === "number" && Number.isFinite(input)) {
     return { valor: String(input), bbox: [...EMPTY_BBOX] };
@@ -54,7 +63,7 @@ function fillField(input: unknown): ExtractedField {
       ? ([bb[0], bb[1], bb[2], bb[3]] as Bbox)
       : [...EMPTY_BBOX];
 
-  return { valor, bbox };
+  return { valor: normalizeThousandsDisplay(valor), bbox };
 }
 
 function fillChequeRow(input: unknown): ChequeRow {
@@ -62,7 +71,7 @@ function fillChequeRow(input: unknown): ChequeRow {
   return {
     fecha: coerceDateField(fillField(obj.fecha)),
     banco: fillField(obj.banco),
-    valor: fillField(obj.valor),
+    valor: coerceAmountField(fillField(obj.valor)),
   };
 }
 

@@ -44,6 +44,7 @@ import {
 import { getTotalFieldIssues, getTotalsStatus } from "@/features/records/totals";
 import { formatCLP } from "@/lib/parse-number";
 import { toast } from "sonner";
+import { BitacoraHintPanel } from "./BitacoraHintPanel";
 
 interface ExtractionPanelProps {
   record: Record;
@@ -187,6 +188,11 @@ export function ExtractionPanel({
           <p className="max-w-sm text-sm text-muted-foreground">
             {COPY.admin.noExtraction}
           </p>
+          <BitacoraHintPanel
+            record={record}
+            extraction={null}
+            onApplyField={() => {}}
+          />
           <p className="text-xs text-muted-foreground">
             Se procesarán las{" "}
             <span className="font-semibold text-foreground">
@@ -242,6 +248,15 @@ export function ExtractionPanel({
               />
             </div>
           </div>
+
+          <BitacoraHintPanel
+            record={record}
+            extraction={liveExtraction}
+            onApplyField={(field, value) => {
+              formRef.current?.applyScalarField(field, value);
+              toast.success("Valor de bitácora aplicado");
+            }}
+          />
 
           <ExtractionForm
             extraction={record.extraction!}

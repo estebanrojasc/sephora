@@ -3,6 +3,7 @@ import {
   type Extraction,
   type Record as AppRecord,
 } from "@/features/records/types";
+import { splitChequesByTipo } from "@/features/records/cheque-utils";
 import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
 import { parseNumber } from "@/lib/parse-number";
 
@@ -34,7 +35,8 @@ export interface DetalleTablaRow {
 }
 
 export interface RendicionLists {
-  cheques: ChequeRow[];
+  cheques_a_fecha: ChequeRow[];
+  cheques_al_dia: ChequeRow[];
   rech_total: NcRow[];
   rech_parcial: NcRow[];
   negocio: NcRow[];
@@ -72,7 +74,8 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
   const empty: RendicionPayload = {
     scalars: {},
     lists: {
-      cheques: [],
+      cheques_a_fecha: [],
+      cheques_al_dia: [],
       rech_total: [],
       rech_parcial: [],
       negocio: [],
@@ -184,12 +187,16 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     "{{extraction.detalle_efectivo.total_monedas.valor}}"
   );
 
+  const { alDia, aFecha } = splitChequesByTipo(e.detalles_cheques ?? []);
+  const mapCheque = (c: (typeof e.detalles_cheques)[number]) => ({
+    fecha: text(c.fecha),
+    banco: text(c.banco),
+    valor: text(c.valor),
+  });
+
   const lists: RendicionLists = {
-    cheques: (e.detalles_cheques ?? []).map((c) => ({
-      fecha: text(c.fecha),
-      banco: text(c.banco),
-      valor: text(c.valor),
-    })),
+    cheques_a_fecha: aFecha.map(mapCheque),
+    cheques_al_dia: alDia.map(mapCheque),
     rech_total: (e.n_c_rechazo_total ?? []).map((r) => ({
       fac: text(r.no_fac),
       val: text(r.valor),
@@ -227,7 +234,8 @@ export function mergeRendicionPayloads(
   const empty: RendicionPayload = {
     scalars: {},
     lists: {
-      cheques: [],
+      cheques_a_fecha: [],
+      cheques_al_dia: [],
       rech_total: [],
       rech_parcial: [],
       negocio: [],
@@ -275,7 +283,8 @@ export function mergeRendicionPayloads(
   }
 
   const lists: RendicionLists = {
-    cheques: payloads.flatMap((p) => p.lists.cheques),
+    cheques_a_fecha: payloads.flatMap((p) => p.lists.cheques_a_fecha),
+    cheques_al_dia: payloads.flatMap((p) => p.lists.cheques_al_dia),
     rech_total: payloads.flatMap((p) => p.lists.rech_total),
     rech_parcial: payloads.flatMap((p) => p.lists.rech_parcial),
     negocio: payloads.flatMap((p) => p.lists.negocio),

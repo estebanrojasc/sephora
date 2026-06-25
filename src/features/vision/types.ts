@@ -1,4 +1,5 @@
 import type { Extraction } from "@/features/records/types";
+import type { BitacoraSuggestedFields } from "@/features/bitacora/types";
 
 export type VisionProvider = "qwen" | "gemini";
 
@@ -12,6 +13,8 @@ export interface VisionExtractOptions {
   imageDataUrls: string[];
   previousExtraction?: Extraction;
   withBboxes: boolean;
+  /** Pistas opcionales de la bitácora matinal del día. */
+  bitacoraHint?: BitacoraSuggestedFields;
 }
 
 export interface VisionExtractResult {

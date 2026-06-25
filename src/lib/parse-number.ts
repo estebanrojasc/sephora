@@ -1,4 +1,42 @@
 /**
+ * Convierte comas usadas como separador de miles al punto (formato chileno).
+ * Conserva comas decimales (1-2 dígitos finales sin puntos previos).
+ */
+export function normalizeThousandsDisplay(
+  value: string | undefined | null
+): string {
+  if (value == null) return "";
+  const raw = String(value).trim();
+  if (!raw.includes(",")) return raw;
+
+  const lastComma = raw.lastIndexOf(",");
+  const lastDot = raw.lastIndexOf(".");
+  const tailAfterComma = raw.length - lastComma - 1;
+  const commaCount = (raw.match(/,/g) ?? []).length;
+
+  if (
+    commaCount === 1 &&
+    lastDot === -1 &&
+    tailAfterComma >= 1 &&
+    tailAfterComma <= 2
+  ) {
+    return raw;
+  }
+
+  if (
+    commaCount >= 1 &&
+    (commaCount > 1 ||
+      tailAfterComma === 3 ||
+      lastDot > lastComma ||
+      lastDot === -1)
+  ) {
+    return raw.replace(/,/g, ".");
+  }
+
+  return raw;
+}
+
+/**
  * Intenta interpretar un string monetario en formato chileno/internacional y
  * devolver un número. Acepta separadores . y , como miles o decimales,
  * símbolos $ y espacios. Devuelve null si no puede.

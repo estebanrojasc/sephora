@@ -21,6 +21,8 @@ interface RowsEditorProps<T extends object> {
   createEmpty: () => T;
   onChange: (rows: T[]) => void;
   onHoverBbox?: (bbox: Bbox | null) => void;
+  /** Muestra solo las filas que cumplan la condición (p. ej. cheques al día). */
+  filter?: (row: T, index: number) => boolean;
 }
 
 export function RowsEditor<T extends object>({
@@ -29,6 +31,7 @@ export function RowsEditor<T extends object>({
   createEmpty,
   onChange,
   onHoverBbox,
+  filter,
 }: RowsEditorProps<T>) {
   const [focusedCell, setFocusedCell] = useState<string | null>(null);
   // Espejo síncrono para evitar la race entre setState (asíncrono) y el
@@ -53,6 +56,12 @@ export function RowsEditor<T extends object>({
   const remove = (idx: number) => onChange(rows.filter((_, i) => i !== idx));
   const add = () => onChange([...rows, createEmpty()]);
 
+  const visibleRows = filter
+    ? rows
+        .map((row, index) => ({ row, index }))
+        .filter(({ row, index }) => filter(row, index))
+    : rows.map((row, index) => ({ row, index }));
+
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto">
@@ -71,7 +80,7 @@ export function RowsEditor<T extends object>({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {visibleRows.length === 0 && (
               <tr>
                 <td
                   colSpan={columns.length + 1}
@@ -81,7 +90,7 @@ export function RowsEditor<T extends object>({
                 </td>
               </tr>
             )}
-            {rows.map((row, idx) => (
+            {visibleRows.map(({ row, index: idx }) => (
               <tr key={idx} className="border-b last:border-0">
                 {columns.map((col) => {
                   const field = (row as unknown as Record<

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
   ClipboardList,
   Database,
+  BookOpen,
   LogOut,
   Menu,
   PanelLeft,
@@ -21,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 const navItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin", label: "Cola de trabajo", icon: ClipboardList },
+  { href: "/admin/bitacora", label: "Bitácora", icon: BookOpen },
   { href: "/admin/catalogs", label: "Catálogos", icon: Database },
 ];
 

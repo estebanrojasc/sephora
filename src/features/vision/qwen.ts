@@ -42,8 +42,12 @@ export async function extractWithQwen(
   const userPrompt = opts.previousExtraction
     ? buildMergeUserPrompt(opts.previousExtraction, {
         withBboxes: opts.withBboxes,
+        bitacoraHint: opts.bitacoraHint,
       })
-    : buildInitialUserPrompt({ withBboxes: opts.withBboxes });
+    : buildInitialUserPrompt({
+        withBboxes: opts.withBboxes,
+        bitacoraHint: opts.bitacoraHint,
+      });
 
   const imageContents = opts.imageDataUrls.map((url) => {
     const c: {

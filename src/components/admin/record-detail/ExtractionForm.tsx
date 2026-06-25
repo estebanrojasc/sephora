@@ -29,6 +29,7 @@ import {
   type CreditoVendedorRow,
 } from "@/features/records/types";
 import type { TotalFieldIssue } from "@/features/records/totals";
+import { isChequeAlDia } from "@/features/records/cheque-utils";
 import { syncDetalleEfectivoTotals } from "@/features/records/efectivo-totals";
 import { formatCLP, parseNumber } from "@/lib/parse-number";
 
@@ -62,6 +63,7 @@ const newBillete = (): BilleteRow => ({
 
 export interface ExtractionFormHandle {
   getValues: () => Extraction;
+  applyScalarField: (key: keyof Extraction, value: string) => void;
 }
 
 interface ExtractionFormProps {
@@ -98,7 +100,29 @@ export function ExtractionForm({
     setState(ensureExtractionShape(extraction));
   }
 
-  useImperativeHandle(formRef, () => ({ getValues: () => state }), [state]);
+  useImperativeHandle(
+    formRef,
+    () => ({
+      getValues: () => state,
+      applyScalarField: (key, value) => {
+        setState((s) => {
+          const current = s[key];
+          if (
+            !current ||
+            typeof current !== "object" ||
+            !("valor" in current)
+          ) {
+            return s;
+          }
+          return {
+            ...s,
+            [key]: { ...(current as ExtractedField), valor: value },
+          };
+        });
+      },
+    }),
+    [state]
+  );
 
   useEffect(() => {
     onStateChange?.(state);
@@ -405,25 +429,68 @@ export function ExtractionForm({
           <AccordionTrigger className="text-sm font-semibold">
             Detalle de cheques
           </AccordionTrigger>
-          <AccordionContent>
-            <RowsEditor
-              rows={state.detalles_cheques}
-              columns={[
-                { key: "fecha", label: "Fecha", type: "date" },
-                {
-                  key: "banco",
-                  label: "Banco",
-                  catalogKey: "detalles_cheques.banco",
-                },
-                { key: "valor", label: "Valor" },
-              ]}
-              createEmpty={newCheque}
-              onChange={(rows) =>
-                setState((s) => ({ ...s, detalles_cheques: rows }))
-              }
-              onHoverBbox={onHoverBbox}
-            />
-            <div className="mt-3 space-y-2">
+          <AccordionContent className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Cheques al día
+              </p>
+              <RowsEditor
+                rows={state.detalles_cheques}
+                filter={(row) => isChequeAlDia(row.fecha.valor)}
+                columns={[
+                  { key: "fecha", label: "Fecha", type: "date" },
+                  {
+                    key: "banco",
+                    label: "Banco",
+                    catalogKey: "detalles_cheques.banco",
+                  },
+                  { key: "valor", label: "Valor" },
+                ]}
+                createEmpty={newCheque}
+                onChange={(rows) =>
+                  setState((s) => ({ ...s, detalles_cheques: rows }))
+                }
+                onHoverBbox={onHoverBbox}
+              />
+              <ComputedTotal
+                values={state.detalles_cheques
+                  .filter((r) => isChequeAlDia(r.fecha.valor))
+                  .map((r) => r.valor.valor)}
+                extractedValue={state.rendicion.cheques_al_dia.valor}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Cheques a fecha
+              </p>
+              <RowsEditor
+                rows={state.detalles_cheques}
+                filter={(row) => !isChequeAlDia(row.fecha.valor)}
+                columns={[
+                  { key: "fecha", label: "Fecha", type: "date" },
+                  {
+                    key: "banco",
+                    label: "Banco",
+                    catalogKey: "detalles_cheques.banco",
+                  },
+                  { key: "valor", label: "Valor" },
+                ]}
+                createEmpty={newCheque}
+                onChange={(rows) =>
+                  setState((s) => ({ ...s, detalles_cheques: rows }))
+                }
+                onHoverBbox={onHoverBbox}
+              />
+              <ComputedTotal
+                values={state.detalles_cheques
+                  .filter((r) => !isChequeAlDia(r.fecha.valor))
+                  .map((r) => r.valor.valor)}
+                extractedValue={state.rendicion.cheques_a_fecha.valor}
+              />
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
               <FieldInput
                 editKey="total_cheques"
                 label="Total cheques"

@@ -46,6 +46,8 @@ function isPathProtected(pathname: string): boolean {
   // explícitas de catálogos. Records sigue permitiendo GET para el driver
   // y la app valida en endpoint específico.
   if (pathname.startsWith("/api/catalogs")) return true;
+  if (pathname.startsWith("/api/bitacora")) return true;
+  if (pathname === "/api/records/from-bitacora") return true;
   if (pathname.startsWith("/api/records/") && pathname.endsWith("/process-ai")) {
     return true;
   }

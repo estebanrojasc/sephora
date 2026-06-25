@@ -92,6 +92,38 @@ export function maskChileanDateInput(value: string): string {
   return `${day}-${month}-${year}`;
 }
 
+/** Fecha completa en máscara DD-MM-AAAA (8 dígitos). */
+export function isCompleteChileanDateInput(value: string): boolean {
+  return value.replace(/\D/g, "").length === 8;
+}
+
+/**
+ * Sincroniza un valor externo al input sin completar fechas parciales
+ * (p. ej. DD-MM sin año) para no alterar lo que el usuario está editando.
+ */
+export function normalizeChileanDateForSync(
+  value: string | undefined | null
+): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (isCompleteChileanDateInput(trimmed)) {
+    const iso = parseToIso(trimmed);
+    return iso ? formatChileanDate(iso) : trimmed;
+  }
+
+  const iso = parseToIso(trimmed);
+  if (iso) return formatChileanDate(iso);
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length > 0 && digits.length < 8) {
+    return maskChileanDateInput(trimmed);
+  }
+
+  return trimmed;
+}
+
 export function normalizeChileanDate(value: string): string {
   const iso = parseToIso(value);
   return iso ? formatChileanDate(iso) : value.trim();

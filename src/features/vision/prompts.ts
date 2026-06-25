@@ -1,4 +1,6 @@
 import type { Extraction } from "@/features/records/types";
+import type { BitacoraSuggestedFields } from "@/features/bitacora/types";
+import { buildBitacoraHintBlock } from "@/features/bitacora/prompts";
 
 export interface PromptOptions {
   /**
@@ -19,6 +21,14 @@ export interface PromptOptions {
    * Default true para Qwen.
    */
   includeTemplate?: boolean;
+  /** Pistas opcionales de bitácora matinal. */
+  bitacoraHint?: BitacoraSuggestedFields;
+}
+
+function bitacoraBlock(opts: PromptOptions): string {
+  if (!opts.bitacoraHint) return "";
+  const block = buildBitacoraHintBlock(opts.bitacoraHint);
+  return block ? `\n\n${block}` : "";
 }
 
 export const SYSTEM_PROMPT = `Eres un asistente OCR experto en hojas de rendición de ruta de camiones chilenos. Tu trabajo es leer documentos manuscritos y devolver únicamente un JSON con la estructura exacta solicitada por el usuario.`;
@@ -309,6 +319,7 @@ ${EFECTIVO_RULES}
 ${NC_RECHAZO_RULES}
 
 ${MULTIPAGE_RULES}
+${bitacoraBlock(opts)}
 
 ${structureBlock(opts)}`;
 }
@@ -360,6 +371,7 @@ ${EFECTIVO_RULES}
 ${NC_RECHAZO_RULES}
 
 ${MULTIPAGE_RULES}
+${bitacoraBlock(opts)}
 
 ${structureBlock(opts)}
 

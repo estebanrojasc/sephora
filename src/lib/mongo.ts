@@ -68,4 +68,5 @@ export const COLLECTIONS = {
   users: "users",
   catalogs: "catalogs",
   extractionAttempts: "extraction_attempts",
+  bitacoras: "bitacoras",
 } as const;

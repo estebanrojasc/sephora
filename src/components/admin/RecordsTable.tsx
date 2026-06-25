@@ -10,7 +10,7 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowUpDown, Eye, FileSpreadsheet } from "lucide-react";
+import { ArrowUpDown, BookOpen, Eye, FileSpreadsheet } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Table,
@@ -26,7 +26,9 @@ import { RecordSummaryCard } from "@/components/common/RecordSummaryCard";
 import { PdfExportButton } from "@/components/admin/PdfExportButton";
 import { BulkExcelExportDialog } from "@/components/admin/BulkExcelExportDialog";
 import type { Record } from "@/features/records/types";
+import type { Bitacora } from "@/features/bitacora/types";
 import { getRecordConductorLabel } from "@/features/records/display";
+import { matchScoreForRecord } from "@/features/bitacora/match";
 import { formatDate } from "@/lib/format";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
 import { useIsDesktop } from "@/hooks/use-media-query";
@@ -38,12 +40,15 @@ interface RecordsTableProps {
   isLoading?: boolean;
   /** Habilita selección múltiple y export Excel consolidado (tab Guardado). */
   enableBulkExcel?: boolean;
+  /** Bitácora activa del día filtrado (para indicador de match). */
+  activeBitacora?: Bitacora | null;
 }
 
 export function RecordsTable({
   records,
   isLoading,
   enableBulkExcel = false,
+  activeBitacora = null,
 }: RecordsTableProps) {
   const isDesktop = useIsDesktop();
   const [sorting, setSorting] = useState<SortingState>([
@@ -165,6 +170,34 @@ export function RecordsTable({
         cell: ({ row }) => row.original.extraction?.patente?.valor || "—",
       },
       {
+        id: "bitacora",
+        header: "Bitácora",
+        cell: ({ row }) => {
+          const score = matchScoreForRecord(row.original, activeBitacora);
+          if (!activeBitacora) return "—";
+          return (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs",
+                score >= 60
+                  ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200"
+                  : score >= 40
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                    : "bg-muted text-muted-foreground"
+              )}
+              title={
+                score >= 40
+                  ? `Coincidencia con bitácora: ${score}%`
+                  : "Sin coincidencia clara con bitácora"
+              }
+            >
+              <BookOpen className="size-3" />
+              {score >= 40 ? `${score}%` : "—"}
+            </span>
+          );
+        },
+      },
+      {
         id: "images",
         header: "Imgs.",
         cell: ({ row }) => row.original.images.length,
@@ -193,7 +226,7 @@ export function RecordsTable({
     );
 
     return base;
-  }, [enableBulkExcel, duplicateRecorridos]);
+  }, [enableBulkExcel, duplicateRecorridos, activeBitacora]);
 
   const table = useReactTable({
     data: records,

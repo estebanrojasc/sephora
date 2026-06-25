@@ -16,6 +16,12 @@ import {
 import { mergeExtractions } from "@/features/records/extraction-merge";
 import { applyCatalogsToExtraction } from "@/features/catalogs/apply-to-extraction";
 import { listActiveCatalogs } from "@/lib/repositories/catalogs";
+import { findActiveBitacoraForDate } from "@/lib/repositories/bitacoras";
+import {
+  getRecordDayForBitacora,
+  matchRecordToBitacora,
+  rowToSuggested,
+} from "@/features/bitacora/match";
 import {
   createEmptyExtraction,
   type Extraction,
@@ -67,6 +73,13 @@ export async function POST(
 
   const previous = body.reset ? undefined : record.extraction;
 
+  const recordDay = getRecordDayForBitacora(record);
+  const bitacora = await findActiveBitacoraForDate(recordDay);
+  const bitacoraMatch = bitacora
+    ? matchRecordToBitacora(record, bitacora)
+    : null;
+  const bitacoraHint = bitacoraMatch?.suggested;
+
   let extraction: Extraction;
   let rawResponse = "";
   let model: string | undefined;
@@ -77,6 +90,7 @@ export async function POST(
       const result = await extractWithVision({
         imageDataUrls,
         previousExtraction: previous,
+        bitacoraHint,
       });
       extraction = result.extraction;
       rawResponse = result.rawResponse;
@@ -118,6 +132,17 @@ export async function POST(
     lastModel: model,
     lastProvider: provider,
     lastWithBboxes: withBboxes,
+    ...(bitacoraMatch && bitacora
+      ? {
+          bitacora: {
+            bitacoraId: bitacora.id,
+            rowId: bitacoraMatch.rowId,
+            version: bitacora.version,
+            matchScore: bitacoraMatch.matchScore,
+            suggested: rowToSuggested(bitacoraMatch.row),
+          },
+        }
+      : {}),
   };
 
   const merged: Extraction = previous
