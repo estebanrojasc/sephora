@@ -1,7 +1,14 @@
 import { unzipSync, zipSync } from "fflate";
 import type { Record as AppRecord } from "@/features/records/types";
+import { parseNumber } from "@/lib/parse-number";
 import { buildRendicionPayload } from "./build-rendicion";
-import { renderRendicionWorksheet } from "./render";
+import {
+  RESUMEN_SUMMARY_FIELDS,
+  recordLabel,
+  resumenColumnForRecord,
+  scalarForPlaceholder,
+} from "./consolidated-resumen";
+import { renderRendicionWorksheet, renderScalarWorksheet, writeCellAtRef } from "./render";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -32,9 +39,67 @@ function sheetNameForRecord(record: AppRecord, used: Set<string>): string {
   return candidate;
 }
 
+/** Hoja Resumen: columna B = registro 0; C, D… = resto; totales consolidados desde fila 22. */
+function buildResumenWorksheet(
+  template: Uint8Array,
+  records: AppRecord[]
+): string {
+  const firstPayload = buildRendicionPayload(records[0]!);
+  let xml = renderScalarWorksheet(template, firstPayload);
+
+  for (let i = 0; i < records.length; i++) {
+    const col = resumenColumnForRecord(i);
+    xml = writeCellAtRef(xml, `${col}4`, {
+      value: recordLabel(records[i]!),
+      numeric: false,
+    });
+  }
+
+  for (let i = 1; i < records.length; i++) {
+    const payload = buildRendicionPayload(records[i]!);
+    const col = resumenColumnForRecord(i);
+    for (const field of RESUMEN_SUMMARY_FIELDS) {
+      const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
+      if (!scalar) continue;
+      xml = writeCellAtRef(xml, `${col}${field.row}`, scalar);
+    }
+  }
+
+  if (records.length > 1) {
+    const aggStart = 22;
+    xml = writeCellAtRef(xml, `A${aggStart}`, {
+      value: "TOTALES CONSOLIDADOS",
+      numeric: false,
+    });
+    let r = aggStart + 1;
+    for (const field of RESUMEN_SUMMARY_FIELDS.filter((f) => f.numeric)) {
+      let sum = 0;
+      let any = false;
+      for (const rec of records) {
+        const scalar = scalarForPlaceholder(
+          buildRendicionPayload(rec).scalars,
+          field.placeholder
+        );
+        if (!scalar?.value.trim()) continue;
+        const n = parseNumber(scalar.value);
+        if (n !== null) {
+          sum += n;
+          any = true;
+        }
+      }
+      if (!any) continue;
+      xml = writeCellAtRef(xml, `A${r}`, { value: field.label, numeric: false });
+      xml = writeCellAtRef(xml, `B${r}`, { value: String(sum), numeric: true });
+      r++;
+    }
+  }
+
+  return xml;
+}
+
 /**
- * Arma un libro con una hoja RUTA por registro, cada una generada desde la
- * misma plantilla que el Excel individual.
+ * Arma un libro con hoja Resumen (totales por registro) y una hoja RUTA
+ * completa por registro, usando la misma plantilla que el Excel individual.
  */
 export function buildConsolidatedWorkbook(
   template: Uint8Array,
@@ -47,13 +112,23 @@ export function buildConsolidatedWorkbook(
   const baseFiles = unzipSync(template);
   const files: Record<string, Uint8Array> = { ...baseFiles };
   const sheetRelsTemplate = baseFiles["xl/worksheets/_rels/sheet1.xml.rels"];
+  const totalSheets = 1 + records.length;
 
-  const usedNames = new Set<string>();
-  const sheetEntries: { name: string; path: string; rId: string }[] = [];
+  files["xl/worksheets/sheet1.xml"] = encoder.encode(
+    buildResumenWorksheet(template, records)
+  );
+  if (sheetRelsTemplate) {
+    files["xl/worksheets/_rels/sheet1.xml.rels"] = sheetRelsTemplate;
+  }
+
+  const usedNames = new Set<string>(["Resumen"]);
+  const sheetEntries: { name: string; path: string; rId: string }[] = [
+    { name: "Resumen", path: "worksheets/sheet1.xml", rId: "rId1" },
+  ];
 
   for (let i = 0; i < records.length; i++) {
     const record = records[i]!;
-    const sheetNum = i + 1;
+    const sheetNum = i + 2;
     const sheetPath = `xl/worksheets/sheet${sheetNum}.xml`;
     const payload = buildRendicionPayload(record);
     files[sheetPath] = encoder.encode(
@@ -67,7 +142,7 @@ export function buildConsolidatedWorkbook(
     sheetEntries.push({
       name: sheetNameForRecord(record, usedNames),
       path: `worksheets/sheet${sheetNum}.xml`,
-      rId: i === 0 ? "rId1" : `rId${5 + i}`,
+      rId: `rId${5 + i}`,
     });
   }
 
@@ -104,7 +179,7 @@ export function buildConsolidatedWorkbook(
 
   let ctXml = decoder.decode(baseFiles["[Content_Types].xml"]!);
   ctXml = ctXml.replace(/<Override[^>]*calcChain[^>]*\/>/g, "");
-  for (let i = 1; i <= records.length; i++) {
+  for (let i = 1; i <= totalSheets; i++) {
     const part = `/xl/worksheets/sheet${i}.xml`;
     if (!ctXml.includes(part)) {
       ctXml = ctXml.replace(
@@ -113,7 +188,7 @@ export function buildConsolidatedWorkbook(
       );
     }
   }
-  for (let i = records.length + 1; i <= 10; i++) {
+  for (let i = totalSheets + 1; i <= 10; i++) {
     const part = `/xl/worksheets/sheet${i}.xml`;
     ctXml = ctXml.replace(
       new RegExp(`<Override PartName="${part.replace(/\//g, "\\/")}"[^>]*\\/>`, "g"),

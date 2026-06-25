@@ -87,6 +87,7 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     "{{extraction.auxiliar.valor}}": { value: text(e.auxiliar), numeric: false },
     "{{extraction.conductor.valor}}": { value: text(e.conductor), numeric: false },
     "{{extraction.n_recorrido.valor}}": { value: text(e.n_recorrido), numeric: false },
+    "{{extraction.patente.valor}}": { value: text(e.patente), numeric: false },
     "{{extraction.cant_fact.valor}}": { value: text(e.cant_fact), numeric: true },
     "{{extraction.valor_total.valor}}": { value: text(e.valor_total), numeric: true },
     "{{extraction.rendicion.efectivo_total.valor}}": {
@@ -148,6 +149,26 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     "{{extraction.total_n_c_por_negocios.valor}}": {
       value: text(e.total_n_c_por_negocios),
       numeric: true,
+    },
+    "{{extraction.total_cheques.valor}}": {
+      value: text(e.total_cheques),
+      numeric: true,
+    },
+    "{{extraction.total_transferencias.valor}}": {
+      value: text(e.total_transferencias),
+      numeric: true,
+    },
+    "{{extraction.numero_deposito_en_efectivo.valor}}": {
+      value: text(e.numero_deposito_en_efectivo),
+      numeric: false,
+    },
+    "{{extraction.monto_deposito_en_efectivo.valor}}": {
+      value: text(e.monto_deposito_en_efectivo),
+      numeric: true,
+    },
+    "{{extraction.observaciones.valor}}": {
+      value: text(e.observaciones),
+      numeric: false,
     },
   };
 

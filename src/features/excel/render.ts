@@ -309,7 +309,8 @@ function expandListBlock(
 function processWorksheet(
   xml: string,
   payload: RendicionPayload,
-  indices: Map<string, number>
+  indices: Map<string, number>,
+  options?: { expandLists?: boolean }
 ): string {
   xml = trimSparseTailRows(xml);
 
@@ -319,22 +320,71 @@ function processWorksheet(
     xml = replaceCellsByStringIndex(xml, idx, scalar);
   }
 
-  let rowShift = 0;
-  for (const block of LIST_BLOCKS) {
-    const anchorRow = block.anchorRow + rowShift;
-    const n = block.count(payload.lists);
-    xml = expandListBlock(
-      xml,
-      anchorRow,
-      block.layout,
-      payload.lists,
-      indices,
-      n
-    );
-    if (n > 1) rowShift += n - 1;
+  if (options?.expandLists !== false) {
+    let rowShift = 0;
+    for (const block of LIST_BLOCKS) {
+      const anchorRow = block.anchorRow + rowShift;
+      const n = block.count(payload.lists);
+      xml = expandListBlock(
+        xml,
+        anchorRow,
+        block.layout,
+        payload.lists,
+        indices,
+        n
+      );
+      if (n > 1) rowShift += n - 1;
+    }
   }
 
   return clearStalePlaceholderCaches(xml);
+}
+
+function writeCellAt(xml: string, ref: string, scalar: ScalarValue): string {
+  const type = scalar.numeric ? ("number" as const) : ("text" as const);
+  const cellRe = new RegExp(`<c r="${ref}"[^>]*>[\\s\\S]*?<\\/c>`);
+  const built = buildCellXml(ref, 0, scalar.value, type);
+  if (cellRe.test(xml)) {
+    return xml.replace(cellRe, built);
+  }
+  const rowMatch = ref.match(/(\d+)$/);
+  if (!rowMatch) return xml;
+  const rowNum = rowMatch[1]!;
+  const rowRe = new RegExp(
+    `(<row\\b[^>]*\\br="${rowNum}"[^>]*>)([\\s\\S]*?)(</row>)`
+  );
+  return xml.replace(rowRe, `$1${built}$2$3`);
+}
+
+/** Rellena solo totales/cabecera (sin expandir filas de detalle). */
+export function renderScalarWorksheet(
+  template: Uint8Array,
+  payload: RendicionPayload
+): string {
+  const files = unzipSync(template);
+  const sharedStringsBytes = files["xl/sharedStrings.xml"];
+  if (!sharedStringsBytes) {
+    throw new Error("La plantilla no contiene xl/sharedStrings.xml");
+  }
+  const indices = parsePlaceholderIndices(decoder.decode(sharedStringsBytes));
+  const worksheetBytes = files["xl/worksheets/sheet1.xml"];
+  if (!worksheetBytes) {
+    throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
+  }
+  return processWorksheet(
+    decoder.decode(worksheetBytes),
+    payload,
+    indices,
+    { expandLists: false }
+  );
+}
+
+export function writeCellAtRef(
+  xml: string,
+  ref: string,
+  scalar: ScalarValue
+): string {
+  return writeCellAt(xml, ref, scalar);
 }
 
 export function renderRendicionWorksheet(
