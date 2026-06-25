@@ -26,6 +26,11 @@ function mockRecord(id, rec, conductor, extra = {}) {
       banco: { valor: "SANTANDER", bbox: [0, 0, 0, 0] },
       valor: { valor: "100000", bbox: [0, 0, 0, 0] },
     },
+    {
+      fecha: { valor: "02/01/2026", bbox: [0, 0, 0, 0] },
+      banco: { valor: "BCI", bbox: [0, 0, 0, 0] },
+      valor: { valor: "200000", bbox: [0, 0, 0, 0] },
+    },
   ];
   extraction.detalle_transferencias = [
     {
@@ -33,6 +38,12 @@ function mockRecord(id, rec, conductor, extra = {}) {
       valor: { valor: "150000", bbox: [0, 0, 0, 0] },
       cliente: { valor: "CLIENTE UNO", bbox: [0, 0, 0, 0] },
       banco: { valor: "SANTANDER", bbox: [0, 0, 0, 0] },
+    },
+    {
+      no_fac: { valor: "F002", bbox: [0, 0, 0, 0] },
+      valor: { valor: "250000", bbox: [0, 0, 0, 0] },
+      cliente: { valor: "CLIENTE DOS", bbox: [0, 0, 0, 0] },
+      banco: { valor: "BCI", bbox: [0, 0, 0, 0] },
     },
   ];
   Object.assign(extraction, extra);
@@ -58,7 +69,6 @@ const consolidated = unzipSync(
 
 function cellMap(path) {
   const sheet = new TextDecoder().decode(path);
-  const strings = [];
   return {
     get(ref) {
       const re = new RegExp(
@@ -75,6 +85,9 @@ function cellMap(path) {
     stale() {
       return (sheet.match(/\{\{/g) ?? []).length;
     },
+    hasRow(row) {
+      return new RegExp(`<row\\b[^>]*\\br="${row}"`).test(sheet);
+    },
   };
 }
 
@@ -82,29 +95,30 @@ const ind = cellMap(individual["xl/worksheets/sheet1.xml"]);
 const res = cellMap(consolidated["xl/worksheets/sheet1.xml"]);
 
 const checks = [
-  ["B1 conductor", ind.get("B1"), res.get("B1")],
-  ["B2 auxiliar", ind.get("B2"), res.get("B2")],
-  ["B5 recorrido", ind.get("B5"), res.get("B5")],
-  ["B6 cant_fact", ind.get("B6"), res.get("B6")],
-  ["B7 valor_total", ind.get("B7"), res.get("B7")],
-  ["B9 billetes", ind.get("B9"), res.get("B9")],
-  ["N23 fecha", ind.get("N23"), res.get("N23")],
-  ["U23 cant_fact", ind.get("U23"), res.get("U23")],
-  ["N37 chq banco", ind.get("N37"), res.get("N37")],
-  ["O37 chq valor", ind.get("O37"), res.get("O37")],
-  ["M73 transf cliente", ind.get("M73"), res.get("M73")],
-  ["C1 conductor r2", "BOB", res.get("C1")],
-  ["C5 recorrido r2", "222", res.get("C5")],
+  ["B6 cant_fact sum", "20", res.get("B6")],
+  ["N37 chq row1", "SANTANDER", res.get("N37")],
+  ["N38 chq row2", "BCI", res.get("N38")],
+  ["N39 chq row3 (2do reg)", "SANTANDER", res.get("N39")],
 ];
 
 let ok = true;
 for (const [label, expected, actual] of checks) {
   const pass = String(expected) === String(actual);
   if (!pass) ok = false;
-  console.log(pass ? "OK" : "FAIL", label, expected, "vs", actual);
+  console.log(pass ? "OK" : "FAIL", label, "expected", expected, "got", actual);
 }
 
-console.log("Resumen stale placeholders:", res.stale());
-console.log(ok && res.stale() === 0 ? "PASS" : "FAIL");
+const stale = res.stale();
+const expandedCheques = res.hasRow(39);
+const expandedTransf = res.hasRow(76);
+console.log("Resumen stale placeholders:", stale);
+console.log("4 cheques -> row 39:", expandedCheques);
+console.log("4 transferencias -> row 76:", expandedTransf);
+console.log(
+  ok && stale === 0 && expandedCheques && expandedTransf ? "PASS" : "FAIL"
+);
 
-writeFileSync("scripts/.tmp/consolidado-test.xlsx", buildConsolidatedWorkbook(template, [r1, r2]));
+writeFileSync(
+  "scripts/.tmp/consolidado-test.xlsx",
+  buildConsolidatedWorkbook(template, [r1, r2])
+);

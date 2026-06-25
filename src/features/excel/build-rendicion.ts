@@ -4,6 +4,7 @@ import {
   type Record as AppRecord,
 } from "@/features/records/types";
 import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
+import { parseNumber } from "@/lib/parse-number";
 
 export interface ScalarValue {
   value: string;
@@ -214,6 +215,72 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
       banco: text(r.banco),
       ...(i === 0 ? { recorrido: text(e.n_recorrido) } : {}),
     })),
+  };
+
+  return { scalars, lists };
+}
+
+/** Combina varios registros en un payload para la hoja Resumen consolidada. */
+export function mergeRendicionPayloads(
+  payloads: RendicionPayload[]
+): RendicionPayload {
+  const empty: RendicionPayload = {
+    scalars: {},
+    lists: {
+      cheques: [],
+      rech_total: [],
+      rech_parcial: [],
+      negocio: [],
+      credito_vendedor: [],
+      transferencias: [],
+    },
+  };
+
+  if (payloads.length === 0) return empty;
+  if (payloads.length === 1) return payloads[0]!;
+
+  const keys = new Set<string>();
+  for (const p of payloads) {
+    for (const k of Object.keys(p.scalars)) keys.add(k);
+  }
+
+  const scalars: globalThis.Record<string, ScalarValue> = {};
+  for (const key of keys) {
+    const values = payloads
+      .map((p) => p.scalars[key])
+      .filter((v): v is ScalarValue => v !== undefined);
+    if (values.length === 0) continue;
+
+    if (values[0]!.numeric) {
+      let sum = 0;
+      let any = false;
+      for (const v of values) {
+        if (!v.value.trim()) continue;
+        const n = parseNumber(v.value);
+        if (n !== null) {
+          sum += n;
+          any = true;
+        }
+      }
+      scalars[key] = { value: any ? String(sum) : "", numeric: true };
+    } else {
+      const parts = [
+        ...new Set(values.map((v) => v.value.trim()).filter(Boolean)),
+      ];
+      scalars[key] = {
+        value: parts.length <= 1 ? (parts[0] ?? "") : "VARIOS",
+        numeric: false,
+      };
+    }
+  }
+
+  const lists: RendicionLists = {
+    cheques: payloads.flatMap((p) => p.lists.cheques),
+    rech_total: payloads.flatMap((p) => p.lists.rech_total),
+    rech_parcial: payloads.flatMap((p) => p.lists.rech_parcial),
+    negocio: payloads.flatMap((p) => p.lists.negocio),
+    credito_vendedor: payloads.flatMap((p) => p.lists.credito_vendedor),
+    transferencias: payloads.flatMap((p) => p.lists.transferencias),
   };
 
   return { scalars, lists };

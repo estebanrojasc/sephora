@@ -7,16 +7,7 @@ import type {
   RendicionPayload,
   ScalarValue,
 } from "./build-rendicion";
-import { buildRendicionPayload } from "./build-rendicion";
-import {
-  RECORD_DETAIL_COL_SPAN,
-  TEMPLATE_LOWER_SCALAR_CELLS,
-  TEMPLATE_RESUMEN_ROWS,
-  recordLabel,
-  scalarForPlaceholder,
-  shiftColumn,
-  summaryColumnForRecord,
-} from "./consolidated-resumen";
+import { buildRendicionPayload, mergeRendicionPayloads } from "./build-rendicion";
 
 const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
@@ -351,124 +342,10 @@ function processWorksheet(
   return clearStalePlaceholderCaches(xml);
 }
 
-function cellStyleFromAttrs(attrs: string): number {
-  const m = attrs.match(/\bs="(\d+)"/);
-  return m ? parseInt(m[1], 10) : 0;
-}
-
-function clearSharedStringPlaceholderCells(
-  xml: string,
-  placeholderIndices: Set<number>
-): string {
-  return xml.replace(
-    /<c\b([^>]*?)>\s*<v>(\d+)<\/v>\s*<\/c>/g,
-    (full, attrs, vIdx) => {
-      if (!/\bt="s"/.test(attrs)) return full;
-      if (!placeholderIndices.has(parseInt(vIdx, 10))) return full;
-      const refMatch = attrs.match(/\br="([^"]+)"/);
-      if (!refMatch) return full;
-      const style = cellStyleFromAttrs(attrs);
-      const styleAttr = style > 0 ? ` s="${style}"` : "";
-      return `<c r="${refMatch[1]}"${styleAttr}/>`;
-    }
-  );
-}
-
-function writeCellAt(xml: string, ref: string, scalar: ScalarValue): string {
-  const type = scalar.numeric ? ("number" as const) : ("text" as const);
-  const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const cellRe = new RegExp(
-    `<c r="${escapedRef}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`
-  );
-  const match = xml.match(cellRe);
-  const style = match ? cellStyleFromAttrs(match[1]) : 0;
-  const built = buildCellXml(ref, style, scalar.value, type);
-  if (match) {
-    return xml.replace(cellRe, built);
-  }
-  const rowMatch = ref.match(/(\d+)$/);
-  if (!rowMatch) return xml;
-  const rowNum = rowMatch[1]!;
-  const rowRe = new RegExp(
-    `(<row\\b[^>]*\\br="${rowNum}"[^>]*>)([\\s\\S]*?)(</row>)`
-  );
-  return xml.replace(rowRe, `$1${built}$2$3`);
-}
-
 /**
- * Detalle inferior (filas 23+, listas 37/71/73): misma plantilla que el individual,
- * un bloque M–W por registro desplazado horizontalmente.
- */
-function fillConsolidatedLowerSection(
-  xml: string,
-  payloads: RendicionPayload[]
-): string {
-  const span = RECORD_DETAIL_COL_SPAN;
-
-  for (let ri = 0; ri < payloads.length; ri++) {
-    const payload = payloads[ri]!;
-    const colOffset = ri * span;
-    for (const cell of TEMPLATE_LOWER_SCALAR_CELLS.filter((c) => c.row < 40)) {
-      const scalar = scalarForPlaceholder(payload.scalars, cell.placeholder);
-      if (!scalar) continue;
-      xml = writeCellAt(
-        xml,
-        `${shiftColumn(cell.col, colOffset)}${cell.row}`,
-        scalar
-      );
-    }
-  }
-
-  for (let ri = 0; ri < payloads.length; ri++) {
-    const payload = payloads[ri]!;
-    const colOffset = ri * span;
-    for (const cell of TEMPLATE_LOWER_SCALAR_CELLS.filter((c) => c.row === 65)) {
-      const scalar = scalarForPlaceholder(payload.scalars, cell.placeholder);
-      if (!scalar) continue;
-      xml = writeCellAt(
-        xml,
-        `${shiftColumn(cell.col, colOffset)}${cell.row}`,
-        scalar
-      );
-    }
-  }
-
-  let rowShift = 0;
-  for (const block of LIST_BLOCKS) {
-    const anchorRow = block.anchorRow + rowShift;
-    let n = 1;
-    for (const payload of payloads) {
-      n = Math.max(n, block.count(payload.lists));
-    }
-
-    if (n > 1) {
-      xml = shiftRowsInWorksheet(xml, anchorRow + 1, n - 1);
-    }
-
-    for (let li = 0; li < n; li++) {
-      const rowNum = anchorRow + li;
-      for (let ri = 0; ri < payloads.length; ri++) {
-        const payload = payloads[ri]!;
-        const colOffset = ri * span;
-        for (const layout of block.layout) {
-          const value = listValueAt(payload.lists, layout, li) ?? "";
-          xml = writeCellAt(xml, `${shiftColumn(layout.col, colOffset)}${rowNum}`, {
-            value,
-            numeric: layout.type === "number",
-          });
-        }
-      }
-    }
-
-    if (n > 1) rowShift += n - 1;
-  }
-
-  return xml;
-}
-
-/**
- * Hoja Resumen sobre la misma plantilla RUTA: filas 1–17 + detalle inferior,
- * columnas B+ (resumen) y bloques M–W desplazados por registro.
+ * Hoja Resumen: misma plantilla y mismo motor que el Excel individual.
+ * Solo rellena celdas con {{}}; listas con todas las filas (cheques, NC, crédito, transferencias).
+ * Varios registros se fusionan (sumas en totales, todas las líneas de detalle).
  */
 export function renderConsolidatedResumenWorksheet(
   template: Uint8Array,
@@ -486,90 +363,9 @@ export function renderConsolidatedResumenWorksheet(
   }
 
   const payloads = records.map((r) => buildRendicionPayload(r));
+  const merged = mergeRendicionPayloads(payloads);
 
-  let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
-  const placeholderIdx = new Set(indices.values());
-  xml = clearSharedStringPlaceholderCells(xml, placeholderIdx);
-
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i]!;
-    const payload = payloads[i]!;
-    const col = summaryColumnForRecord(i);
-
-    xml = writeCellAt(xml, `${col}4`, {
-      value: recordLabel(record),
-      numeric: false,
-    });
-
-    for (const field of TEMPLATE_RESUMEN_ROWS) {
-      const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
-      if (!scalar) continue;
-      xml = writeCellAt(xml, `${col}${field.row}`, scalar);
-    }
-  }
-
-  xml = fillConsolidatedLowerSection(xml, payloads);
-
-  if (records.length > 1) {
-    const aggStart = 21;
-    xml = writeCellAt(xml, `A${aggStart}`, {
-      value: "TOTALES CONSOLIDADOS",
-      numeric: false,
-    });
-    let aggRow = aggStart + 1;
-    for (const field of TEMPLATE_RESUMEN_ROWS.filter((f) => f.sum)) {
-      let sum = 0;
-      let any = false;
-      for (const payload of payloads) {
-        const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
-        if (!scalar?.value.trim()) continue;
-        const n = parseNumber(scalar.value);
-        if (n !== null) {
-          sum += n;
-          any = true;
-        }
-      }
-      if (!any) continue;
-      xml = writeCellAt(xml, `B${aggRow}`, {
-        value: String(sum),
-        numeric: true,
-      });
-      aggRow++;
-    }
-  }
-
-  return clearStalePlaceholderCaches(xml);
-}
-
-/** Rellena solo totales/cabecera (sin expandir filas de detalle). */
-export function renderScalarWorksheet(
-  template: Uint8Array,
-  payload: RendicionPayload
-): string {
-  const files = unzipSync(template);
-  const sharedStringsBytes = files["xl/sharedStrings.xml"];
-  if (!sharedStringsBytes) {
-    throw new Error("La plantilla no contiene xl/sharedStrings.xml");
-  }
-  const indices = parsePlaceholderIndices(decoder.decode(sharedStringsBytes));
-  const worksheetBytes = files["xl/worksheets/sheet1.xml"];
-  if (!worksheetBytes) {
-    throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
-  }
-  return processWorksheet(
-    decoder.decode(worksheetBytes),
-    payload,
-    indices,
-    { expandLists: false }
-  );
-}
-
-export function writeCellAtRef(
-  xml: string,
-  ref: string,
-  scalar: ScalarValue
-): string {
-  return writeCellAt(xml, ref, scalar);
+  return processWorksheet(decoder.decode(worksheetBytes), merged, indices);
 }
 
 export function renderRendicionWorksheet(
