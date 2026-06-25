@@ -1,11 +1,19 @@
 import { unzipSync, zipSync } from "fflate";
 import { parseNumber } from "@/lib/parse-number";
+import type { Record as AppRecord } from "@/features/records/types";
 import type {
   DetalleTablaRow,
   RendicionLists,
   RendicionPayload,
   ScalarValue,
 } from "./build-rendicion";
+import { buildRendicionPayload } from "./build-rendicion";
+import {
+  TEMPLATE_RESUMEN_ROWS,
+  recordLabel,
+  scalarForPlaceholder,
+  summaryColumnForRecord,
+} from "./consolidated-resumen";
 
 const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
@@ -340,11 +348,39 @@ function processWorksheet(
   return clearStalePlaceholderCaches(xml);
 }
 
+function cellStyleFromAttrs(attrs: string): number {
+  const m = attrs.match(/\bs="(\d+)"/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+function clearSharedStringPlaceholderCells(
+  xml: string,
+  placeholderIndices: Set<number>
+): string {
+  return xml.replace(
+    /<c\b([^>]*?)>\s*<v>(\d+)<\/v>\s*<\/c>/g,
+    (full, attrs, vIdx) => {
+      if (!/\bt="s"/.test(attrs)) return full;
+      if (!placeholderIndices.has(parseInt(vIdx, 10))) return full;
+      const refMatch = attrs.match(/\br="([^"]+)"/);
+      if (!refMatch) return full;
+      const style = cellStyleFromAttrs(attrs);
+      const styleAttr = style > 0 ? ` s="${style}"` : "";
+      return `<c r="${refMatch[1]}"${styleAttr}/>`;
+    }
+  );
+}
+
 function writeCellAt(xml: string, ref: string, scalar: ScalarValue): string {
   const type = scalar.numeric ? ("number" as const) : ("text" as const);
-  const cellRe = new RegExp(`<c r="${ref}"[^>]*>[\\s\\S]*?<\\/c>`);
-  const built = buildCellXml(ref, 0, scalar.value, type);
-  if (cellRe.test(xml)) {
+  const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const cellRe = new RegExp(
+    `<c r="${escapedRef}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`
+  );
+  const match = xml.match(cellRe);
+  const style = match ? cellStyleFromAttrs(match[1]) : 0;
+  const built = buildCellXml(ref, style, scalar.value, type);
+  if (match) {
     return xml.replace(cellRe, built);
   }
   const rowMatch = ref.match(/(\d+)$/);
@@ -354,6 +390,81 @@ function writeCellAt(xml: string, ref: string, scalar: ScalarValue): string {
     `(<row\\b[^>]*\\br="${rowNum}"[^>]*>)([\\s\\S]*?)(</row>)`
   );
   return xml.replace(rowRe, `$1${built}$2$3`);
+}
+
+/**
+ * Hoja Resumen sobre la misma plantilla RUTA: filas 1–17, columnas B+ por registro.
+ * Escribe por referencia de celda (no por índice sharedString) para no duplicar
+ * valores en U23/W24 ni dejar placeholders en el bloque resumen.
+ */
+export function renderConsolidatedResumenWorksheet(
+  template: Uint8Array,
+  records: AppRecord[]
+): string {
+  const files = unzipSync(template);
+  const sharedStringsBytes = files["xl/sharedStrings.xml"];
+  if (!sharedStringsBytes) {
+    throw new Error("La plantilla no contiene xl/sharedStrings.xml");
+  }
+  const indices = parsePlaceholderIndices(decoder.decode(sharedStringsBytes));
+  const worksheetBytes = files["xl/worksheets/sheet1.xml"];
+  if (!worksheetBytes) {
+    throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
+  }
+
+  let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
+  const placeholderIdx = new Set(indices.values());
+  xml = clearSharedStringPlaceholderCells(xml, placeholderIdx);
+
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]!;
+    const payload = buildRendicionPayload(record);
+    const col = summaryColumnForRecord(i);
+
+    xml = writeCellAt(xml, `${col}4`, {
+      value: recordLabel(record),
+      numeric: false,
+    });
+
+    for (const field of TEMPLATE_RESUMEN_ROWS) {
+      const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
+      if (!scalar) continue;
+      xml = writeCellAt(xml, `${col}${field.row}`, scalar);
+    }
+  }
+
+  if (records.length > 1) {
+    const aggStart = 21;
+    xml = writeCellAt(xml, `A${aggStart}`, {
+      value: "TOTALES CONSOLIDADOS",
+      numeric: false,
+    });
+    let aggRow = aggStart + 1;
+    for (const field of TEMPLATE_RESUMEN_ROWS.filter((f) => f.sum)) {
+      let sum = 0;
+      let any = false;
+      for (const rec of records) {
+        const scalar = scalarForPlaceholder(
+          buildRendicionPayload(rec).scalars,
+          field.placeholder
+        );
+        if (!scalar?.value.trim()) continue;
+        const n = parseNumber(scalar.value);
+        if (n !== null) {
+          sum += n;
+          any = true;
+        }
+      }
+      if (!any) continue;
+      xml = writeCellAt(xml, `B${aggRow}`, {
+        value: String(sum),
+        numeric: true,
+      });
+      aggRow++;
+    }
+  }
+
+  return clearStalePlaceholderCaches(xml);
 }
 
 /** Rellena solo totales/cabecera (sin expandir filas de detalle). */
