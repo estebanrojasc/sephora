@@ -8,6 +8,10 @@ import type { Bbox, ExtractedField } from "@/features/records/types";
 import { ChileanDateInput } from "./ChileanDateInput";
 import { CatalogPicker } from "./CatalogPicker";
 import { useActiveCatalogsByField } from "@/features/catalogs/queries";
+import {
+  resolveCatalogDisplayValue,
+  resolveCatalogStoredValue,
+} from "@/features/catalogs/resolve";
 
 interface RowsEditorProps<T extends object> {
   rows: T[];
@@ -115,6 +119,9 @@ export function RowsEditor<T extends object>({
                   const catalog = col.catalogKey
                     ? catalogs.get(col.catalogKey)
                     : undefined;
+                  const displayValue = catalog
+                    ? resolveCatalogDisplayValue(catalog, field.valor)
+                    : field.valor;
                   return (
                     <td
                       key={col.key}
@@ -140,9 +147,18 @@ export function RowsEditor<T extends object>({
                           ) : (
                             <Input
                               type="text"
-                              value={field.valor}
+                              value={displayValue}
                               onChange={(e) =>
-                                update(idx, col.key, e.target.value)
+                                update(
+                                  idx,
+                                  col.key,
+                                  catalog
+                                    ? resolveCatalogStoredValue(
+                                        catalog,
+                                        e.target.value
+                                      )
+                                    : e.target.value
+                                )
                               }
                               onFocus={focusCell}
                               onBlur={blurCell}
@@ -154,7 +170,13 @@ export function RowsEditor<T extends object>({
                           <CatalogPicker
                             catalog={catalog}
                             currentValue={field.valor}
-                            onPick={(value) => update(idx, col.key, value)}
+                            onPick={(value) =>
+                              update(
+                                idx,
+                                col.key,
+                                resolveCatalogStoredValue(catalog, value)
+                              )
+                            }
                           />
                         )}
                       </div>

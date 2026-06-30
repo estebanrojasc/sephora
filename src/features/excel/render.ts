@@ -57,19 +57,19 @@ const CHEQUES_AL_DIA_LAYOUT: ListCellLayout[] = [
 
 /** Fila 71: primera fila del bloque CREDITO. Solo esa fila lleva placeholders. */
 const CREDITO_LAYOUT: ListCellLayout[] = [
-  { col: "M", list: "credito_vendedor", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{cred_cliente}}" },
-  { col: "P", list: "credito_vendedor", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{cred_fac}}" },
-  { col: "T", list: "credito_vendedor", field: "valor", type: "number", extraStyle: 69, placeholder: "{{cred_valor}}" },
+  { col: "M", list: "credito_vendedor", field: "cliente", type: "text", extraStyle: 63, placeholder: "{{cred_cliente}}" },
+  { col: "P", list: "credito_vendedor", field: "no_fac", type: "text", extraStyle: 66, placeholder: "{{cred_fac}}" },
+  { col: "T", list: "credito_vendedor", field: "valor", type: "number", extraStyle: 159, placeholder: "{{cred_valor}}" },
   { col: "V", list: "credito_vendedor", field: "nro_vendedor", type: "text", extraStyle: 55, placeholder: "{{cred_vend}}" },
 ];
 
-/** Fila 73: primera fila del bloque TRANSFERENCIA. Solo esa fila lleva placeholders. */
+/** Fila 73: primera fila del bloque TRANSFERENCIA. Columnas según plantilla (banco en U, no O). */
 const TRANSF_LAYOUT: ListCellLayout[] = [
   { col: "L", list: "transferencias", field: "recorrido", type: "text", extraStyle: 49, placeholder: "{{transf_recorrido}}", firstRowOnly: true },
   { col: "M", list: "transferencias", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{transf_cliente}}" },
-  { col: "O", list: "transferencias", field: "banco", type: "text", extraStyle: 89, placeholder: "{{transf_banco}}" },
   { col: "P", list: "transferencias", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{transf_fac}}" },
   { col: "T", list: "transferencias", field: "valor", type: "number", extraStyle: 69, placeholder: "{{transf_valor}}" },
+  { col: "U", list: "transferencias", field: "banco", type: "text", extraStyle: 100, placeholder: "{{transf_banco}}" },
 ];
 
 interface ListBlock {

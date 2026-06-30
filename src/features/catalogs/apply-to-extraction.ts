@@ -1,18 +1,11 @@
 import { ensureExtractionShape, type Extraction, type ExtractedField } from "@/features/records/types";
 import type { Catalog } from "./types";
 import { normalizeTransferBankCode } from "@/features/records/transfer-bank";
+import { findCatalogItem } from "./resolve";
 
 function normalizeAgainstCatalog(raw: string, catalog: Catalog): string {
-  const v = raw.trim();
-  if (!v) return raw;
-  const lower = v.toLowerCase();
-  for (const item of catalog.items) {
-    if (item.value.toLowerCase() === lower) return item.value;
-    for (const alias of item.aliases ?? []) {
-      if (alias.toLowerCase() === lower) return item.value;
-    }
-  }
-  return raw;
+  const item = findCatalogItem(catalog, raw);
+  return item ? item.value : raw;
 }
 
 function applyField(field: ExtractedField, catalog: Catalog): ExtractedField {
@@ -28,12 +21,14 @@ function normalizeTransferBancos(
     ...extraction,
     detalle_transferencias: (extraction.detalle_transferencias ?? []).map(
       (row) => {
-        let banco = catalog ? applyField(row.banco, catalog) : row.banco;
-        const code = normalizeTransferBankCode(banco.valor);
-        if (code !== banco.valor) {
-          banco = { ...banco, valor: code };
+        if (catalog) {
+          return { ...row, banco: applyField(row.banco, catalog) };
         }
-        return { ...row, banco };
+        const code = normalizeTransferBankCode(row.banco.valor);
+        if (code && code !== row.banco.valor) {
+          return { ...row, banco: { ...row.banco, valor: code } };
+        }
+        return row;
       }
     ),
   };
@@ -42,7 +37,8 @@ function normalizeTransferBancos(
 /**
  * Ajusta valores de la extracción a los catálogos activos cuando el texto
  * coincide con un ítem o alias (insensible a mayúsculas).
- * Siempre normaliza códigos de banco en transferencias a E, VE o S.
+ * Bancos de transferencia: guarda el nombre completo del catálogo; sin catálogo,
+ * normaliza a códigos E / VE / S (OCR).
  */
 export function applyCatalogsToExtraction(
   extraction: Extraction,

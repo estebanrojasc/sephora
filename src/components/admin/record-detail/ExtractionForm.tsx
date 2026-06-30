@@ -743,9 +743,9 @@ export function ExtractionForm({
           </AccordionTrigger>
           <AccordionContent>
             <p className="mb-3 text-xs text-muted-foreground">
-              N° factura, cliente, código banco (<strong>E</strong>,{" "}
-              <strong>VE</strong> o <strong>S</strong>) y monto. El banco lo
-              rellena la IA al procesar.
+              N° factura, cliente, banco y monto. En banco usa el catálogo{" "}
+              <strong>Banco transferencia</strong> (E, VE o S); la IA suele
+              rellenar el código al procesar.
             </p>
             <RowsEditor
               rows={state.detalle_transferencias}
@@ -756,7 +756,11 @@ export function ExtractionForm({
                   catalogKey: "detalle_transferencias.no_fac",
                 },
                 { key: "cliente", label: "Cliente" },
-                { key: "banco", label: "Banco (E / VE / S)" },
+                {
+                  key: "banco",
+                  label: "Banco",
+                  catalogKey: "detalle_transferencias.banco",
+                },
                 { key: "valor", label: "Monto" },
               ]}
               createEmpty={newTransferencia}

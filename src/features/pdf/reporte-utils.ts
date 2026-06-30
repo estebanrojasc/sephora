@@ -10,6 +10,7 @@ import {
   dedupeTransferenciaRows,
   harvestTransfersFromObservations,
 } from "@/features/vision/normalize";
+import { transferBankDisplayLabel } from "@/features/records/transfer-bank";
 
 /**
  * Ajuste para registros viejos: si la extracción tiene transferencias
@@ -294,7 +295,7 @@ export function getDetailItems(
       const items: RowItem[] = current.detalle_transferencias.map((r) => ({
         descripcion: r.no_fac.valor ? `Fact. ${r.no_fac.valor}` : "—",
         cliente: r.cliente.valor,
-        banco: r.banco.valor,
+        banco: transferBankDisplayLabel(r.banco.valor),
         monto: parseAmount(r.valor.valor),
       }));
       const total =

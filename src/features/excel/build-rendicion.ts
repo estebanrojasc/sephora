@@ -5,6 +5,7 @@ import {
 } from "@/features/records/types";
 import { splitChequesByTipo } from "@/features/records/cheque-utils";
 import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
+import { transferBankDisplayLabel } from "@/features/records/transfer-bank";
 import { parseNumber } from "@/lib/parse-number";
 import type { BitacoraExcelFields } from "@/features/bitacora/meta";
 
@@ -246,7 +247,7 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
       cliente: text(r.cliente),
       no_fac: text(r.no_fac),
       valor: text(r.valor),
-      banco: text(r.banco),
+      banco: transferBankDisplayLabel(text(r.banco)),
       ...(i === 0 ? { recorrido: text(e.n_recorrido) } : {}),
     })),
   };

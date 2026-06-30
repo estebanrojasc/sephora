@@ -1,8 +1,10 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { unzipSync } from "fflate";
 import { createEmptyExtraction } from "../src/features/records/types.ts";
 import { buildRendicionPayload } from "../src/features/excel/build-rendicion.ts";
 import { renderRendicionExcel } from "../src/features/excel/render.ts";
+
+mkdirSync("scripts/.tmp", { recursive: true });
 
 const template = readFileSync("templates/RUTA CFT-ABL -2026.xlsx");
 const extraction = createEmptyExtraction();
@@ -12,13 +14,13 @@ extraction.detalle_transferencias = [
     no_fac: { valor: "F001", bbox: [0, 0, 0, 0] },
     valor: { valor: "150000", bbox: [0, 0, 0, 0] },
     cliente: { valor: "CLIENTE UNO", bbox: [0, 0, 0, 0] },
-    banco: { valor: "SANTANDER", bbox: [0, 0, 0, 0] },
+    banco: { valor: "VE", bbox: [0, 0, 0, 0] },
   },
   {
     no_fac: { valor: "F002", bbox: [0, 0, 0, 0] },
     valor: { valor: "250000", bbox: [0, 0, 0, 0] },
     cliente: { valor: "CLIENTE DOS", bbox: [0, 0, 0, 0] },
-    banco: { valor: "BCI", bbox: [0, 0, 0, 0] },
+    banco: { valor: "S", bbox: [0, 0, 0, 0] },
   },
 ];
 
@@ -41,7 +43,12 @@ for (const m of new TextDecoder().decode(f["xl/sharedStrings.xml"]).matchAll(/<s
 }
 const sheet = new TextDecoder().decode(f["xl/worksheets/sheet1.xml"]);
 
-function cellVal(inner, attrs) {
+function get(ref) {
+  const re = new RegExp(`<c r="${ref}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`);
+  const m = sheet.match(re);
+  if (!m) return "(missing)";
+  const attrs = m[1];
+  const inner = m[2] ?? "";
   const vm = inner.match(/<v>(\d+)<\/v>/);
   if (vm && attrs.includes('t="s"')) return strings[parseInt(vm[1], 10)] ?? "";
   if (vm) return vm[1];
@@ -49,22 +56,20 @@ function cellVal(inner, attrs) {
   return isT ? isT[1] : "";
 }
 
-console.log("=== Transferencias en output (filas 71-76) ===");
-for (const m of sheet.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*)>([\s\S]*?)<\/c>/g)) {
-  const row = parseInt(m[2], 10);
-  if (row < 71 || row > 76) continue;
-  const val = cellVal(m[4], m[3]);
-  if (val && !val.includes("{{")) console.log(`${m[1]}${row}: ${val}`);
-}
+const checks = [
+  ["M73 cliente", "CLIENTE UNO", get("M73")],
+  ["P73 fac", "F001", get("P73")],
+  ["T73 valor", "150000", get("T73")],
+  ["U73 banco", "Voucher Banco Estado", get("U73")],
+  ["M74 cliente", "CLIENTE DOS", get("M74")],
+  ["U74 banco", "Banco Santander", get("U74")],
+  ["O73 vacío", "", get("O73")],
+];
 
-let stale = 0;
-for (const m of sheet.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*)>([\s\S]*?)<\/c>/g)) {
-  const row = parseInt(m[2], 10);
-  if (row < 71 || row > 76) continue;
-  const val = cellVal(m[4], m[3]);
-  if (val.includes("{{")) {
-    stale++;
-    console.log("STALE", `${m[1]}${row}: ${val}`);
-  }
+let ok = true;
+for (const [label, expected, actual] of checks) {
+  const pass = String(expected) === String(actual);
+  if (!pass) ok = false;
+  console.log(pass ? "OK" : "FAIL", label, "expected", JSON.stringify(expected), "got", JSON.stringify(actual));
 }
-console.log("stale transf placeholders:", stale);
+console.log(ok ? "PASS" : "FAIL");

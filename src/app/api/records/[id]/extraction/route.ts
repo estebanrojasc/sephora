@@ -6,6 +6,8 @@ import {
 } from "@/lib/repositories/records";
 import { recordAttempt } from "@/lib/repositories/extraction-attempts";
 import { diffExtractions } from "@/features/records/extraction-diff";
+import { applyCatalogsToExtraction } from "@/features/catalogs/apply-to-extraction";
+import { listActiveCatalogs } from "@/lib/repositories/catalogs";
 import type { UpdateExtractionPayload } from "@/features/records/types";
 
 /**
@@ -38,9 +40,15 @@ export async function PATCH(
     );
   }
 
+  const catalogs = await listActiveCatalogs();
+  const nextExtraction = applyCatalogsToExtraction(
+    result.nextExtraction,
+    catalogs
+  );
+
   const modifiedFields = diffExtractions(
     result.previousExtraction,
-    result.nextExtraction
+    nextExtraction
   );
 
   // Si no cambió nada, devolvemos el record tal cual (sin generar attempt).
@@ -50,7 +58,7 @@ export async function PATCH(
 
   const attempt = await recordAttempt({
     recordId: id,
-    extraction: result.nextExtraction,
+    extraction: nextExtraction,
     provider: "manual",
     withBboxes: false,
     imageIds: [],
@@ -58,7 +66,7 @@ export async function PATCH(
     basedOnAttemptId: result.record.currentAttemptId,
   });
 
-  const updated = await saveExtraction(id, result.nextExtraction, attempt.id);
+  const updated = await saveExtraction(id, nextExtraction, attempt.id);
   await incrementAttemptCount(id);
 
   return NextResponse.json(updated ?? result.record);

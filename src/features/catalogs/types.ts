@@ -7,7 +7,10 @@
 
 export interface CatalogItem {
   id: string;
+  /** Valor guardado en la extracción (p. ej. código E, VE, S). */
   value: string;
+  /** Texto legible en el selector; si falta, se usa `value`. */
+  label?: string;
   /** Sinónimos opcionales (los que la IA podría escribir distinto). */
   aliases?: string[];
 }
@@ -86,6 +89,11 @@ export const CATALOG_FIELD_KEYS: CatalogFieldOption[] = [
     group: "Transferencias",
     value: "detalle_transferencias.no_fac",
     label: "Transferencias · Nº factura",
+  },
+  {
+    group: "Transferencias",
+    value: "detalle_transferencias.banco",
+    label: "Transferencias · Banco",
   },
   {
     group: "Crédito vendedor",

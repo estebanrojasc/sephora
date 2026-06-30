@@ -1,6 +1,12 @@
-/** Códigos de banco en transferencias (únicos valores válidos). */
+/** Códigos de banco en transferencias (OCR / matching). */
 export const TRANSFER_BANK_CODES = ["E", "VE", "S"] as const;
 export type TransferBankCode = (typeof TRANSFER_BANK_CODES)[number];
+
+export const TRANSFER_BANK_DISPLAY: Record<TransferBankCode, string> = {
+  E: "Banco Estado",
+  VE: "Voucher Banco Estado",
+  S: "Banco Santander",
+};
 
 /**
  * Normaliza lo leído por OCR a E, VE o S.
@@ -47,4 +53,15 @@ export function normalizeTransferBankCode(raw: string): string {
 
 export function applyTransferBankToField(valor: string): string {
   return normalizeTransferBankCode(valor);
+}
+
+/** Nombre legible para revisión, Excel y reportes (nunca solo la letra). */
+export function transferBankDisplayLabel(raw: string): string {
+  const v = raw.trim();
+  if (!v) return "";
+  const code = normalizeTransferBankCode(v);
+  if (code && code in TRANSFER_BANK_DISPLAY) {
+    return TRANSFER_BANK_DISPLAY[code as TransferBankCode];
+  }
+  return v;
 }

@@ -4,7 +4,11 @@ import { useMemo, useState } from "react";
 import { ChevronsUpDown, Check, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Catalog } from "@/features/catalogs/types";
+import type { Catalog, CatalogItem } from "@/features/catalogs/types";
+import {
+  catalogItemDisplay,
+  findCatalogItem,
+} from "@/features/catalogs/resolve";
 import { cn } from "@/lib/utils";
 
 interface CatalogPickerProps {
@@ -31,17 +35,17 @@ export function CatalogPicker({
     if (!q) return catalog.items;
     return catalog.items.filter((it) => {
       if (it.value.toLowerCase().includes(q)) return true;
+      if (catalogItemDisplay(it).toLowerCase().includes(q)) return true;
       return it.aliases?.some((a) => a.toLowerCase().includes(q));
     });
-  }, [query, catalog.items]);
+  }, [catalog.items, query]);
 
-  const exactMatch = catalog.items.some(
-    (it) =>
-      it.value.toLowerCase() === currentValue.trim().toLowerCase() ||
-      it.aliases?.some(
-        (a) => a.toLowerCase() === currentValue.trim().toLowerCase()
-      )
-  );
+  const exactMatch = catalog.items.some((it) => {
+    const current = currentValue.trim().toLowerCase();
+    if (it.value.toLowerCase() === current) return true;
+    if (catalogItemDisplay(it).toLowerCase() === current) return true;
+    return it.aliases?.some((a) => a.toLowerCase() === current);
+  });
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -74,8 +78,8 @@ export function CatalogPicker({
             </p>
           ) : (
             filtered.map((it) => {
-              const selected =
-                it.value.toLowerCase() === currentValue.trim().toLowerCase();
+              const matched = findCatalogItem(catalog, currentValue);
+              const selected = matched?.id === it.id;
               return (
                 <button
                   key={it.id}
@@ -98,7 +102,7 @@ export function CatalogPicker({
                       selected ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {it.value}
+                  {catalogItemDisplay(it)}
                 </button>
               );
             })

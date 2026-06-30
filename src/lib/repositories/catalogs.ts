@@ -37,13 +37,21 @@ export async function listActiveCatalogs(): Promise<Catalog[]> {
   return docs.map((d) => strip(d) as Catalog);
 }
 
-/** Inserta catálogos base si aún no existen (p. ej. códigos de banco). */
+/** Inserta catálogos base si aún no existen; actualiza ítems por defecto obsoletos. */
 export async function ensureDefaultCatalogs(): Promise<void> {
   const c = await col();
   for (const def of DEFAULT_CATALOGS) {
     const exists = await c.findOne({ fieldKey: def.fieldKey });
     if (!exists) {
       await createCatalog(def);
+      continue;
+    }
+    if (
+      def.fieldKey === "detalle_transferencias.banco" &&
+      def.items &&
+      exists.items.every((i) => ["E", "VE", "S"].includes(i.value.trim()))
+    ) {
+      await updateCatalog(exists.id, { items: def.items });
     }
   }
 }
