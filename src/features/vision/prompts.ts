@@ -60,6 +60,15 @@ Reglas para interpretar fechas (campo "fecha" raíz y "detalles_cheques[].fecha"
 - Si la persona escribió año completo (4 dígitos), respétalo aunque difiera del actual.
 - Las fechas de cheques pueden ser a futuro ("a fecha"), por lo tanto pueden ser del mes/año en curso o posteriores. No las fuerces al día actual.
 - Si el día y el mes son ambiguos por el manuscrito, prefiere la interpretación que coincida con el mes actual del contexto.
+- Para clasificar cheques: "al día" = misma fecha del documento o anterior; "a fecha" = posterior. Compara día, mes y año completos; nunca uses solo el número del día.
+`.trim();
+
+const CHEQUE_RULES = `
+Reglas para detalle de cheques ("detalles_cheques"):
+- Cada fila del cuadro de cheques debe incluir "fecha", "banco" y "valor". Extrae TODAS las filas visibles.
+- Campo "banco": nombre del banco tal como aparece en la columna Banco (ej. "SANTANDER", "BCI", "ESTADO", "BANCO ESTADO", "SCOTIABANK"). No dejes "banco" vacío si hay texto legible en esa columna.
+- Campo "fecha": formato DD-MM-YYYY completo (día, mes y año). Si solo hay día y mes, completa el año según el contexto del documento.
+- Los totales "cheques_al_dia" y "cheques_a_fecha" del resumen son montos; el detalle va en el array "detalles_cheques".
 `.trim();
 
 const TRANSFER_RULES = `
@@ -134,7 +143,9 @@ function dateContextBlock(): string {
   const today = getTodayChilean();
   return `Contexto de fecha (servidor): hoy es ${today.ddmmyyyy} (año ${today.year}, mes ${today.month}).
 
-${DATE_RULES}`;
+${DATE_RULES}
+
+${CHEQUE_RULES}`;
 }
 
 const FIELD_INSTRUCTIONS_WITH_BBOX_XYXY = `

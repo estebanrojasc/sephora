@@ -3,7 +3,8 @@ import {
   type Extraction,
   type Record as AppRecord,
 } from "@/features/records/types";
-import { splitChequesByTipo } from "@/features/records/cheque-utils";
+import { splitChequesByTipo, chequeReferenceIso } from "@/features/records/cheque-utils";
+import { syncBitacoraMetaInExtraction } from "@/features/bitacora/meta";
 import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
 import { transferBankDisplayLabel } from "@/features/records/transfer-bank";
 import { parseNumber } from "@/lib/parse-number";
@@ -15,6 +16,11 @@ function appendBitacoraScalars(
 ): void {
   const entries: [string, string | undefined, boolean][] = [
     ["{{extraction._meta.bitacora.excel.conductor}}", excel.conductor, false],
+    [
+      "{{extraction._meta.bitacora.excel.conductor_inicial}}",
+      excel.conductor_inicial,
+      false,
+    ],
     ["{{extraction._meta.bitacora.excel.auxiliar}}", excel.auxiliar, false],
     ["{{extraction._meta.bitacora.excel.observaciones}}", excel.observaciones, false],
     ["{{extraction._meta.bitacora.excel.sector}}", excel.sector, false],
@@ -73,9 +79,10 @@ export interface RendicionPayload {
 }
 
 function getExtraction(record: AppRecord): Extraction | null {
-  return record.extraction
-    ? migrateLegacyTransfers(ensureExtractionShape(record.extraction))
-    : null;
+  if (!record.extraction) return null;
+  return syncBitacoraMetaInExtraction(
+    migrateLegacyTransfers(ensureExtractionShape(record.extraction))
+  );
 }
 
 function text(value: { valor: string } | undefined): string {
@@ -215,7 +222,10 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     "{{extraction.detalle_efectivo.total_monedas.valor}}"
   );
 
-  const { alDia, aFecha } = splitChequesByTipo(e.detalles_cheques ?? []);
+  const { alDia, aFecha } = splitChequesByTipo(
+    e.detalles_cheques ?? [],
+    chequeReferenceIso(e)
+  );
   const mapCheque = (c: (typeof e.detalles_cheques)[number]) => ({
     fecha: text(c.fecha),
     banco: text(c.banco),

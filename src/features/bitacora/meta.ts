@@ -6,6 +6,8 @@ import type { Bitacora, BitacoraRow } from "./types";
 export interface BitacoraExcelFields {
   patente?: string;
   conductor?: string;
+  /** Conductor leído por OCR al hacer match (valor inicial del documento). */
+  conductor_inicial?: string;
   auxiliar?: string;
   observaciones?: string;
   sector?: string;
@@ -88,7 +90,7 @@ export function buildBitacoraMetaBlock(
     ? extractionToRecognizedFields(recognized)
     : undefined;
 
-  return {
+  const block: BitacoraMetaBlock = {
     bitacoraId: bitacora.id,
     rowId: row.id,
     version: bitacora.version,
@@ -97,6 +99,68 @@ export function buildBitacoraMetaBlock(
     recognized: recognizedFields,
     applied: {},
     excel: { ...suggested },
+  };
+
+  if (recognized) {
+    block.excel = resolveBitacoraExcelExport(block, recognized);
+  }
+
+  return block;
+}
+
+/** Excel/bitácora: campos aplicados → bitácora; no aplicados → valor actual del OCR. */
+export function resolveBitacoraExcelExport(
+  meta: BitacoraMetaBlock,
+  extraction: Extraction
+): BitacoraExcelFields {
+  const excel: BitacoraExcelFields = {};
+
+  for (const key of Object.keys(meta.suggested) as (keyof BitacoraExcelFields)[]) {
+    if (key === "conductor_inicial") continue;
+    if (meta.applied?.[key]) {
+      excel[key] = meta.excel[key] ?? meta.suggested[key];
+      continue;
+    }
+    const extKey = BITACORA_TO_EXTRACTION[key];
+    if (extKey) {
+      const raw = extraction[extKey];
+      const v =
+        raw &&
+        typeof raw === "object" &&
+        "valor" in raw &&
+        typeof (raw as { valor: unknown }).valor === "string"
+          ? FIELD((raw as { valor: string }).valor)
+          : undefined;
+      if (v) {
+        excel[key] = v;
+        continue;
+      }
+    }
+    excel[key] = meta.suggested[key];
+  }
+
+  excel.conductor_inicial =
+    meta.recognized?.conductor ??
+    meta.excel.conductor_inicial ??
+    FIELD(extraction.conductor?.valor);
+
+  return excel;
+}
+
+export function syncBitacoraMetaInExtraction(
+  extraction: Extraction
+): Extraction {
+  const bitacora = extraction._meta?.bitacora;
+  if (!bitacora) return extraction;
+  return {
+    ...extraction,
+    _meta: {
+      ...extraction._meta!,
+      bitacora: {
+        ...bitacora,
+        excel: resolveBitacoraExcelExport(bitacora, extraction),
+      },
+    },
   };
 }
 
@@ -124,8 +188,12 @@ export function applyAllBitacoraSuggested(
   }
   return {
     ...meta,
-    excel: { ...meta.suggested },
     applied,
+    excel: {
+      ...meta.suggested,
+      conductor_inicial:
+        meta.recognized?.conductor ?? meta.excel.conductor_inicial,
+    },
   };
 }
 

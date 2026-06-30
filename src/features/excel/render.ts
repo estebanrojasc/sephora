@@ -95,11 +95,14 @@ const LIST_BLOCKS: ListBlock[] = [
         l.negocio?.length ?? 0,
         1
       ),
+    /** Solo fila 37; fila 38+ es encabezado cheques al día. */
+    templateDataRows: 1,
   },
   {
     anchorRow: CHEQUES_AL_DIA_ROW,
     layout: CHEQUES_AL_DIA_LAYOUT,
     count: (l) => Math.max(l.cheques_al_dia?.length ?? 0, 1),
+    templateDataRows: 1,
   },
   {
     anchorRow: CREDITO_ROW,

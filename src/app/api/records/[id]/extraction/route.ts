@@ -7,6 +7,7 @@ import {
 import { recordAttempt } from "@/lib/repositories/extraction-attempts";
 import { diffExtractions } from "@/features/records/extraction-diff";
 import { applyCatalogsToExtraction } from "@/features/catalogs/apply-to-extraction";
+import { syncBitacoraMetaInExtraction } from "@/features/bitacora/meta";
 import { listActiveCatalogs } from "@/lib/repositories/catalogs";
 import type { UpdateExtractionPayload } from "@/features/records/types";
 
@@ -41,9 +42,8 @@ export async function PATCH(
   }
 
   const catalogs = await listActiveCatalogs();
-  const nextExtraction = applyCatalogsToExtraction(
-    result.nextExtraction,
-    catalogs
+  const nextExtraction = syncBitacoraMetaInExtraction(
+    applyCatalogsToExtraction(result.nextExtraction, catalogs)
   );
 
   const modifiedFields = diffExtractions(

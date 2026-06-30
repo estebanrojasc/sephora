@@ -22,7 +22,7 @@ import {
   matchRecordToBitacora,
   rowToOcrHint,
 } from "@/features/bitacora/match";
-import { buildBitacoraMetaBlock } from "@/features/bitacora/meta";
+import { buildBitacoraMetaBlock, syncBitacoraMetaInExtraction } from "@/features/bitacora/meta";
 import {
   createEmptyExtraction,
   type Extraction,
@@ -158,7 +158,9 @@ export async function POST(
   };
 
   const catalogs = await listActiveCatalogs();
-  const normalized = applyCatalogsToExtraction(merged, catalogs);
+  const normalized = syncBitacoraMetaInExtraction(
+    applyCatalogsToExtraction(merged, catalogs)
+  );
 
   // Persistimos historial de attempts
   const attempt = await recordAttempt({

@@ -4,7 +4,7 @@ import {
   type ExtractedField,
   type Record,
 } from "@/features/records/types";
-import { isChequeAlDia } from "@/features/records/cheque-utils";
+import { isChequeAlDia, chequeReferenceIso } from "@/features/records/cheque-utils";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
 import {
   dedupeTransferenciaRows,
@@ -192,11 +192,12 @@ export function getDetailItems(
   catId: DetailCategoryId
 ): DetailItems {
   const current = migrateLegacyTransfers(ensureExtractionShape(extraction));
+  const chequeRef = chequeReferenceIso(current);
 
   switch (catId) {
     case "cheques": {
       const items: RowItem[] = current.detalles_cheques
-        .filter((c) => isChequeAlDia(c.fecha.valor))
+        .filter((c) => isChequeAlDia(c.fecha.valor, chequeRef))
         .map((c) => ({
           descripcion: c.fecha.valor || "—",
           banco: c.banco.valor,
@@ -209,7 +210,7 @@ export function getDetailItems(
     }
     case "chequesAFecha": {
       const items: RowItem[] = current.detalles_cheques
-        .filter((c) => !isChequeAlDia(c.fecha.valor))
+        .filter((c) => !isChequeAlDia(c.fecha.valor, chequeRef))
         .map((c) => ({
           descripcion: c.fecha.valor || "—",
           banco: c.banco.valor,

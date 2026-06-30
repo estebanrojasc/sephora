@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useState,
   type Ref,
 } from "react";
@@ -33,9 +34,10 @@ import {
   applyAllBitacoraSuggested,
   BITACORA_TO_EXTRACTION,
   markBitacoraFieldApplied,
+  syncBitacoraMetaInExtraction,
 } from "@/features/bitacora/meta";
 import type { TotalFieldIssue } from "@/features/records/totals";
-import { isChequeAlDia } from "@/features/records/cheque-utils";
+import { isChequeAlDia, chequeReferenceIso } from "@/features/records/cheque-utils";
 import { syncDetalleEfectivoTotals } from "@/features/records/efectivo-totals";
 import { formatCLP, parseNumber } from "@/lib/parse-number";
 
@@ -134,10 +136,12 @@ export function ExtractionForm({
     setState(ensureExtractionShape(extraction));
   }
 
+  const chequeRef = useMemo(() => chequeReferenceIso(state), [state.fecha]);
+
   useImperativeHandle(
     formRef,
     () => ({
-      getValues: () => state,
+      getValues: () => syncBitacoraMetaInExtraction(state),
       applyScalarField: (key, value) => {
         setState((s) => {
           const current = s[key];
@@ -179,7 +183,7 @@ export function ExtractionForm({
           }
           const bitacora = markBitacoraFieldApplied(baseMeta, field, value);
           if (!bitacora) return next;
-          return withBitacoraMeta(next, bitacora);
+          return syncBitacoraMetaInExtraction(withBitacoraMeta(next, bitacora));
         });
       },
       applyAllBitacora: (initialMeta) => {
@@ -209,11 +213,13 @@ export function ExtractionForm({
               };
             }
           }
-          return next;
+          return syncBitacoraMetaInExtraction(next);
         });
       },
       setBitacoraMeta: (meta) => {
-        setState((s) => withBitacoraMeta(s, meta));
+        setState((s) =>
+          syncBitacoraMetaInExtraction(withBitacoraMeta(s, meta))
+        );
       },
     }),
     [state]
@@ -531,7 +537,7 @@ export function ExtractionForm({
               </p>
               <RowsEditor
                 rows={state.detalles_cheques}
-                filter={(row) => isChequeAlDia(row.fecha.valor)}
+                filter={(row) => isChequeAlDia(row.fecha.valor, chequeRef)}
                 columns={[
                   { key: "fecha", label: "Fecha", type: "date" },
                   {
@@ -549,7 +555,7 @@ export function ExtractionForm({
               />
               <ComputedTotal
                 values={state.detalles_cheques
-                  .filter((r) => isChequeAlDia(r.fecha.valor))
+                  .filter((r) => isChequeAlDia(r.fecha.valor, chequeRef))
                   .map((r) => r.valor.valor)}
                 extractedValue={state.rendicion.cheques_al_dia.valor}
               />
@@ -561,7 +567,7 @@ export function ExtractionForm({
               </p>
               <RowsEditor
                 rows={state.detalles_cheques}
-                filter={(row) => !isChequeAlDia(row.fecha.valor)}
+                filter={(row) => !isChequeAlDia(row.fecha.valor, chequeRef)}
                 columns={[
                   { key: "fecha", label: "Fecha", type: "date" },
                   {
@@ -579,7 +585,7 @@ export function ExtractionForm({
               />
               <ComputedTotal
                 values={state.detalles_cheques
-                  .filter((r) => !isChequeAlDia(r.fecha.valor))
+                  .filter((r) => !isChequeAlDia(r.fecha.valor, chequeRef))
                   .map((r) => r.valor.valor)}
                 extractedValue={state.rendicion.cheques_a_fecha.valor}
               />
