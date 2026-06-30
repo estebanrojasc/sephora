@@ -76,6 +76,11 @@ interface ListBlock {
   anchorRow: number;
   layout: ListCellLayout[];
   count: (lists: RendicionLists) => number;
+  /**
+   * Filas de datos reservadas en plantilla desde anchorRow (incluye ancla).
+   * Crédito: 71–72. Transferencias: 73–74. Evita pisar FALTANTE/TOTAL.
+   */
+  templateDataRows?: number;
 }
 
 const LIST_BLOCKS: ListBlock[] = [
@@ -100,11 +105,13 @@ const LIST_BLOCKS: ListBlock[] = [
     anchorRow: CREDITO_ROW,
     layout: CREDITO_LAYOUT,
     count: (l) => Math.max(l.credito_vendedor?.length ?? 0, 1),
+    templateDataRows: 2,
   },
   {
     anchorRow: TRANSF_ROW,
     layout: TRANSF_LAYOUT,
     count: (l) => Math.max(l.transferencias?.length ?? 0, 1),
+    templateDataRows: 2,
   },
 ];
 
@@ -322,19 +329,24 @@ function expandListBlock(
   layout: ListCellLayout[],
   lists: RendicionLists,
   _indices: Map<string, number>,
-  n: number
-): string {
+  n: number,
+  templateDataRows?: number
+): { xml: string; insertedRows: number } {
   const count = Math.max(n, 1);
+  const maxReuseRow =
+    templateDataRows != null
+      ? anchorRow + templateDataRows - 1
+      : anchorRow + count - 1;
 
   xml = fillListRowByRef(xml, anchorRow, layout, lists, 0);
-  if (count <= 1) return xml;
+  if (count <= 1) return { xml, insertedRows: 0 };
 
   let nextDataIndex = 1;
   let lastFilledRow = anchorRow;
 
   for (
     let row = anchorRow + 1;
-    row < anchorRow + count && nextDataIndex < count;
+    row <= maxReuseRow && nextDataIndex < count;
     row++
   ) {
     if (!worksheetHasRow(xml, row)) break;
@@ -344,7 +356,7 @@ function expandListBlock(
   }
 
   const remaining = count - nextDataIndex;
-  if (remaining <= 0) return xml;
+  if (remaining <= 0) return { xml, insertedRows: 0 };
 
   const insertAt = lastFilledRow + 1;
   xml = shiftRowsInWorksheet(xml, insertAt, remaining);
@@ -359,7 +371,10 @@ function expandListBlock(
   const anchorRe = new RegExp(
     `(<row\\b[^>]*\\br="${lastFilledRow}"[^>]*>[\\s\\S]*?</row>)`
   );
-  return xml.replace(anchorRe, `$1${extra.join("")}`);
+  return {
+    xml: xml.replace(anchorRe, `$1${extra.join("")}`),
+    insertedRows: remaining,
+  };
 }
 
 function processWorksheet(
@@ -381,15 +396,17 @@ function processWorksheet(
     for (const block of LIST_BLOCKS) {
       const anchorRow = block.anchorRow + rowShift;
       const n = block.count(payload.lists);
-      xml = expandListBlock(
+      const { xml: nextXml, insertedRows } = expandListBlock(
         xml,
         anchorRow,
         block.layout,
         payload.lists,
         indices,
-        n
+        n,
+        block.templateDataRows
       );
-      if (n > 1) rowShift += n - 1;
+      xml = nextXml;
+      rowShift += insertedRows;
     }
   }
 
