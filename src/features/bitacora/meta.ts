@@ -1,4 +1,5 @@
 import type { Extraction } from "@/features/records/types";
+import { recorridoSuffix } from "./normalize-keys";
 import type { Bitacora, BitacoraRow } from "./types";
 
 /** Campos planos de bitácora listos para placeholders Excel. */
@@ -35,6 +36,16 @@ const FIELD = (v: string | undefined): string | undefined => {
   return t || undefined;
 };
 
+/** Recorrido completo de bitácora (autoridad al guardar / aplicar / Excel). */
+export function bitacoraRecorridoCanonical(row: BitacoraRow): string | undefined {
+  return FIELD(row.recorrido ?? row.recorridoSuffix);
+}
+
+/** Últimos dígitos visibles en la rendición impresa — solo pista para OCR, no el valor a guardar. */
+export function bitacoraRecorridoOcrHint(row: BitacoraRow): string | undefined {
+  return FIELD(row.recorridoSuffix ?? recorridoSuffix(row.recorrido));
+}
+
 export function rowToExcelFields(row: BitacoraRow): BitacoraExcelFields {
   const obsParts: string[] = [];
   if (row.manualSubtype) obsParts.push(row.manualSubtype.replace(/_/g, " "));
@@ -46,7 +57,7 @@ export function rowToExcelFields(row: BitacoraRow): BitacoraExcelFields {
     auxiliar: FIELD(row.auxiliar),
     observaciones: obsParts.length ? obsParts.join(" · ") : undefined,
     sector: FIELD(row.sector),
-    recorrido: FIELD(row.recorridoSuffix ?? row.recorrido),
+    recorrido: bitacoraRecorridoCanonical(row),
     n_factura: FIELD(row.cantFact),
     total_factura: FIELD(row.montoTotal),
   };

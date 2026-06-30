@@ -17,7 +17,7 @@ Reglas:
 - rowType "unknown": filas que no encajan.
 - Ignora filas completamente vacías.
 - Normaliza montos con punto como separador de miles (ej. 3.832.008).
-- recorrido: número completo; recorridoSuffix: últimos ${RECORRIDO_SUFFIX_LEN} dígitos del recorrido.
+- recorrido: número COMPLETO tal como aparece en la columna Recorrido (ej. "260006168"). recorridoSuffix: solo los últimos ${RECORRIDO_SUFFIX_LEN} dígitos (para cruce con la rendición); nunca omitas el recorrido completo en "recorrido".
 - Patente: conserva formato legible (ej. "TWBD - 63").
 - warnings: array de strings con ambigüedades detectadas.
 

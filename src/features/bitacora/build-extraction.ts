@@ -4,7 +4,7 @@ import {
   type Record,
 } from "@/features/records/types";
 import { formatChileanDate } from "@/lib/date-utils";
-import { buildBitacoraMetaBlock } from "./meta";
+import { buildBitacoraMetaBlock, bitacoraRecorridoCanonical } from "./meta";
 import type { Bitacora, BitacoraRow } from "./types";
 
 const EMPTY_BBOX = [0, 0, 0, 0] as const;
@@ -36,7 +36,7 @@ export function buildExtractionFromBitacoraRow(
     fecha: field(fechaDisplay),
     conductor: field(row.conductor ?? ""),
     auxiliar: field(row.auxiliar ?? ""),
-    n_recorrido: field(row.recorridoSuffix ?? row.recorrido ?? ""),
+    n_recorrido: field(bitacoraRecorridoCanonical(row) ?? ""),
     patente: field(row.patente ?? ""),
     cant_fact: field(row.cantFact ?? ""),
     valor_total: field(row.montoTotal ?? ""),

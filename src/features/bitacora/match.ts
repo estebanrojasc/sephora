@@ -8,8 +8,17 @@ import {
   normalizeRecorridoDigits,
   recorridoSuffix,
 } from "./normalize-keys";
-import { rowToExcelFields } from "./meta";
-import type { Bitacora, BitacoraMatch, BitacoraRow } from "./types";
+import {
+  rowToExcelFields,
+  bitacoraRecorridoCanonical,
+  bitacoraRecorridoOcrHint,
+} from "./meta";
+import type {
+  Bitacora,
+  BitacoraMatch,
+  BitacoraRow,
+  BitacoraSuggestedFields,
+} from "./types";
 
 function scoreRow(
   record: Record,
@@ -60,14 +69,14 @@ export function listAssignableBitacoraRows(bitacora: Bitacora): BitacoraRow[] {
 export function formatBitacoraRowLabel(row: BitacoraRow): string {
   const parts = [
     row.conductor,
-    row.recorridoSuffix ?? row.recorrido,
+    bitacoraRecorridoCanonical(row),
     row.patente,
     row.sector,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : `Fila ${row.id.slice(0, 8)}`;
 }
 
-export function rowToSuggested(row: BitacoraRow) {
+export function rowToSuggested(row: BitacoraRow): BitacoraSuggestedFields {
   const excel = rowToExcelFields(row);
   return {
     patente: excel.patente,
@@ -81,6 +90,17 @@ export function rowToSuggested(row: BitacoraRow) {
     total_factura: excel.total_factura,
     sector: excel.sector,
     observaciones: excel.observaciones,
+  };
+}
+
+/** Pistas al OCR: recorrido parcial como en la hoja impresa, resto igual que suggested. */
+export function rowToOcrHint(row: BitacoraRow): BitacoraSuggestedFields {
+  const suggested = rowToSuggested(row);
+  const partial = bitacoraRecorridoOcrHint(row);
+  return {
+    ...suggested,
+    n_recorrido: partial,
+    recorrido: partial,
   };
 }
 

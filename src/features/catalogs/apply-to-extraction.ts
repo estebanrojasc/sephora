@@ -1,5 +1,6 @@
 import { ensureExtractionShape, type Extraction, type ExtractedField } from "@/features/records/types";
 import type { Catalog } from "./types";
+import { normalizeTransferBankCode } from "@/features/records/transfer-bank";
 
 function normalizeAgainstCatalog(raw: string, catalog: Catalog): string {
   const v = raw.trim();
@@ -19,9 +20,29 @@ function applyField(field: ExtractedField, catalog: Catalog): ExtractedField {
   return next === field.valor ? field : { ...field, valor: next };
 }
 
+function normalizeTransferBancos(
+  extraction: Extraction,
+  catalog?: Catalog
+): Extraction {
+  return {
+    ...extraction,
+    detalle_transferencias: (extraction.detalle_transferencias ?? []).map(
+      (row) => {
+        let banco = catalog ? applyField(row.banco, catalog) : row.banco;
+        const code = normalizeTransferBankCode(banco.valor);
+        if (code !== banco.valor) {
+          banco = { ...banco, valor: code };
+        }
+        return { ...row, banco };
+      }
+    ),
+  };
+}
+
 /**
  * Ajusta valores de la extracción a los catálogos activos cuando el texto
  * coincide con un ítem o alias (insensible a mayúsculas).
+ * Siempre normaliza códigos de banco en transferencias a E, VE o S.
  */
 export function applyCatalogsToExtraction(
   extraction: Extraction,
@@ -30,9 +51,8 @@ export function applyCatalogsToExtraction(
   const byKey = new Map(
     catalogs.filter((c) => c.active).map((c) => [c.fieldKey, c])
   );
-  if (byKey.size === 0) return ensureExtractionShape(extraction);
 
-  const next: Extraction = ensureExtractionShape(extraction);
+  let next: Extraction = ensureExtractionShape(extraction);
 
   for (const key of ["conductor", "auxiliar", "patente", "n_recorrido"] as const) {
     const cat = byKey.get(key);
@@ -83,25 +103,18 @@ export function applyCatalogsToExtraction(
     );
   }
 
-  const transfBancoCat = byKey.get("detalle_transferencias.banco");
-  if (transfBancoCat) {
-    next.detalle_transferencias = (next.detalle_transferencias ?? []).map(
-      (row) => ({
-        ...row,
-        banco: applyField(row.banco, transfBancoCat),
-      })
-    );
-  }
-
   const credVendCat = byKey.get("detalle_credito_vendedor.no_fac");
   if (credVendCat) {
     next.detalle_credito_vendedor = (next.detalle_credito_vendedor ?? []).map(
       (row) => ({
-      ...row,
-      no_fac: applyField(row.no_fac, credVendCat),
-    })
+        ...row,
+        no_fac: applyField(row.no_fac, credVendCat),
+      })
     );
   }
 
-  return next;
+  return normalizeTransferBancos(
+    next,
+    byKey.get("detalle_transferencias.banco")
+  );
 }

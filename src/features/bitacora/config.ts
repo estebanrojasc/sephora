@@ -1,4 +1,4 @@
-/** Cantidad de dígitos finales del recorrido usados para matching (4 hoy, 5 en el futuro). */
+/** Cantidad de dígitos finales del recorrido usados solo para matching OCR ↔ bitácora. */
 export const RECORRIDO_SUFFIX_LEN = Number.parseInt(
   process.env.RECORRIDO_SUFFIX_LEN ?? "4",
   10

@@ -13,6 +13,7 @@ import {
 import { splitBilletesAndMonedas } from "@/features/records/efectivo-utils";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
 import { normalizeThousandsDisplay } from "@/lib/parse-number";
+import { normalizeTransferBankCode } from "@/features/records/transfer-bank";
 
 const EMPTY_BBOX: Bbox = [0, 0, 0, 0];
 
@@ -85,11 +86,13 @@ function fillNcRow(input: unknown): NCRow {
 
 function fillTransferenciaRow(input: unknown): TransferenciaRow {
   const obj = asObject(input) ?? {};
+  const banco = fillField(obj.banco);
+  const code = normalizeTransferBankCode(banco.valor);
   return {
     no_fac: fillField(obj.no_fac),
     valor: fillField(obj.valor),
     cliente: fillField(obj.cliente),
-    banco: fillField(obj.banco),
+    banco: code !== banco.valor ? { ...banco, valor: code } : banco,
   };
 }
 

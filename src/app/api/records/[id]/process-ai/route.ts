@@ -20,6 +20,7 @@ import { findActiveBitacoraForDate } from "@/lib/repositories/bitacoras";
 import {
   getRecordDayForBitacora,
   matchRecordToBitacora,
+  rowToOcrHint,
 } from "@/features/bitacora/match";
 import { buildBitacoraMetaBlock } from "@/features/bitacora/meta";
 import {
@@ -80,7 +81,7 @@ export async function POST(
     bitacora && record.extraction
       ? matchRecordToBitacora(record, bitacora)
       : null;
-  const bitacoraHint = hintMatch?.suggested;
+  const bitacoraHint = hintMatch ? rowToOcrHint(hintMatch.row) : undefined;
 
   let extraction: Extraction;
   let rawResponse = "";

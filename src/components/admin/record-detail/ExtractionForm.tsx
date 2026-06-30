@@ -743,8 +743,9 @@ export function ExtractionForm({
           </AccordionTrigger>
           <AccordionContent>
             <p className="mb-3 text-xs text-muted-foreground">
-              Filas extraídas del cuadro inferior &quot;observaciones&quot;: N°
-              factura, cliente, banco (manual) y monto.
+              N° factura, cliente, código banco (<strong>E</strong>,{" "}
+              <strong>VE</strong> o <strong>S</strong>) y monto. El banco lo
+              rellena la IA al procesar.
             </p>
             <RowsEditor
               rows={state.detalle_transferencias}
@@ -755,11 +756,7 @@ export function ExtractionForm({
                   catalogKey: "detalle_transferencias.no_fac",
                 },
                 { key: "cliente", label: "Cliente" },
-                {
-                  key: "banco",
-                  label: "Banco",
-                  catalogKey: "detalle_transferencias.banco",
-                },
+                { key: "banco", label: "Banco (E / VE / S)" },
                 { key: "valor", label: "Monto" },
               ]}
               createEmpty={newTransferencia}

@@ -68,11 +68,11 @@ Reglas para transferencias (cuadro inferior "observaciones"):
 - Patrón típico: una factura es un entero corto sin separadores (4-7 dígitos, ej. 593149); un monto es un número con separador de miles (ej. 1.048.822, 180.220, 59.990) o un entero ≥ 1.000.
 - Cada transferencia detectada va como UNA fila en "detalle_transferencias" con claves "no_fac", "cliente", "banco" y "valor". Pueden venir muchas por línea: extrae TODAS, no solo la primera ni la última.
 - El texto entre la factura y el monto suele ser el nombre del cliente; captúralo en "cliente" (usa "" si no hay nombre o no se puede leer).
-- Campo "banco": en la columna de transferencia a menudo aparece SOLO una letra o abreviatura. Interpreta y devuelve el código tal cual lo escribieron:
-  · "VE" o "V" → Voucher Banco Estado (devuelve "VE" si ves "VE", o "V" si solo hay V)
-  · "E" → Banco Estado
-  · "S" → Banco Santander
-  Si no hay código de banco visible, "banco" = "".
+- Campo "banco": SOLO puede ser uno de estos tres códigos (nada más):
+  · "E" = Banco Estado
+  · "VE" = Voucher Banco Estado (si en la hoja aparece solo "V", devuelve "VE")
+  · "S" = Banco Santander
+  No escribas el nombre completo del banco ni otras letras. Si no hay código legible, "banco" = "".
 - "observaciones" queda solo para texto que NO sea transferencia (saldos sueltos, comentarios libres). Si todas las líneas son transferencias, "observaciones" debe quedar "".
 - Si hay un total escrito de transferencias, ponlo en "total_transferencias"; si no, deja "".
 
@@ -97,6 +97,13 @@ Reglas para detalle de efectivo ("detalle_efectivo"):
 - "total_monedas": total declarado de monedas si está escrito en el resumen; si no, "".
 - "total_efectivo": total del detalle de efectivo si aparece; si no, "".
 - Si una sección no tiene filas, devuelve [] para ese array.
+`.trim();
+
+const RECORRIDO_RULES = `
+Reglas para n_recorrido (N° de recorrido en el encabezado):
+- En la hoja impresa/manuscrita el número suele aparecer solo con los últimos 4, 5 o 6 dígitos (no el recorrido completo de sistema).
+- Devuelve EXACTAMENTE lo que está escrito en la imagen: ni completes con ceros a la izquierda ni antepones dígitos que no se vean.
+- Si hay pista de bitácora con dígitos finales, úsala solo para desambiguar una lectura dudosa; el valor en "n_recorrido" debe seguir siendo lo visible en la hoja.
 `.trim();
 
 const NC_RECHAZO_RULES = `
@@ -320,6 +327,8 @@ ${TRANSFER_RULES}
 
 ${EFECTIVO_RULES}
 
+${RECORRIDO_RULES}
+
 ${NC_RECHAZO_RULES}
 
 ${MULTIPAGE_RULES}
@@ -371,6 +380,8 @@ ${dateContextBlock()}
 ${TRANSFER_RULES}
 
 ${EFECTIVO_RULES}
+
+${RECORRIDO_RULES}
 
 ${NC_RECHAZO_RULES}
 
