@@ -20,6 +20,8 @@ export function useRecords(params?: {
   return useQuery({
     queryKey: recordKeys.list(params?.status, params?.deviceId),
     queryFn: () => fetchRecords(params),
+    staleTime: 0,
+    refetchOnMount: "always",
     // Los envíos pueden llegar desde otro dispositivo/navegador. Sin polling,
     // el panel de revisión no se entera hasta que alguna mutación local invalida
     // la cache (por ejemplo, "Aplicar IA").

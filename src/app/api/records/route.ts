@@ -1,6 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { listRecords } from "@/lib/repositories/records";
 import type { RecordStatus } from "@/features/records/types";
+import { jsonNoStore } from "@/lib/api-response";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const status = request.nextUrl.searchParams.get("status") as
@@ -14,10 +17,10 @@ export async function GET(request: NextRequest) {
       status: status ?? "all",
       deviceId,
     });
-    return NextResponse.json(records);
+    return jsonNoStore(records);
   } catch (err) {
     console.error("[api/records] GET", err);
-    return NextResponse.json(
+    return jsonNoStore(
       {
         message:
           "No se pudo conectar a MongoDB. Verifica que esté corriendo en localhost:27017.",

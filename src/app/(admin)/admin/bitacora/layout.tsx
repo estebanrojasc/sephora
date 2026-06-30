@@ -1,4 +1,3 @@
-import { BitacoraListPageClient } from "@/components/admin/bitacora/BitacoraListPageClient";
 import {
   adminPageSegmentConfig,
   ensureAdminDynamicRender,
@@ -8,7 +7,11 @@ export const dynamic = adminPageSegmentConfig.dynamic;
 export const revalidate = adminPageSegmentConfig.revalidate;
 export const fetchCache = adminPageSegmentConfig.fetchCache;
 
-export default async function BitacoraListPage() {
+export default async function BitacoraLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   await ensureAdminDynamicRender();
-  return <BitacoraListPageClient />;
+  return children;
 }

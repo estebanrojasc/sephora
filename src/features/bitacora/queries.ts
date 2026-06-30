@@ -17,6 +17,10 @@ export function useBitacoraDates() {
   return useQuery({
     queryKey: [...LIST_KEY, "dates"],
     queryFn: fetchBitacoraDates,
+    staleTime: 0,
+    gcTime: 60_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 

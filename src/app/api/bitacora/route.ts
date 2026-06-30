@@ -4,6 +4,10 @@ import {
   createBitacoraVersion,
   listBitacoras,
 } from "@/lib/repositories/bitacoras";
+import { jsonNoStore } from "@/lib/api-response";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const rowSchema = z.object({
   id: z.string(),
@@ -47,7 +51,7 @@ export async function GET(request: NextRequest) {
   const date = searchParams.get("date") ?? undefined;
   const activeOnly = searchParams.get("active") === "1";
   const bitacoras = await listBitacoras({ date, activeOnly });
-  return NextResponse.json(bitacoras);
+  return jsonNoStore(bitacoras);
 }
 
 export async function POST(request: NextRequest) {
@@ -60,5 +64,5 @@ export async function POST(request: NextRequest) {
     );
   }
   const created = await createBitacoraVersion(parsed.data);
-  return NextResponse.json(created, { status: 201 });
+  return jsonNoStore(created, { status: 201 });
 }

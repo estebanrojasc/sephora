@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { applyNoStoreHeaders } from "@/lib/no-cache-headers";
 
 /**
  * Protege rutas administrativas usando JWT en cookie.
@@ -68,9 +69,15 @@ function isPathProtected(pathname: string): boolean {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isRsc =
+    request.nextUrl.searchParams.has("_rsc") ||
+    request.headers.get("RSC") === "1" ||
+    request.headers.get("Next-Router-Prefetch") === "1";
 
   if (PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    if (isRsc) applyNoStoreHeaders(response);
+    return response;
   }
 
   if (!isPathProtected(pathname)) {
@@ -79,7 +86,30 @@ export async function middleware(request: NextRequest) {
   }
 
   const authorized = await isAuthorized(request);
-  if (authorized) return NextResponse.next();
+  if (authorized) {
+    const requestHeaders = new Headers(request.headers);
+    // Evita 304 del segment cache / CDN cuando el payload RSC quedó obsoleto.
+    if (isRsc || pathname.startsWith("/admin")) {
+      requestHeaders.delete("if-none-match");
+      requestHeaders.delete("if-modified-since");
+      requestHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      requestHeaders.set("Pragma", "no-cache");
+    }
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+    if (
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/api/bitacora") ||
+      pathname.startsWith("/api/records") ||
+      isRsc
+    ) {
+      applyNoStoreHeaders(response);
+      response.headers.delete("etag");
+      response.headers.set("x-middleware-cache", "no-cache");
+    }
+    return response;
+  }
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ message: "No autenticado" }, { status: 401 });
@@ -91,5 +121,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/:path*"],
+  matcher: ["/admin", "/admin/:path*", "/api/:path*"],
 };

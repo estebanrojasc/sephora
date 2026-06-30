@@ -1,3 +1,4 @@
+import { fetchJsonNoStore } from "@/lib/fetch-client";
 import type {
   Extraction,
   ProcessAIPayload,
@@ -8,14 +9,6 @@ import type {
   UploadPayload,
 } from "./types";
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error((err as { message?: string }).message ?? "Error de red");
-  }
-  return res.json() as Promise<T>;
-}
-
 export async function fetchRecords(params?: {
   status?: RecordStatus | "all";
   deviceId?: string;
@@ -24,68 +17,67 @@ export async function fetchRecords(params?: {
   if (params?.status) search.set("status", params.status);
   if (params?.deviceId) search.set("deviceId", params.deviceId);
   const qs = search.toString();
-  const res = await fetch(`/api/records${qs ? `?${qs}` : ""}`);
-  return handleResponse<Record[]>(res);
+  return fetchJsonNoStore<Record[]>(`/api/records${qs ? `?${qs}` : ""}`);
 }
 
 export async function fetchRecord(id: string): Promise<Record> {
-  const res = await fetch(`/api/records/${id}`);
-  return handleResponse<Record>(res);
+  return fetchJsonNoStore<Record>(`/api/records/${id}`);
 }
 
 export async function uploadRecordImages(
   payload: UploadPayload
 ): Promise<Record> {
-  const res = await fetch("/api/records/upload", {
+  return fetchJsonNoStore<Record>("/api/records/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return handleResponse<Record>(res);
 }
 
 export async function openRecord(id: string): Promise<Record> {
-  const res = await fetch(`/api/records/${id}/open`, { method: "POST" });
-  return handleResponse<Record>(res);
+  return fetchJsonNoStore<Record>(`/api/records/${id}/open`, {
+    method: "POST",
+  });
 }
 
 export async function releaseRecord(id: string): Promise<Record> {
-  const res = await fetch(`/api/records/${id}/release`, { method: "POST" });
-  return handleResponse<Record>(res);
+  return fetchJsonNoStore<Record>(`/api/records/${id}/release`, {
+    method: "POST",
+  });
 }
 
 export async function processRecordAI(
   id: string,
   payload: ProcessAIPayload
 ): Promise<{ extraction: Extraction; record: Record }> {
-  const res = await fetch(`/api/records/${id}/process-ai`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return handleResponse<{ extraction: Extraction; record: Record }>(res);
+  return fetchJsonNoStore<{ extraction: Extraction; record: Record }>(
+    `/api/records/${id}/process-ai`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
 export async function updateRecordExtraction(
   id: string,
   payload: UpdateExtractionPayload
 ): Promise<Record> {
-  const res = await fetch(`/api/records/${id}/extraction`, {
+  return fetchJsonNoStore<Record>(`/api/records/${id}/extraction`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return handleResponse<Record>(res);
 }
 
 export async function updateRecordStatus(
   id: string,
   payload: UpdateStatusPayload
 ): Promise<Record> {
-  const res = await fetch(`/api/records/${id}/status`, {
+  return fetchJsonNoStore<Record>(`/api/records/${id}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return handleResponse<Record>(res);
 }
