@@ -749,9 +749,9 @@ export function ExtractionForm({
           </AccordionTrigger>
           <AccordionContent>
             <p className="mb-3 text-xs text-muted-foreground">
-              N° factura, cliente, banco y monto. En banco usa el catálogo{" "}
-              <strong>Banco transferencia</strong> (E, VE o S); la IA suele
-              rellenar el código al procesar.
+              N° factura, cliente, banco y monto. El banco se muestra con su
+              nombre completo (Banco Estado, Voucher Banco Estado, Banco
+              Santander).
             </p>
             <RowsEditor
               rows={state.detalle_transferencias}

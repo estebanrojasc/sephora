@@ -49,9 +49,10 @@ export async function ensureDefaultCatalogs(): Promise<void> {
     if (
       def.fieldKey === "detalle_transferencias.banco" &&
       def.items &&
-      exists.items.every((i) => ["E", "VE", "S"].includes(i.value.trim()))
+      (exists.items.every((i) => ["E", "VE", "S"].includes(i.value.trim())) ||
+        exists.items.some((i) => Boolean(i.label?.trim())))
     ) {
-      await updateCatalog(exists.id, { items: def.items });
+      await updateCatalog(exists.id, { name: def.name, items: def.items });
     }
   }
 }

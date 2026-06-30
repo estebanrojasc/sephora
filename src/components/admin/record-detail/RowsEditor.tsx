@@ -6,12 +6,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Bbox, ExtractedField } from "@/features/records/types";
 import { ChileanDateInput } from "./ChileanDateInput";
-import { CatalogPicker } from "./CatalogPicker";
 import { useActiveCatalogsByField } from "@/features/catalogs/queries";
+import type { Catalog } from "@/features/catalogs/types";
 import {
   resolveCatalogDisplayValue,
   resolveCatalogStoredValue,
 } from "@/features/catalogs/resolve";
+import { transferBankDisplayLabel } from "@/features/records/transfer-bank";
+import { normalizeThousandsDisplay } from "@/lib/parse-number";
+
+const TRANSFER_BANK_CATALOG_KEY = "detalle_transferencias.banco";
+
+function cellDisplayValue(
+  catalogKey: string | undefined,
+  catalog: Catalog | undefined,
+  raw: string
+): string {
+  if (catalogKey === TRANSFER_BANK_CATALOG_KEY) {
+    return transferBankDisplayLabel(raw);
+  }
+  if (catalog) return resolveCatalogDisplayValue(catalog, raw);
+  return raw;
+}
+
+function cellStoredValue(
+  catalogKey: string | undefined,
+  catalog: Catalog | undefined,
+  raw: string
+): string {
+  if (catalogKey === TRANSFER_BANK_CATALOG_KEY) {
+    if (catalog) return resolveCatalogStoredValue(catalog, raw);
+    return transferBankDisplayLabel(raw) || raw;
+  }
+  if (catalog) return resolveCatalogStoredValue(catalog, raw);
+  return raw;
+}
 
 interface RowsEditorProps<T extends object> {
   rows: T[];
@@ -119,9 +148,11 @@ export function RowsEditor<T extends object>({
                   const catalog = col.catalogKey
                     ? catalogs.get(col.catalogKey)
                     : undefined;
-                  const displayValue = catalog
-                    ? resolveCatalogDisplayValue(catalog, field.valor)
-                    : field.valor;
+                  const displayValue = cellDisplayValue(
+                    col.catalogKey,
+                    catalog,
+                    field.valor
+                  );
                   return (
                     <td
                       key={col.key}
@@ -133,8 +164,7 @@ export function RowsEditor<T extends object>({
                       }}
                       onMouseLeave={leaveCell}
                     >
-                      <div className="flex items-start gap-1">
-                        <div className="min-w-0 flex-1">
+                      <div className="min-w-0">
                           {col.type === "date" ? (
                             <ChileanDateInput
                               value={field.valor}
@@ -152,33 +182,27 @@ export function RowsEditor<T extends object>({
                                 update(
                                   idx,
                                   col.key,
-                                  catalog
-                                    ? resolveCatalogStoredValue(
-                                        catalog,
-                                        e.target.value
-                                      )
-                                    : e.target.value
+                                  cellStoredValue(
+                                    col.catalogKey,
+                                    catalog,
+                                    e.target.value
+                                  )
                                 )
                               }
                               onFocus={focusCell}
-                              onBlur={blurCell}
+                              onBlur={() => {
+                                blurCell();
+                                if (col.key === "valor" && field.valor.trim()) {
+                                  update(
+                                    idx,
+                                    col.key,
+                                    normalizeThousandsDisplay(field.valor)
+                                  );
+                                }
+                              }}
                               className="h-8 text-sm"
                             />
                           )}
-                        </div>
-                        {catalog && (
-                          <CatalogPicker
-                            catalog={catalog}
-                            currentValue={field.valor}
-                            onPick={(value) =>
-                              update(
-                                idx,
-                                col.key,
-                                resolveCatalogStoredValue(catalog, value)
-                              )
-                            }
-                          />
-                        )}
                       </div>
                     </td>
                   );

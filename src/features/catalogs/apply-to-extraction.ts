@@ -1,6 +1,6 @@
 import { ensureExtractionShape, type Extraction, type ExtractedField } from "@/features/records/types";
 import type { Catalog } from "./types";
-import { normalizeTransferBankCode } from "@/features/records/transfer-bank";
+import { normalizeTransferBankCode, transferBankDisplayLabel } from "@/features/records/transfer-bank";
 import { findCatalogItem } from "./resolve";
 
 function normalizeAgainstCatalog(raw: string, catalog: Catalog): string {
@@ -25,8 +25,11 @@ function normalizeTransferBancos(
           return { ...row, banco: applyField(row.banco, catalog) };
         }
         const code = normalizeTransferBankCode(row.banco.valor);
-        if (code && code !== row.banco.valor) {
-          return { ...row, banco: { ...row.banco, valor: code } };
+        if (code) {
+          const label = transferBankDisplayLabel(code);
+          if (label && label !== row.banco.valor) {
+            return { ...row, banco: { ...row.banco, valor: label } };
+          }
         }
         return row;
       }

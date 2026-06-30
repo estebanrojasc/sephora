@@ -10,8 +10,6 @@ import { applyManualBboxCorrection } from "@/features/records/bbox-corrections";
 import { cn } from "@/lib/utils";
 import { useBboxEdit } from "./bbox-edit-context";
 import { ChileanDateInput } from "./ChileanDateInput";
-import { CatalogPicker } from "./CatalogPicker";
-import { useActiveCatalogsByField } from "@/features/catalogs/queries";
 
 interface FieldInputProps {
   label: string;
@@ -41,7 +39,7 @@ export function FieldInput({
   onChange,
   onHover,
   editKey,
-  catalogKey,
+  catalogKey: _catalogKey,
   type = "text",
   className,
   highlight,
@@ -60,8 +58,6 @@ export function FieldInput({
   const bboxEdit = useBboxEdit();
   const showEditButton = Boolean(bboxEdit && editKey);
   const isEditingBbox = bboxEdit?.activeId === editKey;
-  const catalogs = useActiveCatalogsByField();
-  const catalog = catalogKey ? catalogs.get(catalogKey) : undefined;
 
   const highlightClass =
     highlight === "missing"
@@ -155,13 +151,6 @@ export function FieldInput({
             />
           )}
         </div>
-        {catalog && (
-          <CatalogPicker
-            catalog={catalog}
-            currentValue={current.valor}
-            onPick={(valor) => onChange({ ...current, valor })}
-          />
-        )}
       </div>
       {current.bboxCorrection && (
         <p className="text-[10px] text-muted-foreground">

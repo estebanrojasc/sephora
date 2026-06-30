@@ -1,8 +1,8 @@
 import type { Catalog, CatalogItem } from "./types";
 
-/** Texto legible de un ítem (lo que ve el revisor). */
+/** Texto legible de un ítem (lo que ve el revisor). Usa `value`, no `label`. */
 export function catalogItemDisplay(item: CatalogItem): string {
-  return item.label?.trim() || item.value;
+  return item.value;
 }
 
 export function findCatalogItem(
