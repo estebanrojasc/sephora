@@ -18,10 +18,9 @@ import {
   getRecordDayForBitacora,
   listAssignableBitacoraRows,
   matchRecordToBitacora,
-  rowToSuggested,
   scoreBitacoraRow,
 } from "@/features/bitacora/match";
-import type { BitacoraExcelFields } from "@/features/bitacora/meta";
+import { rowToExcelFields, type BitacoraExcelFields } from "@/features/bitacora/meta";
 import { cn } from "@/lib/utils";
 
 const DISPLAY_FIELDS: {
@@ -88,10 +87,8 @@ export function BitacoraHintPanel({
       ? scoreBitacoraRow({ ...record, extraction }, activeRow)
       : autoMatch?.matchScore ?? 0);
 
-  const suggestedRaw = activeRow
-    ? meta?.suggested && meta.rowId === activeRowId
-      ? meta.suggested
-      : rowToSuggested(activeRow)
+  const suggestedFlat: BitacoraExcelFields | null = activeRow
+    ? rowToExcelFields(activeRow)
     : null;
 
   if (!bitacora) {
@@ -126,19 +123,6 @@ export function BitacoraHintPanel({
       </Alert>
     );
   }
-
-  const suggestedFlat: BitacoraExcelFields | null = suggestedRaw
-    ? {
-        patente: suggestedRaw.patente,
-        conductor: suggestedRaw.conductor,
-        auxiliar: suggestedRaw.auxiliar,
-        observaciones: suggestedRaw.observaciones,
-        sector: suggestedRaw.sector,
-        recorrido: suggestedRaw.recorrido ?? suggestedRaw.n_recorrido,
-        n_factura: suggestedRaw.n_factura ?? suggestedRaw.cant_fact,
-        total_factura: suggestedRaw.total_factura ?? suggestedRaw.valor_total,
-      }
-    : null;
 
   const recognized = meta?.rowId === activeRowId ? meta?.recognized : undefined;
   const excelSaved = meta?.rowId === activeRowId ? meta?.excel : undefined;

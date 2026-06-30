@@ -41,6 +41,27 @@ import { formatCLP, parseNumber } from "@/lib/parse-number";
 
 const EMPTY: ExtractedField = { valor: "", bbox: [0, 0, 0, 0] };
 
+function withBitacoraMeta(
+  extraction: Extraction,
+  bitacora: BitacoraMetaBlock
+): Extraction {
+  return {
+    ...extraction,
+    _meta: {
+      confidence: extraction._meta?.confidence ?? 0,
+      processedImageIds: extraction._meta?.processedImageIds ?? [],
+      processedAt: extraction._meta?.processedAt ?? new Date().toISOString(),
+      manualOverride: extraction._meta?.manualOverride,
+      source: extraction._meta?.source,
+      lastRawResponse: extraction._meta?.lastRawResponse,
+      lastModel: extraction._meta?.lastModel,
+      lastProvider: extraction._meta?.lastProvider,
+      lastWithBboxes: extraction._meta?.lastWithBboxes,
+      bitacora,
+    },
+  };
+}
+
 const newCheque = (): ChequeRow => ({
   fecha: { ...EMPTY },
   banco: { ...EMPTY },
@@ -157,10 +178,8 @@ export function ExtractionForm({
             }
           }
           const bitacora = markBitacoraFieldApplied(baseMeta, field, value);
-          return {
-            ...next,
-            _meta: { ...s._meta, bitacora },
-          };
+          if (!bitacora) return next;
+          return withBitacoraMeta(next, bitacora);
         });
       },
       applyAllBitacora: (initialMeta) => {
@@ -169,7 +188,7 @@ export function ExtractionForm({
           if (!baseMeta) return s;
           const bitacora = applyAllBitacoraSuggested(baseMeta);
           if (!bitacora) return s;
-          let next: Extraction = { ...s, _meta: { ...s._meta, bitacora } };
+          let next: Extraction = withBitacoraMeta(s, bitacora);
           for (const [bitKey, extractionKey] of Object.entries(
             BITACORA_TO_EXTRACTION
           ) as [keyof BitacoraExcelFields, keyof Extraction][]) {
@@ -194,10 +213,7 @@ export function ExtractionForm({
         });
       },
       setBitacoraMeta: (meta) => {
-        setState((s) => ({
-          ...s,
-          _meta: { ...s._meta, bitacora: meta },
-        }));
+        setState((s) => withBitacoraMeta(s, meta));
       },
     }),
     [state]
