@@ -9,11 +9,13 @@ export interface TemplateResumenRow {
 }
 
 export const TEMPLATE_RESUMEN_ROWS: TemplateResumenRow[] = [
-  { row: 1, placeholder: "{{extraction.conductor.valor}}" },
-  { row: 2, placeholder: "{{extraction.auxiliar.valor}}" },
-  { row: 5, placeholder: "{{extraction.n_recorrido.valor}}" },
-  { row: 6, placeholder: "{{extraction.cant_fact.valor}}", sum: true },
-  { row: 7, placeholder: "{{extraction.valor_total.valor}}", sum: true },
+  { row: 1, placeholder: "{{extraction._meta.bitacora.excel.conductor}}" },
+  { row: 2, placeholder: "{{extraction._meta.bitacora.excel.auxiliar}}" },
+  { row: 3, placeholder: "{{extraction._meta.bitacora.excel.observaciones}}" },
+  { row: 4, placeholder: "{{extraction._meta.bitacora.excel.sector}}" },
+  { row: 5, placeholder: "{{extraction._meta.bitacora.excel.recorrido}}" },
+  { row: 6, placeholder: "{{extraction._meta.bitacora.excel.n_factura}}", sum: true },
+  { row: 7, placeholder: "{{extraction._meta.bitacora.excel.total_factura}}", sum: true },
   {
     row: 9,
     placeholder: "{{extraction.rendicion.detalles_cheques.total_billetes.valor}}",
@@ -76,14 +78,47 @@ export function summaryColumnForRecord(recordIndex: number): string {
   return excelColumn(1 + recordIndex);
 }
 
+/** Placeholders del resumen superior (columna B+); no deben reemplazarse con el merge global. */
+export const RESUMEN_UPPER_SCALAR_PLACEHOLDERS = new Set(
+  TEMPLATE_RESUMEN_ROWS.map((f) => f.placeholder)
+);
+
+const RESUMEN_SCALAR_FALLBACKS: Record<string, string[]> = {
+  "{{extraction._meta.bitacora.excel.conductor}}": [
+    "{{extraction.conductor.valor}}",
+  ],
+  "{{extraction._meta.bitacora.excel.auxiliar}}": [
+    "{{extraction.auxiliar.valor}}",
+  ],
+  "{{extraction._meta.bitacora.excel.observaciones}}": [
+    "{{extraction.observaciones.valor}}",
+  ],
+  "{{extraction._meta.bitacora.excel.recorrido}}": [
+    "{{extraction.n_recorrido.valor}}",
+  ],
+  "{{extraction._meta.bitacora.excel.n_factura}}": [
+    "{{extraction.cant_fact.valor}}",
+  ],
+  "{{extraction._meta.bitacora.excel.total_factura}}": [
+    "{{extraction.valor_total.valor}}",
+  ],
+};
+
 export function scalarForPlaceholder(
   scalars: globalThis.Record<string, ScalarValue>,
   placeholder: string
 ): ScalarValue | undefined {
-  return (
+  const direct =
     scalars[placeholder] ??
-    scalars[placeholder.replace("detalles_cheques", "detalle_efectivo")]
-  );
+    scalars[placeholder.replace("detalles_cheques", "detalle_efectivo")];
+  if (direct?.value.trim()) return direct;
+
+  for (const alt of RESUMEN_SCALAR_FALLBACKS[placeholder] ?? []) {
+    const v = scalars[alt];
+    if (v?.value.trim()) return v;
+  }
+
+  return direct;
 }
 
 export function recordLabel(record: AppRecord): string {

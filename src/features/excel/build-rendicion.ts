@@ -10,24 +10,41 @@ import { transferBankDisplayLabel } from "@/features/records/transfer-bank";
 import { parseNumber } from "@/lib/parse-number";
 import type { BitacoraExcelFields } from "@/features/bitacora/meta";
 
-function appendBitacoraScalars(
+function appendResumenBitacoraScalars(
   scalars: globalThis.Record<string, ScalarValue>,
-  excel: BitacoraExcelFields
+  e: Extraction,
+  excel: BitacoraExcelFields | undefined
 ): void {
   const entries: [string, string | undefined, boolean][] = [
-    ["{{extraction._meta.bitacora.excel.conductor}}", excel.conductor, false],
+    ["{{extraction._meta.bitacora.excel.conductor}}", excel?.conductor ?? text(e.conductor), false],
     [
       "{{extraction._meta.bitacora.excel.conductor_inicial}}",
-      excel.conductor_inicial,
+      excel?.conductor_inicial,
       false,
     ],
-    ["{{extraction._meta.bitacora.excel.auxiliar}}", excel.auxiliar, false],
-    ["{{extraction._meta.bitacora.excel.observaciones}}", excel.observaciones, false],
-    ["{{extraction._meta.bitacora.excel.sector}}", excel.sector, false],
-    ["{{extraction._meta.bitacora.excel.recorrido}}", excel.recorrido, false],
-    ["{{extraction._meta.bitacora.excel.n_factura}}", excel.n_factura, true],
-    ["{{extraction._meta.bitacora.excel.total_factura}}", excel.total_factura, true],
-    ["{{extraction._meta.bitacora.excel.patente}}", excel.patente, false],
+    ["{{extraction._meta.bitacora.excel.auxiliar}}", excel?.auxiliar ?? text(e.auxiliar), false],
+    [
+      "{{extraction._meta.bitacora.excel.observaciones}}",
+      excel?.observaciones ?? text(e.observaciones),
+      false,
+    ],
+    ["{{extraction._meta.bitacora.excel.sector}}", excel?.sector, false],
+    [
+      "{{extraction._meta.bitacora.excel.recorrido}}",
+      excel?.recorrido ?? text(e.n_recorrido),
+      false,
+    ],
+    [
+      "{{extraction._meta.bitacora.excel.n_factura}}",
+      excel?.n_factura ?? text(e.cant_fact),
+      true,
+    ],
+    [
+      "{{extraction._meta.bitacora.excel.total_factura}}",
+      excel?.total_factura ?? text(e.valor_total),
+      true,
+    ],
+    ["{{extraction._meta.bitacora.excel.patente}}", excel?.patente ?? text(e.patente), false],
   ];
   for (const [key, value, numeric] of entries) {
     if (value != null && value !== "") {
@@ -207,9 +224,7 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
   };
 
   const bitExcel = e._meta?.bitacora?.excel;
-  if (bitExcel) {
-    appendBitacoraScalars(scalars, bitExcel);
-  }
+  appendResumenBitacoraScalars(scalars, e, bitExcel);
 
   aliasScalar(
     scalars,

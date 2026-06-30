@@ -11,6 +11,7 @@ import { buildRendicionPayload, mergeRendicionPayloads } from "./build-rendicion
 import {
   TEMPLATE_RESUMEN_ROWS,
   recordLabel,
+  RESUMEN_UPPER_SCALAR_PLACEHOLDERS,
   scalarForPlaceholder,
   summaryColumnForRecord,
 } from "./consolidated-resumen";
@@ -384,11 +385,12 @@ function processWorksheet(
   xml: string,
   payload: RendicionPayload,
   indices: Map<string, number>,
-  options?: { expandLists?: boolean }
+  options?: { expandLists?: boolean; skipScalarPlaceholders?: Set<string> }
 ): string {
   xml = trimSparseTailRows(xml);
 
   for (const [placeholder, scalar] of Object.entries(payload.scalars)) {
+    if (options?.skipScalarPlaceholders?.has(placeholder)) continue;
     const idx = indices.get(placeholder);
     if (idx === undefined) continue;
     xml = replaceCellsByStringIndex(xml, idx, scalar);
@@ -449,19 +451,22 @@ function fillUpperSummarySection(
   payloads: RendicionPayload[]
 ): string {
   for (let i = 0; i < records.length; i++) {
-    const record = records[i]!;
     const payload = payloads[i]!;
     const col = summaryColumnForRecord(i);
 
-    xml = writeCellAt(xml, `${col}4`, {
-      value: recordLabel(record),
+    // Etiqueta del registro en fila 8 (vacía en plantilla), sin pisar sector (fila 4).
+    xml = writeCellAt(xml, `${col}8`, {
+      value: recordLabel(records[i]!),
       numeric: false,
     });
 
     for (const field of TEMPLATE_RESUMEN_ROWS) {
       const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
-      if (!scalar) continue;
-      xml = writeCellAt(xml, `${col}${field.row}`, scalar);
+      xml = writeCellAt(
+        xml,
+        `${col}${field.row}`,
+        scalar ?? { value: "", numeric: field.sum ?? false }
+      );
     }
   }
 
@@ -521,7 +526,9 @@ export function renderConsolidatedResumenWorksheet(
 
   let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
   xml = fillUpperSummarySection(xml, records, payloads);
-  xml = processWorksheet(xml, merged, indices);
+  xml = processWorksheet(xml, merged, indices, {
+    skipScalarPlaceholders: RESUMEN_UPPER_SCALAR_PLACEHOLDERS,
+  });
 
   return clearStalePlaceholderCaches(xml);
 }
