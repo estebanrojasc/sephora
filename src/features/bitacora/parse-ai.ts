@@ -1,13 +1,7 @@
 import "server-only";
-import {
-  isGeminiConfigured,
-  isQwenConfigured,
-  resolveVisionProvider,
-} from "@/features/vision/config";
+import { isGeminiConfigured } from "@/features/vision/config";
 import { VisionProviderError } from "@/features/vision/errors";
-import type { VisionProvider } from "@/features/vision/types";
 import {
-  BITACORA_JSON_TEMPLATE,
   BITACORA_SYSTEM_PROMPT,
   buildBitacoraUserPrompt,
 } from "./prompts";
@@ -17,18 +11,27 @@ import type { ParseBitacoraResult } from "./types";
 
 const DEFAULT_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
-const DEFAULT_QWEN_BASE =
-  "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
-const DEFAULT_QWEN_MODEL = "qwen3-vl-flash";
 
 export interface BitacoraParseResult {
   result: ParseBitacoraResult;
   rawResponse: string;
   model: string;
-  provider: VisionProvider;
+  provider: "gemini";
 }
 
-async function parseWithGemini(rawPaste: string): Promise<BitacoraParseResult> {
+export function isBitacoraAIParseConfigured(): boolean {
+  return isGeminiConfigured();
+}
+
+export async function parseBitacoraWithAI(
+  rawPaste: string
+): Promise<BitacoraParseResult> {
+  if (!isGeminiConfigured()) {
+    throw new Error(
+      "GEMINI_API_KEY no configurada (bitácora usa el mismo proveedor que el reconocimiento)"
+    );
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new VisionProviderError({
@@ -77,76 +80,4 @@ async function parseWithGemini(rawPaste: string): Promise<BitacoraParseResult> {
     model,
     provider: "gemini",
   };
-}
-
-async function parseWithQwen(rawPaste: string): Promise<BitacoraParseResult> {
-  const apiKey = process.env.QWEN_API_KEY;
-  if (!apiKey) {
-    throw new VisionProviderError({
-      provider: "qwen",
-      kind: "config",
-      message: "QWEN_API_KEY no configurada",
-    });
-  }
-
-  const baseUrl = process.env.QWEN_BASE_URL ?? DEFAULT_QWEN_BASE;
-  const model = process.env.QWEN_MODEL ?? DEFAULT_QWEN_MODEL;
-  const userPrompt = `${buildBitacoraUserPrompt(rawPaste)}
-
-Estructura exacta:
-${BITACORA_JSON_TEMPLATE}`;
-
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.1,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: BITACORA_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new VisionProviderError({
-      provider: "qwen",
-      kind: "http",
-      status: response.status,
-      message: `Qwen API ${response.status}: ${text.slice(0, 300)}`,
-    });
-  }
-
-  const data = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = data.choices?.[0]?.message?.content ?? "";
-  return {
-    result: parseBitacoraFromText(content),
-    rawResponse: content,
-    model,
-    provider: "qwen",
-  };
-}
-
-export function isBitacoraAIParseConfigured(): boolean {
-  return isGeminiConfigured() || isQwenConfigured();
-}
-
-export async function parseBitacoraWithAI(
-  rawPaste: string
-): Promise<BitacoraParseResult> {
-  const provider = resolveVisionProvider();
-  if (!provider) {
-    throw new Error("No hay proveedor de IA configurado");
-  }
-  return provider === "gemini"
-    ? parseWithGemini(rawPaste)
-    : parseWithQwen(rawPaste);
 }

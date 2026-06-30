@@ -66,17 +66,21 @@ const TRANSFER_RULES = `
 Reglas para transferencias (cuadro inferior "observaciones"):
 - En el cuadro "observaciones" suele haber varias transferencias en línea, con la forma: <n° factura> <nombre del cliente opcional> <monto>. Cada transferencia es un conjunto factura + monto (con cliente entre medio si aparece).
 - Patrón típico: una factura es un entero corto sin separadores (4-7 dígitos, ej. 593149); un monto es un número con separador de miles (ej. 1.048.822, 180.220, 59.990) o un entero ≥ 1.000.
-- Cada transferencia detectada va como UNA fila en "detalle_transferencias" con claves "no_fac", "cliente" y "valor". Pueden venir muchas por línea: extrae TODAS, no solo la primera ni la última.
+- Cada transferencia detectada va como UNA fila en "detalle_transferencias" con claves "no_fac", "cliente", "banco" y "valor". Pueden venir muchas por línea: extrae TODAS, no solo la primera ni la última.
 - El texto entre la factura y el monto suele ser el nombre del cliente; captúralo en "cliente" (usa "" si no hay nombre o no se puede leer).
+- Campo "banco": en la columna de transferencia a menudo aparece SOLO una letra o abreviatura. Interpreta y devuelve el código tal cual lo escribieron:
+  · "VE" o "V" → Voucher Banco Estado (devuelve "VE" si ves "VE", o "V" si solo hay V)
+  · "E" → Banco Estado
+  · "S" → Banco Santander
+  Si no hay código de banco visible, "banco" = "".
 - "observaciones" queda solo para texto que NO sea transferencia (saldos sueltos, comentarios libres). Si todas las líneas son transferencias, "observaciones" debe quedar "".
 - Si hay un total escrito de transferencias, ponlo en "total_transferencias"; si no, deja "".
 
 Ejemplo (cómo debe quedar el JSON):
-  Texto en la imagen: "593149 edi vilca 1.048.822, 593147 aurelia torqui 180.220, 593156 molen 59.990"
+  Texto en la imagen: "593149 edi vilca E 1.048.822, 593147 aurelia torqui S 180.220"
   → detalle_transferencias: [
-       {"no_fac":{"valor":"593149"},"cliente":{"valor":"edi vilca"},"valor":{"valor":"1.048.822"}},
-       {"no_fac":{"valor":"593147"},"cliente":{"valor":"aurelia torqui"},"valor":{"valor":"180.220"}},
-       {"no_fac":{"valor":"593156"},"cliente":{"valor":"molen"},"valor":{"valor":"59.990"}}
+       {"no_fac":{"valor":"593149"},"cliente":{"valor":"edi vilca"},"banco":{"valor":"E"},"valor":{"valor":"1.048.822"}},
+       {"no_fac":{"valor":"593147"},"cliente":{"valor":"aurelia torqui"},"banco":{"valor":"S"},"valor":{"valor":"180.220"}}
      ]
   → observaciones: ""
 `.trim();
@@ -203,7 +207,7 @@ const TEMPLATE_WITH_BBOX = `{
     {"no_fac":{"valor":"","bbox":[0,0,0,0]},"valor":{"valor":"","bbox":[0,0,0,0]}}
   ],
   "detalle_transferencias": [
-    {"no_fac":{"valor":"","bbox":[0,0,0,0]},"cliente":{"valor":"","bbox":[0,0,0,0]},"valor":{"valor":"","bbox":[0,0,0,0]}}
+    {"no_fac":{"valor":"","bbox":[0,0,0,0]},"cliente":{"valor":"","bbox":[0,0,0,0]},"banco":{"valor":"","bbox":[0,0,0,0]},"valor":{"valor":"","bbox":[0,0,0,0]}}
   ],
   "detalle_credito_vendedor": [
     {"no_fac":{"valor":"","bbox":[0,0,0,0]},"cliente":{"valor":"","bbox":[0,0,0,0]},"nro_vendedor":{"valor":"","bbox":[0,0,0,0]},"valor":{"valor":"","bbox":[0,0,0,0]}}
@@ -261,7 +265,7 @@ const TEMPLATE_NO_BBOX = `{
     {"no_fac":{"valor":""},"valor":{"valor":""}}
   ],
   "detalle_transferencias": [
-    {"no_fac":{"valor":""},"cliente":{"valor":""},"valor":{"valor":""}}
+    {"no_fac":{"valor":""},"cliente":{"valor":""},"banco":{"valor":""},"valor":{"valor":""}}
   ],
   "detalle_credito_vendedor": [
     {"no_fac":{"valor":""},"cliente":{"valor":""},"nro_vendedor":{"valor":""},"valor":{"valor":""}}

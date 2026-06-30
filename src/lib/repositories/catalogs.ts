@@ -6,6 +6,7 @@ import type {
   CreateCatalogPayload,
   UpdateCatalogPayload,
 } from "@/features/catalogs/types";
+import { DEFAULT_CATALOGS } from "@/features/catalogs/defaults";
 
 async function col() {
   const db = await getDb();
@@ -23,15 +24,28 @@ function strip<T extends { _id?: unknown }>(doc: T | null): T | null {
 }
 
 export async function listCatalogs(): Promise<Catalog[]> {
+  await ensureDefaultCatalogs();
   const docs = await (await col()).find({}, { sort: { name: 1 } }).toArray();
   return docs.map((d) => strip(d) as Catalog);
 }
 
 export async function listActiveCatalogs(): Promise<Catalog[]> {
+  await ensureDefaultCatalogs();
   const docs = await (await col())
     .find({ active: true }, { sort: { name: 1 } })
     .toArray();
   return docs.map((d) => strip(d) as Catalog);
+}
+
+/** Inserta catálogos base si aún no existen (p. ej. códigos de banco). */
+export async function ensureDefaultCatalogs(): Promise<void> {
+  const c = await col();
+  for (const def of DEFAULT_CATALOGS) {
+    const exists = await c.findOne({ fieldKey: def.fieldKey });
+    if (!exists) {
+      await createCatalog(def);
+    }
+  }
 }
 
 export async function findCatalogById(id: string): Promise<Catalog | null> {

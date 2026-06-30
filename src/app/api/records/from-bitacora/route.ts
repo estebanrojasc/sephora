@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const partial = buildAdminRecordFromBitacora(row, bitacora.date);
+  const partial = buildAdminRecordFromBitacora(row, bitacora.date, bitacora);
   const record = await insertRecordFromBitacora(partial);
   await updateBitacoraRowLink(bitacoraId, rowId, record.id);
 

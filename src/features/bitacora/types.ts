@@ -68,6 +68,12 @@ export interface BitacoraSuggestedFields {
   cant_fact?: string;
   valor_total?: string;
   sector?: string;
+  observaciones?: string;
+  /** Alias de cant_fact para Excel. */
+  n_factura?: string;
+  /** Alias de valor_total / montoTotal para Excel. */
+  total_factura?: string;
+  recorrido?: string;
 }
 
 export interface BitacoraMatch {

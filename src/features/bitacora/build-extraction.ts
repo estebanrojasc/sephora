@@ -4,7 +4,8 @@ import {
   type Record,
 } from "@/features/records/types";
 import { formatChileanDate } from "@/lib/date-utils";
-import type { BitacoraRow } from "./types";
+import { buildBitacoraMetaBlock } from "./meta";
+import type { Bitacora, BitacoraRow } from "./types";
 
 const EMPTY_BBOX = [0, 0, 0, 0] as const;
 
@@ -14,7 +15,8 @@ function field(valor: string) {
 
 export function buildExtractionFromBitacoraRow(
   row: BitacoraRow,
-  bitacoraDate: string
+  bitacoraDate: string,
+  bitacora?: Bitacora
 ): Extraction {
   const base = createEmptyExtraction();
   const fechaDisplay = bitacoraDate
@@ -29,7 +31,7 @@ export function buildExtractionFromBitacoraRow(
   if (row.sector) obsParts.push(`Sector: ${row.sector}`);
   if (row.territorio) obsParts.push(`Territorio: ${row.territorio}`);
 
-  return {
+  const extraction: Extraction = {
     ...base,
     fecha: field(fechaDisplay),
     conductor: field(row.conductor ?? ""),
@@ -40,11 +42,24 @@ export function buildExtractionFromBitacoraRow(
     valor_total: field(row.montoTotal ?? ""),
     observaciones: field(obsParts.join(" · ")),
   };
+
+  if (bitacora) {
+    extraction._meta = {
+      confidence: 1,
+      processedImageIds: [],
+      processedAt: new Date().toISOString(),
+      source: "mock",
+      bitacora: buildBitacoraMetaBlock(bitacora, row, 100, extraction),
+    };
+  }
+
+  return extraction;
 }
 
 export function buildAdminRecordFromBitacora(
   row: BitacoraRow,
-  bitacoraDate: string
+  bitacoraDate: string,
+  bitacora?: Bitacora
 ): Omit<Record, "id" | "createdAt" | "updatedAt"> {
   return {
     deviceId: "admin-bitacora",
@@ -52,7 +67,7 @@ export function buildAdminRecordFromBitacora(
     driverName: row.conductor?.trim() || "Bitácora",
     status: "in_review",
     images: [],
-    extraction: buildExtractionFromBitacoraRow(row, bitacoraDate),
+    extraction: buildExtractionFromBitacoraRow(row, bitacoraDate, bitacora),
     attemptCount: 0,
   };
 }

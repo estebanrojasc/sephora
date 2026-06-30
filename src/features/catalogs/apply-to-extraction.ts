@@ -77,9 +77,19 @@ export function applyCatalogsToExtraction(
   if (transfCat) {
     next.detalle_transferencias = (next.detalle_transferencias ?? []).map(
       (row) => ({
-      ...row,
-      no_fac: applyField(row.no_fac, transfCat),
-    })
+        ...row,
+        no_fac: applyField(row.no_fac, transfCat),
+      })
+    );
+  }
+
+  const transfBancoCat = byKey.get("detalle_transferencias.banco");
+  if (transfBancoCat) {
+    next.detalle_transferencias = (next.detalle_transferencias ?? []).map(
+      (row) => ({
+        ...row,
+        banco: applyField(row.banco, transfBancoCat),
+      })
     );
   }
 

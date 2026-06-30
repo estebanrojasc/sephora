@@ -20,8 +20,8 @@ import { findActiveBitacoraForDate } from "@/lib/repositories/bitacoras";
 import {
   getRecordDayForBitacora,
   matchRecordToBitacora,
-  rowToSuggested,
 } from "@/features/bitacora/match";
+import { buildBitacoraMetaBlock } from "@/features/bitacora/meta";
 import {
   createEmptyExtraction,
   type Extraction,
@@ -75,10 +75,12 @@ export async function POST(
 
   const recordDay = getRecordDayForBitacora(record);
   const bitacora = await findActiveBitacoraForDate(recordDay);
-  const bitacoraMatch = bitacora
-    ? matchRecordToBitacora(record, bitacora)
-    : null;
-  const bitacoraHint = bitacoraMatch?.suggested;
+  /** Pista al OCR: match con la extracción previa (antes de esta corrida). */
+  const hintMatch =
+    bitacora && record.extraction
+      ? matchRecordToBitacora(record, bitacora)
+      : null;
+  const bitacoraHint = hintMatch?.suggested;
 
   let extraction: Extraction;
   let rawResponse = "";
@@ -120,7 +122,16 @@ export async function POST(
 
   const withBboxes = shouldRequestBboxes();
 
-  extraction._meta = {
+  const merged: Extraction = previous
+    ? mergeExtractions(previous, extraction)
+    : { ...createEmptyExtraction(), ...extraction };
+
+  /** Re-match bitácora con el OCR recién mergeado (cada corrida de IA). */
+  const freshMatch = bitacora
+    ? matchRecordToBitacora({ ...record, extraction: merged }, bitacora)
+    : null;
+
+  merged._meta = {
     confidence: previous?._meta?.confidence ?? 0.85,
     processedImageIds: [
       ...(previous?._meta?.processedImageIds ?? []),
@@ -132,23 +143,18 @@ export async function POST(
     lastModel: model,
     lastProvider: provider,
     lastWithBboxes: withBboxes,
-    ...(bitacoraMatch && bitacora
+    manualOverride: previous?._meta?.manualOverride,
+    ...(freshMatch && bitacora
       ? {
-          bitacora: {
-            bitacoraId: bitacora.id,
-            rowId: bitacoraMatch.rowId,
-            version: bitacora.version,
-            matchScore: bitacoraMatch.matchScore,
-            suggested: rowToSuggested(bitacoraMatch.row),
-          },
+          bitacora: buildBitacoraMetaBlock(
+            bitacora,
+            freshMatch.row,
+            freshMatch.matchScore,
+            merged
+          ),
         }
       : {}),
   };
-
-  const merged: Extraction = previous
-    ? mergeExtractions(previous, extraction)
-    : { ...createEmptyExtraction(), ...extraction };
-  merged._meta = extraction._meta;
 
   const catalogs = await listActiveCatalogs();
   const normalized = applyCatalogsToExtraction(merged, catalogs);

@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const fallback = heuristicResponse(rawPaste);
     return NextResponse.json({
       ...fallback,
-      warnings: [...fallback.warnings, "IA no configurada; se mantuvo el parseo local."],
+      warnings: [...fallback.warnings, "GEMINI_API_KEY no configurada; se mantuvo el parseo local."],
     });
   }
 

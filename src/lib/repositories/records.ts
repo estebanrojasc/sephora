@@ -173,6 +173,7 @@ export async function applyExtractionPatch(
         processedImageIds: [],
         processedAt: new Date().toISOString(),
       }),
+      ...(patch._meta ?? {}),
       manualOverride: true,
     },
   };

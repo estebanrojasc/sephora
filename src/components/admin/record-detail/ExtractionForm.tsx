@@ -28,6 +28,12 @@ import {
   type TransferenciaRow,
   type CreditoVendedorRow,
 } from "@/features/records/types";
+import type { BitacoraExcelFields, BitacoraMetaBlock } from "@/features/bitacora/meta";
+import {
+  applyAllBitacoraSuggested,
+  BITACORA_TO_EXTRACTION,
+  markBitacoraFieldApplied,
+} from "@/features/bitacora/meta";
 import type { TotalFieldIssue } from "@/features/records/totals";
 import { isChequeAlDia } from "@/features/records/cheque-utils";
 import { syncDetalleEfectivoTotals } from "@/features/records/efectivo-totals";
@@ -64,6 +70,13 @@ const newBillete = (): BilleteRow => ({
 export interface ExtractionFormHandle {
   getValues: () => Extraction;
   applyScalarField: (key: keyof Extraction, value: string) => void;
+  applyBitacoraField: (
+    field: keyof BitacoraExcelFields,
+    value: string,
+    initialMeta?: BitacoraMetaBlock
+  ) => void;
+  applyAllBitacora: (initialMeta?: BitacoraMetaBlock) => void;
+  setBitacoraMeta: (meta: BitacoraMetaBlock) => void;
 }
 
 interface ExtractionFormProps {
@@ -119,6 +132,72 @@ export function ExtractionForm({
             [key]: { ...(current as ExtractedField), valor: value },
           };
         });
+      },
+      applyBitacoraField: (field, value, initialMeta) => {
+        setState((s) => {
+          const baseMeta = s._meta?.bitacora ?? initialMeta;
+          if (!baseMeta) return s;
+
+          const extractionKey = BITACORA_TO_EXTRACTION[field];
+          let next: Extraction = { ...s };
+          if (extractionKey) {
+            const current = next[extractionKey];
+            if (
+              current &&
+              typeof current === "object" &&
+              "valor" in current
+            ) {
+              next = {
+                ...next,
+                [extractionKey]: {
+                  ...(current as ExtractedField),
+                  valor: value,
+                },
+              };
+            }
+          }
+          const bitacora = markBitacoraFieldApplied(baseMeta, field, value);
+          return {
+            ...next,
+            _meta: { ...s._meta, bitacora },
+          };
+        });
+      },
+      applyAllBitacora: (initialMeta) => {
+        setState((s) => {
+          const baseMeta = s._meta?.bitacora ?? initialMeta;
+          if (!baseMeta) return s;
+          const bitacora = applyAllBitacoraSuggested(baseMeta);
+          if (!bitacora) return s;
+          let next: Extraction = { ...s, _meta: { ...s._meta, bitacora } };
+          for (const [bitKey, extractionKey] of Object.entries(
+            BITACORA_TO_EXTRACTION
+          ) as [keyof BitacoraExcelFields, keyof Extraction][]) {
+            const value = bitacora.excel[bitKey];
+            if (!value || !extractionKey) continue;
+            const current = next[extractionKey];
+            if (
+              current &&
+              typeof current === "object" &&
+              "valor" in current
+            ) {
+              next = {
+                ...next,
+                [extractionKey]: {
+                  ...(current as ExtractedField),
+                  valor: value,
+                },
+              };
+            }
+          }
+          return next;
+        });
+      },
+      setBitacoraMeta: (meta) => {
+        setState((s) => ({
+          ...s,
+          _meta: { ...s._meta, bitacora: meta },
+        }));
       },
     }),
     [state]
@@ -660,7 +739,11 @@ export function ExtractionForm({
                   catalogKey: "detalle_transferencias.no_fac",
                 },
                 { key: "cliente", label: "Cliente" },
-                { key: "banco", label: "Banco" },
+                {
+                  key: "banco",
+                  label: "Banco",
+                  catalogKey: "detalle_transferencias.banco",
+                },
                 { key: "valor", label: "Monto" },
               ]}
               createEmpty={newTransferencia}

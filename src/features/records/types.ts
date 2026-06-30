@@ -2,6 +2,7 @@ import { splitBilletesAndMonedas } from "./efectivo-utils";
 import { syncDetalleEfectivoTotals } from "./efectivo-totals";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
 import { normalizeThousandsDisplay } from "@/lib/parse-number";
+import type { BitacoraMetaBlock } from "@/features/bitacora/meta";
 
 export type RecordStatus =
   | "uploaded"
@@ -145,21 +146,7 @@ export interface Extraction {
     /** Si el modelo devolvió bboxes en la última corrida. */
     lastWithBboxes?: boolean;
     /** Vínculo con fila de bitácora matinal (pista, no verdad absoluta). */
-    bitacora?: {
-      bitacoraId: string;
-      rowId: string;
-      version: number;
-      matchScore: number;
-      suggested: {
-        patente?: string;
-        conductor?: string;
-        auxiliar?: string;
-        n_recorrido?: string;
-        cant_fact?: string;
-        valor_total?: string;
-        sector?: string;
-      };
-    };
+    bitacora?: BitacoraMetaBlock;
   };
 }
 

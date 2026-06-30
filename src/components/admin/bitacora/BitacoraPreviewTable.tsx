@@ -1,6 +1,9 @@
 "use client";
 
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { newId } from "@/lib/id";
 import {
   Select,
   SelectContent,
@@ -73,23 +76,96 @@ export function BitacoraPreviewTable({
       !["ruta", "entrega_pendiente", "manual"].includes(r.rowType)
   );
 
+  const addRow = (rowType: BitacoraRowType) => {
+    onChange([
+      ...rows,
+      {
+        id: newId(),
+        rowType,
+        manualSubtype: rowType === "manual" ? "ingreso_manual" : undefined,
+      },
+    ]);
+  };
+
   const sections = [
     { title: "Rutas del día", items: rutas },
     { title: "Entregas pendientes (otras fechas)", items: pendientes },
     { title: "Ingresos manuales", items: manuales },
-    { title: "Otros", items: otros },
+    { title: "No reconocidas / revisar", items: otros },
   ].filter((s) => s.items.length > 0);
 
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Sin filas. Pega una tabla de Excel para comenzar.
-      </p>
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Sin filas. Pega una tabla de Excel o agrega filas manualmente.
+        </p>
+        {!readOnly && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => addRow("manual")}
+            >
+              <Plus className="size-3.5" />
+              Agregar ingreso manual
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => addRow("ruta")}
+            >
+              <Plus className="size-3.5" />
+              Agregar ruta
+            </Button>
+          </div>
+        )}
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {!readOnly && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => addRow("manual")}
+          >
+            <Plus className="size-3.5" />
+            Agregar ingreso manual
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => addRow("ruta")}
+          >
+            <Plus className="size-3.5" />
+            Agregar ruta
+          </Button>
+          {otros.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => addRow("unknown")}
+            >
+              <Plus className="size-3.5" />
+              Agregar fila sin clasificar
+            </Button>
+          )}
+        </div>
+      )}
       {sections.map((section) => (
         <div key={section.title} className="space-y-2">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">

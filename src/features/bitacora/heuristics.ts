@@ -280,6 +280,7 @@ export function summarizeBitacoraRows(rows: BitacoraRow[]) {
     rutas: rows.filter((r) => r.rowType === "ruta").length,
     pendientes: rows.filter((r) => r.rowType === "entrega_pendiente").length,
     manuales: rows.filter((r) => r.rowType === "manual").length,
+    desconocidas: rows.filter((r) => r.rowType === "unknown").length,
     totales: rows.filter((r) => r.rowType === "totals").length,
     total: rows.filter((r) => r.rowType !== "totals").length,
   };

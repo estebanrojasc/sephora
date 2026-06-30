@@ -79,9 +79,10 @@ function transferenciaRowSchema(withBboxes: boolean): SchemaObject {
     properties: {
       no_fac: fieldSchema(withBboxes),
       cliente: fieldSchema(withBboxes),
+      banco: fieldSchema(withBboxes),
       valor: fieldSchema(withBboxes),
     },
-    required: ["no_fac", "cliente", "valor"],
+    required: ["no_fac", "cliente", "banco", "valor"],
   };
 }
 

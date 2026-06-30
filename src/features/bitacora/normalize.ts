@@ -123,6 +123,12 @@ export function parseBitacoraFromText(raw: string): ReturnType<
   typeof normalizeBitacoraParseResult
 > {
   const trimmed = stripJsonFences(raw);
-  const parsed = JSON.parse(trimmed);
-  return normalizeBitacoraParseResult(parsed);
+  try {
+    const parsed = JSON.parse(trimmed);
+    return normalizeBitacoraParseResult(parsed);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "JSON inválido";
+    throw new Error(`La IA devolvió un JSON inválido: ${message}`);
+  }
 }

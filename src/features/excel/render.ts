@@ -48,7 +48,7 @@ const LIST_LAYOUT: ListCellLayout[] = [
   { col: "U", list: "negocio", field: "val", type: "number", extraStyle: 72, placeholder: "{{neg_val}}" },
 ];
 
-/** Bloque independiente para cheques al día (mismo comportamiento de expansión). */
+/** Bloque independiente para cheques al día (fila 39 en plantilla). */
 const CHEQUES_AL_DIA_LAYOUT: ListCellLayout[] = [
   { col: "M", list: "cheques_al_dia", field: "fecha", type: "text", extraStyle: 37, placeholder: "{{chq_dia_fechas}}" },
   { col: "N", list: "cheques_al_dia", field: "banco", type: "text", extraStyle: 38, placeholder: "{{chq_dia_bancos}}" },
@@ -80,11 +80,6 @@ interface ListBlock {
 
 const LIST_BLOCKS: ListBlock[] = [
   {
-    anchorRow: CHEQUES_AL_DIA_ROW,
-    layout: CHEQUES_AL_DIA_LAYOUT,
-    count: (l) => Math.max(l.cheques_al_dia?.length ?? 0, 1),
-  },
-  {
     anchorRow: LIST_ROW,
     layout: LIST_LAYOUT,
     count: (l) =>
@@ -95,6 +90,11 @@ const LIST_BLOCKS: ListBlock[] = [
         l.negocio?.length ?? 0,
         1
       ),
+  },
+  {
+    anchorRow: CHEQUES_AL_DIA_ROW,
+    layout: CHEQUES_AL_DIA_LAYOUT,
+    count: (l) => Math.max(l.cheques_al_dia?.length ?? 0, 1),
   },
   {
     anchorRow: CREDITO_ROW,
@@ -294,36 +294,70 @@ function buildExtraListRowXml(
   return `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${cells.join("")}</row>`;
 }
 
+function worksheetHasRow(xml: string, rowNum: number): boolean {
+  return new RegExp(`<row\\b[^>]*\\br="${rowNum}"`).test(xml);
+}
+
+function fillListRowByRef(
+  xml: string,
+  rowNum: number,
+  layout: ListCellLayout[],
+  lists: RendicionLists,
+  dataIndex: number
+): string {
+  for (const cell of layout) {
+    const ref = `${cell.col}${rowNum}`;
+    const scalar: ScalarValue = {
+      value: listValueAt(lists, cell, dataIndex) ?? "",
+      numeric: cell.type === "number",
+    };
+    xml = writeCellAt(xml, ref, scalar);
+  }
+  return xml;
+}
+
 function expandListBlock(
   xml: string,
   anchorRow: number,
   layout: ListCellLayout[],
   lists: RendicionLists,
-  indices: Map<string, number>,
+  _indices: Map<string, number>,
   n: number
 ): string {
-  for (const cell of layout) {
-    const idx = indices.get(cell.placeholder);
-    if (idx === undefined) continue;
-    const scalar: ScalarValue = {
-      value: listValueAt(lists, cell, 0) ?? "",
-      numeric: cell.type === "number",
-    };
-    xml = replaceCellsByStringIndex(xml, idx, scalar);
+  const count = Math.max(n, 1);
+
+  xml = fillListRowByRef(xml, anchorRow, layout, lists, 0);
+  if (count <= 1) return xml;
+
+  let nextDataIndex = 1;
+  let lastFilledRow = anchorRow;
+
+  for (
+    let row = anchorRow + 1;
+    row < anchorRow + count && nextDataIndex < count;
+    row++
+  ) {
+    if (!worksheetHasRow(xml, row)) break;
+    xml = fillListRowByRef(xml, row, layout, lists, nextDataIndex);
+    lastFilledRow = row;
+    nextDataIndex++;
   }
 
-  if (n <= 1) return xml;
+  const remaining = count - nextDataIndex;
+  if (remaining <= 0) return xml;
 
-  const delta = n - 1;
-  xml = shiftRowsInWorksheet(xml, anchorRow + 1, delta);
+  const insertAt = lastFilledRow + 1;
+  xml = shiftRowsInWorksheet(xml, insertAt, remaining);
 
   const extra: string[] = [];
-  for (let i = 1; i < n; i++) {
-    extra.push(buildExtraListRowXml(anchorRow + i, layout, lists, i));
+  for (let j = 0; j < remaining; j++) {
+    extra.push(
+      buildExtraListRowXml(insertAt + j, layout, lists, nextDataIndex + j)
+    );
   }
 
   const anchorRe = new RegExp(
-    `(<row\\b[^>]*\\br="${anchorRow}"[^>]*>[\\s\\S]*?</row>)`
+    `(<row\\b[^>]*\\br="${lastFilledRow}"[^>]*>[\\s\\S]*?</row>)`
   );
   return xml.replace(anchorRe, `$1${extra.join("")}`);
 }

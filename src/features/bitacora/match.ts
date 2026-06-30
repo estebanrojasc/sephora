@@ -8,6 +8,7 @@ import {
   normalizeRecorridoDigits,
   recorridoSuffix,
 } from "./normalize-keys";
+import { rowToExcelFields } from "./meta";
 import type { Bitacora, BitacoraMatch, BitacoraRow } from "./types";
 
 function scoreRow(
@@ -46,15 +47,40 @@ function scoreRow(
   return score;
 }
 
+export function scoreBitacoraRow(record: Record, row: BitacoraRow): number {
+  return scoreRow(record, row);
+}
+
+export function listAssignableBitacoraRows(bitacora: Bitacora): BitacoraRow[] {
+  return bitacora.rows.filter(
+    (r) => r.rowType === "ruta" || r.rowType === "manual"
+  );
+}
+
+export function formatBitacoraRowLabel(row: BitacoraRow): string {
+  const parts = [
+    row.conductor,
+    row.recorridoSuffix ?? row.recorrido,
+    row.patente,
+    row.sector,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : `Fila ${row.id.slice(0, 8)}`;
+}
+
 export function rowToSuggested(row: BitacoraRow) {
+  const excel = rowToExcelFields(row);
   return {
-    patente: row.patente,
-    conductor: row.conductor,
-    auxiliar: row.auxiliar,
-    n_recorrido: row.recorridoSuffix ?? row.recorrido,
-    cant_fact: row.cantFact,
-    valor_total: row.montoTotal,
-    sector: row.sector,
+    patente: excel.patente,
+    conductor: excel.conductor,
+    auxiliar: excel.auxiliar,
+    n_recorrido: excel.recorrido,
+    recorrido: excel.recorrido,
+    cant_fact: excel.n_factura,
+    n_factura: excel.n_factura,
+    valor_total: excel.total_factura,
+    total_factura: excel.total_factura,
+    sector: excel.sector,
+    observaciones: excel.observaciones,
   };
 }
 

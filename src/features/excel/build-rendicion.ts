@@ -6,6 +6,28 @@ import {
 import { splitChequesByTipo } from "@/features/records/cheque-utils";
 import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
 import { parseNumber } from "@/lib/parse-number";
+import type { BitacoraExcelFields } from "@/features/bitacora/meta";
+
+function appendBitacoraScalars(
+  scalars: globalThis.Record<string, ScalarValue>,
+  excel: BitacoraExcelFields
+): void {
+  const entries: [string, string | undefined, boolean][] = [
+    ["{{extraction._meta.bitacora.excel.conductor}}", excel.conductor, false],
+    ["{{extraction._meta.bitacora.excel.auxiliar}}", excel.auxiliar, false],
+    ["{{extraction._meta.bitacora.excel.observaciones}}", excel.observaciones, false],
+    ["{{extraction._meta.bitacora.excel.sector}}", excel.sector, false],
+    ["{{extraction._meta.bitacora.excel.recorrido}}", excel.recorrido, false],
+    ["{{extraction._meta.bitacora.excel.n_factura}}", excel.n_factura, true],
+    ["{{extraction._meta.bitacora.excel.total_factura}}", excel.total_factura, true],
+    ["{{extraction._meta.bitacora.excel.patente}}", excel.patente, false],
+  ];
+  for (const [key, value, numeric] of entries) {
+    if (value != null && value !== "") {
+      scalars[key] = { value, numeric };
+    }
+  }
+}
 
 export interface ScalarValue {
   value: string;
@@ -175,6 +197,11 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
       numeric: false,
     },
   };
+
+  const bitExcel = e._meta?.bitacora?.excel;
+  if (bitExcel) {
+    appendBitacoraScalars(scalars, bitExcel);
+  }
 
   aliasScalar(
     scalars,

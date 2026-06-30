@@ -107,9 +107,13 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
       setRows(result.rows);
       if (result.date) setDate(result.date);
       if (result.title) setTitle(result.title);
+      const providerLabel =
+        (result as { provider?: string }).provider === "heuristic"
+          ? "heurísticas (IA no disponible)"
+          : ((result as { provider?: string }).provider ?? "IA");
       setWarnings([
         ...(result.warnings ?? []),
-        "Estructurado con IA — revisa las filas antes de guardar.",
+        `Estructurado con ${providerLabel} — revisa las filas antes de guardar.`,
       ]);
       setParsed(true);
       toast.success("IA aplicada. Revisa los cambios en la tabla.");
@@ -252,6 +256,11 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
             <span className="rounded-full bg-muted px-2 py-0.5">
               {summary.manuales} manuales
             </span>
+            {summary.desconocidas > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                {summary.desconocidas} sin clasificar
+              </span>
+            )}
             {summary.totales > 0 && (
               <span className="rounded-full bg-muted px-2 py-0.5">
                 {summary.totales} fila totales
@@ -263,8 +272,9 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
 
           <div className="rounded-lg border border-dashed p-3">
             <p className="text-xs text-muted-foreground">
-              El parseo local cubre la bitácora habitual. Usa IA solo si alguna
-              fila quedó mal clasificada y no quieres corregirla a mano.
+              El parseo local cubre la bitácora habitual. Usa Gemini (mismo
+              proveedor que el reconocimiento) solo si alguna fila quedó mal
+              clasificada.
             </p>
             <Button
               type="button"
