@@ -7,7 +7,7 @@ import {
   getSignedReadUrl,
   getSignedWriteUrl,
   isGcsConfigured,
-  objectExists,
+  objectExistsViaSignedUrl,
   uploadDataUrlToGcs,
 } from "@/lib/storage/gcs";
 import {
@@ -181,8 +181,8 @@ export async function verifyDirectUploadObjects(
   }
 
   const checks = images.flatMap((img) => {
-    const tasks = [objectExists(img.url)];
-    if (img.processedUrl) tasks.push(objectExists(img.processedUrl));
+    const tasks = [objectExistsViaSignedUrl(img.url)];
+    if (img.processedUrl) tasks.push(objectExistsViaSignedUrl(img.processedUrl));
     return tasks;
   });
   const results = await Promise.all(checks);

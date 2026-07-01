@@ -82,13 +82,15 @@ export async function uploadDataUrlToGcs(
 }
 
 export async function getSignedReadUrl(objectKey: string): Promise<string> {
-  const file = bucket().file(objectKey);
-  const [url] = await file.getSignedUrl({
-    version: "v4",
-    action: "read",
-    expires: Date.now() + getSignedUrlTtlMs(),
+  return withGcsRetry(async () => {
+    const file = bucket().file(objectKey);
+    const [url] = await file.getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: Date.now() + getSignedUrlTtlMs(),
+    });
+    return url;
   });
-  return url;
 }
 
 export async function getSignedWriteUrl(
@@ -122,6 +124,20 @@ export async function downloadObjectAsBuffer(
 export async function objectExists(objectKey: string): Promise<boolean> {
   const [exists] = await bucket().file(objectKey).exists();
   return exists;
+}
+
+/**
+ * Verifica existencia sin llamar a la API autenticada de GCS (evita OAuth en Railway).
+ * Firma la URL localmente con la private key y hace HEAD al objeto.
+ */
+export async function objectExistsViaSignedUrl(
+  objectKey: string
+): Promise<boolean> {
+  return withGcsRetry(async () => {
+    const url = await getSignedReadUrl(objectKey);
+    const res = await fetch(url, { method: "HEAD" });
+    return res.ok;
+  });
 }
 
 /** Verifica que las credenciales GCS puedan obtener token OAuth (Railway ↔ Google). */

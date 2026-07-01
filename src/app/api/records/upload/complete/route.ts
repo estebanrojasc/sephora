@@ -54,6 +54,15 @@ export async function POST(request: NextRequest) {
     }
     const message =
       err instanceof Error ? err.message : "Error al guardar el registro";
-    return NextResponse.json({ message }, { status: 500 });
+    const missingObjects = message.includes("Faltan objetos en GCS");
+    return NextResponse.json(
+      {
+        message: missingObjects
+          ? "Las imágenes no llegaron al bucket. Revisa CORS en GCS y vuelve a enviar."
+          : message,
+        code: missingObjects ? "GCS_OBJECTS_MISSING" : undefined,
+      },
+      { status: missingObjects ? 400 : 500 }
+    );
   }
 }
