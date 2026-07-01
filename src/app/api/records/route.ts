@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { listRecords } from "@/lib/repositories/records";
 import type { RecordStatus } from "@/features/records/types";
 import { jsonNoStore } from "@/lib/api-response";
+import { mongoErrorResponse } from "@/lib/api-mongo-error";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,6 @@ export async function GET(request: NextRequest) {
     });
     return jsonNoStore(records);
   } catch (err) {
-    console.error("[api/records] GET", err);
-    return jsonNoStore(
-      {
-        message:
-          "No se pudo conectar a MongoDB. Verifica que esté corriendo en localhost:27017.",
-      },
-      { status: 503 }
-    );
+    return mongoErrorResponse(err, "api/records");
   }
 }

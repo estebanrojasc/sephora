@@ -1,15 +1,17 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { getDb, COLLECTIONS } from "@/lib/mongo";
+import { COLLECTIONS, collectionWithIndexes } from "@/lib/mongo";
 import type { ExtractionAttempt } from "@/features/extraction-attempts/types";
 
 async function col() {
-  const db = await getDb();
-  const c = db.collection<ExtractionAttempt>(COLLECTIONS.extractionAttempts);
-  await c.createIndex({ id: 1 }, { unique: true });
-  await c.createIndex({ recordId: 1, createdAt: -1 });
-  await c.createIndex({ recordId: 1, isActive: 1 });
-  return c;
+  return collectionWithIndexes<ExtractionAttempt>(
+    COLLECTIONS.extractionAttempts,
+    [
+      { key: { id: 1 }, unique: true },
+      { key: { recordId: 1, createdAt: -1 } },
+      { key: { recordId: 1, isActive: 1 } },
+    ]
+  );
 }
 
 function strip<T extends { _id?: unknown }>(doc: T | null): T | null {

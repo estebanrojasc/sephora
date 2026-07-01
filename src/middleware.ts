@@ -100,8 +100,6 @@ export async function middleware(request: NextRequest) {
       if (isRsc) {
         requestHeaders.set("x-vercel-skip-toolbar", "1");
         requestHeaders.set("x-nextjs-data", "1");
-        // Fuerza MISS en segment cache (clave distinta por request).
-        requestHeaders.set("x-rsc-bust", String(Date.now()));
       }
     }
     const response = NextResponse.next({
@@ -118,9 +116,6 @@ export async function middleware(request: NextRequest) {
       response.headers.delete("last-modified");
       response.headers.set("x-middleware-cache", "no-cache");
       response.headers.set("x-vercel-cache", "MISS");
-      if (isRsc && pathname.startsWith("/admin")) {
-        response.headers.set("x-rsc-bust", requestHeaders.get("x-rsc-bust") ?? "");
-      }
     }
     return response;
   }

@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { getDb, COLLECTIONS } from "@/lib/mongo";
+import { COLLECTIONS, collectionWithIndexes } from "@/lib/mongo";
 import {
   createEmptyExtraction,
   type Extraction,
@@ -12,12 +12,11 @@ import {
 } from "@/features/records/types";
 
 async function col() {
-  const db = await getDb();
-  const c = db.collection<Record>(COLLECTIONS.records);
-  await c.createIndex({ id: 1 }, { unique: true });
-  await c.createIndex({ deviceId: 1, createdAt: -1 });
-  await c.createIndex({ status: 1, createdAt: -1 });
-  return c;
+  return collectionWithIndexes<Record>(COLLECTIONS.records, [
+    { key: { id: 1 }, unique: true },
+    { key: { deviceId: 1, createdAt: -1 } },
+    { key: { status: 1, createdAt: -1 } },
+  ]);
 }
 
 function stripMongoId<T extends { _id?: unknown }>(doc: T | null): T | null {

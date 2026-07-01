@@ -5,6 +5,7 @@ import {
   listBitacoras,
 } from "@/lib/repositories/bitacoras";
 import { jsonNoStore } from "@/lib/api-response";
+import { mongoErrorResponse } from "@/lib/api-mongo-error";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -47,11 +48,15 @@ const createSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = request.nextUrl;
-  const date = searchParams.get("date") ?? undefined;
-  const activeOnly = searchParams.get("active") === "1";
-  const bitacoras = await listBitacoras({ date, activeOnly });
-  return jsonNoStore(bitacoras);
+  try {
+    const { searchParams } = request.nextUrl;
+    const date = searchParams.get("date") ?? undefined;
+    const activeOnly = searchParams.get("active") === "1";
+    const bitacoras = await listBitacoras({ date, activeOnly });
+    return jsonNoStore(bitacoras);
+  } catch (err) {
+    return mongoErrorResponse(err, "api/bitacora");
+  }
 }
 
 export async function POST(request: NextRequest) {

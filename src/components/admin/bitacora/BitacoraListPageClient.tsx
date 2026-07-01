@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { BitacoraDayList } from "@/components/admin/bitacora/BitacoraDayList";
@@ -11,7 +10,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function BitacoraListPageClient() {
-  const router = useRouter();
   const [dates, setDates] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,8 +30,7 @@ export function BitacoraListPageClient() {
 
   useEffect(() => {
     void load();
-    router.refresh();
-  }, [load, router]);
+  }, [load]);
 
   return (
     <div className="space-y-6">

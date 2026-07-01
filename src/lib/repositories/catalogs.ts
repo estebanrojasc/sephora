@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { getDb, COLLECTIONS } from "@/lib/mongo";
+import { COLLECTIONS, collectionWithIndexes } from "@/lib/mongo";
 import type {
   Catalog,
   CreateCatalogPayload,
@@ -9,11 +9,10 @@ import type {
 import { DEFAULT_CATALOGS } from "@/features/catalogs/defaults";
 
 async function col() {
-  const db = await getDb();
-  const c = db.collection<Catalog>(COLLECTIONS.catalogs);
-  await c.createIndex({ id: 1 }, { unique: true });
-  await c.createIndex({ fieldKey: 1, active: 1 });
-  return c;
+  return collectionWithIndexes<Catalog>(COLLECTIONS.catalogs, [
+    { key: { id: 1 }, unique: true },
+    { key: { fieldKey: 1, active: 1 } },
+  ]);
 }
 
 function strip<T extends { _id?: unknown }>(doc: T | null): T | null {
@@ -49,8 +48,7 @@ export async function ensureDefaultCatalogs(): Promise<void> {
     if (
       def.fieldKey === "detalle_transferencias.banco" &&
       def.items &&
-      (exists.items.every((i) => ["E", "VE", "S"].includes(i.value.trim())) ||
-        exists.items.some((i) => Boolean(i.label?.trim())))
+      exists.items.every((i) => ["E", "VE", "S"].includes(i.value.trim()))
     ) {
       await updateCatalog(exists.id, { name: def.name, items: def.items });
     }

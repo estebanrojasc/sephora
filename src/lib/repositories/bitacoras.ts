@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { getDb, COLLECTIONS } from "@/lib/mongo";
+import { COLLECTIONS, collectionWithIndexes } from "@/lib/mongo";
 import type {
   Bitacora,
   BitacoraRow,
@@ -8,12 +8,11 @@ import type {
 } from "@/features/bitacora/types";
 
 async function col() {
-  const db = await getDb();
-  const c = db.collection<Bitacora>(COLLECTIONS.bitacoras);
-  await c.createIndex({ id: 1 }, { unique: true });
-  await c.createIndex({ date: 1, isActive: 1 });
-  await c.createIndex({ date: 1, version: -1 });
-  return c;
+  return collectionWithIndexes<Bitacora>(COLLECTIONS.bitacoras, [
+    { key: { id: 1 }, unique: true },
+    { key: { date: 1, isActive: 1 } },
+    { key: { date: 1, version: -1 } },
+  ]);
 }
 
 function strip<T extends { _id?: unknown }>(doc: T | null): T | null {

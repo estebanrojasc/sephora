@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { getDb, COLLECTIONS } from "@/lib/mongo";
+import { COLLECTIONS, collectionWithIndexes } from "@/lib/mongo";
 import type { User, UserDTO } from "@/features/users/types";
 
 interface UserDoc extends User {
@@ -9,10 +9,9 @@ interface UserDoc extends User {
 }
 
 async function col() {
-  const db = await getDb();
-  const c = db.collection<UserDoc>(COLLECTIONS.users);
-  await c.createIndex({ email: 1 }, { unique: true });
-  return c;
+  return collectionWithIndexes<UserDoc>(COLLECTIONS.users, [
+    { key: { email: 1 }, unique: true },
+  ]);
 }
 
 function toDTO(doc: UserDoc): UserDTO {
