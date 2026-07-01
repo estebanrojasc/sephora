@@ -203,6 +203,44 @@ function forceFullRecalc(workbookXml: string): string {
   return workbookXml.replace("</workbook>", `${replacement}</workbook>`);
 }
 
+/** Elimina calcChain.xml y referencias huérfanas (rompe la apertura en Excel). */
+function stripCalcChainFromPackage(files: Record<string, Uint8Array>): void {
+  delete files["xl/calcChain.xml"];
+
+  const relsPath = "xl/_rels/workbook.xml.rels";
+  const relsBytes = files[relsPath];
+  if (relsBytes) {
+    files[relsPath] = encoder.encode(
+      decoder
+        .decode(relsBytes)
+        .replace(/<Relationship[^>]*calcChain[^>]*\/>/g, "")
+    );
+  }
+
+  const ctPath = "[Content_Types].xml";
+  const ctBytes = files[ctPath];
+  if (ctBytes) {
+    files[ctPath] = encoder.encode(
+      decoder.decode(ctBytes).replace(/<Override[^>]*calcChain[^>]*\/>/g, "")
+    );
+  }
+}
+
+function updateSheetDimension(xml: string): string {
+  let lastRow = 0;
+  for (const m of xml.matchAll(/<row\b[^>]*\br="(\d+)"/g)) {
+    const row = parseInt(m[1]!, 10);
+    if (row > lastRow) lastRow = row;
+  }
+  if (lastRow > 0) {
+    xml = xml.replace(
+      /(<dimension\s+ref=")[^"]+("\s*\/>)/,
+      `$1A1:W${lastRow}$2`
+    );
+  }
+  return xml;
+}
+
 function clearStalePlaceholderCaches(xml: string): string {
   return xml.replace(
     /(<f\b[^>]*>[\s\S]*?<\/f>)\s*<v>[^<]*\{\{[^<]*\}\}[^<]*<\/v>/g,
@@ -666,7 +704,7 @@ function processWorksheet(
     xml = replacePlaceholderEverywhere(xml, placeholder, scalar, strings);
   }
 
-  return clearStalePlaceholderCaches(xml);
+  return updateSheetDimension(clearStalePlaceholderCaches(xml));
 }
 
 function cellStyleFromAttrs(attrs: string): number {
@@ -798,7 +836,7 @@ export function renderRendicionExcel(
     );
   }
 
-  delete files["xl/calcChain.xml"];
+  stripCalcChainFromPackage(files);
 
   return zipSync(files, { level: 6 });
 }
