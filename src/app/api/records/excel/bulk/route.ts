@@ -5,7 +5,7 @@ import {
   buildConsolidatedFilename,
   buildConsolidatedWorkbook,
 } from "@/features/excel/build-consolidated";
-import { findRecordsByIds } from "@/lib/repositories/records";
+import { findRecordsByIdsForExcel } from "@/lib/repositories/records";
 
 export const runtime = "nodejs";
 
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const records = await findRecordsByIds(recordIds);
+  const records = await findRecordsByIdsForExcel(recordIds);
   if (records.length === 0) {
     return NextResponse.json(
       { message: "No se encontraron registros" },

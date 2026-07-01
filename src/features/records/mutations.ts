@@ -12,6 +12,7 @@ import {
 import { recordKeys } from "./queries";
 import type {
   ProcessAIPayload,
+  Record,
   UpdateExtractionPayload,
   UpdateStatusPayload,
   UploadPayload,
@@ -32,7 +33,15 @@ export function useOpenRecord() {
   return useMutation({
     mutationFn: (id: string) => openRecord(id),
     onSuccess: (data) => {
-      qc.setQueryData(recordKeys.detail(data.id), data);
+      qc.setQueryData(recordKeys.detail(data.id), (old: Record | undefined) =>
+        old
+          ? {
+              ...old,
+              status: data.status,
+              previousStatus: data.previousStatus,
+            }
+          : old
+      );
       qc.invalidateQueries({ queryKey: recordKeys.all });
     },
   });
@@ -43,7 +52,9 @@ export function useReleaseRecord() {
   return useMutation({
     mutationFn: (id: string) => releaseRecord(id),
     onSuccess: (data) => {
-      qc.setQueryData(recordKeys.detail(data.id), data);
+      qc.setQueryData(recordKeys.detail(data.id), (old: Record | undefined) =>
+        old ? { ...old, status: data.status, previousStatus: undefined } : old
+      );
       qc.invalidateQueries({ queryKey: recordKeys.all });
     },
   });

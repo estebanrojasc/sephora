@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { releaseFromReview } from "@/lib/repositories/records";
 import { mongoErrorResponse } from "@/lib/api-mongo-error";
-import { resolveRecordImagesForClient } from "@/lib/storage/record-images";
 
 export async function POST(
   _request: NextRequest,
@@ -16,7 +15,10 @@ export async function POST(
         { status: 404 }
       );
     }
-    return NextResponse.json(await resolveRecordImagesForClient(record));
+    return NextResponse.json({
+      id: record.id,
+      status: record.status,
+    });
   } catch (err) {
     return mongoErrorResponse(err, "api/records/[id]/release");
   }

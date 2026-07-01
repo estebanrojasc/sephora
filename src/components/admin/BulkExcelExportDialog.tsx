@@ -51,6 +51,22 @@ export function BulkExcelExportDialog({
     }
   }, [open, records]);
 
+  function requestClose() {
+    if (loading) return;
+    const confirmed = window.confirm(
+      "¿Cerrar el diálogo? Si reordenaste filas y no exportaste, perderás ese orden."
+    );
+    if (confirmed) onOpenChange(false);
+  }
+
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      onOpenChange(true);
+      return;
+    }
+    requestClose();
+  }
+
   function moveRecord(index: number, direction: -1 | 1) {
     setOrderedRecords((prev) => {
       const target = index + direction;
@@ -108,7 +124,7 @@ export function BulkExcelExportDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Excel unificado</DialogTitle>
@@ -188,7 +204,7 @@ export function BulkExcelExportDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={requestClose} disabled={loading}>
             Cancelar
           </Button>
           <Button

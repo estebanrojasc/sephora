@@ -11,6 +11,13 @@ export type RecordStatus =
   | "saved"
   | "rejected";
 
+/** Respuesta liviana de open/release (sin documento completo). */
+export interface RecordStatusPatch {
+  id: string;
+  status: RecordStatus;
+  previousStatus?: RecordStatus;
+}
+
 export interface RecordImage {
   id: string;
   /**

@@ -6,7 +6,7 @@ import {
   buildRendicionPayload,
 } from "@/features/excel/build-rendicion";
 import { renderRendicionExcel } from "@/features/excel/render";
-import { findRecordById } from "@/lib/repositories/records";
+import { findRecordsByIdsForExcel } from "@/lib/repositories/records";
 
 export const runtime = "nodejs";
 
@@ -27,7 +27,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const record = await findRecordById(id);
+  const record = await findRecordsByIdsForExcel([id]).then((r) => r[0] ?? null);
 
   if (!record) {
     return NextResponse.json(

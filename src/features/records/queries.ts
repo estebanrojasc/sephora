@@ -34,5 +34,6 @@ export function useRecord(id: string) {
     queryKey: recordKeys.detail(id),
     queryFn: () => fetchRecord(id),
     enabled: !!id,
+    staleTime: 60_000,
   });
 }

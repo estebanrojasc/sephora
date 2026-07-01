@@ -41,15 +41,18 @@ async function refToDataUrl(ref: string): Promise<string> {
 }
 
 export async function resolveRecordImagesForClient(
-  record: Record
+  record: Record,
+  opts?: { signProcessed?: boolean }
 ): Promise<Record> {
+  const signProcessed = opts?.signProcessed ?? false;
   const images = await Promise.all(
     record.images.map(async (img) => ({
       ...img,
       url: await resolveRefForClient(img.url),
-      processedUrl: img.processedUrl
-        ? await resolveRefForClient(img.processedUrl)
-        : undefined,
+      processedUrl:
+        signProcessed && img.processedUrl
+          ? await resolveRefForClient(img.processedUrl)
+          : undefined,
     }))
   );
   return { ...record, images };

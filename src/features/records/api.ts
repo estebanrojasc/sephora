@@ -4,6 +4,7 @@ import type {
   ProcessAIPayload,
   Record,
   RecordStatus,
+  RecordStatusPatch,
   UpdateExtractionPayload,
   UpdateStatusPayload,
   UploadPayload,
@@ -34,14 +35,14 @@ export async function uploadRecordImages(
   });
 }
 
-export async function openRecord(id: string): Promise<Record> {
-  return fetchJsonNoStore<Record>(`/api/records/${id}/open`, {
+export async function openRecord(id: string): Promise<RecordStatusPatch> {
+  return fetchJsonNoStore<RecordStatusPatch>(`/api/records/${id}/open`, {
     method: "POST",
   });
 }
 
-export async function releaseRecord(id: string): Promise<Record> {
-  return fetchJsonNoStore<Record>(`/api/records/${id}/release`, {
+export async function releaseRecord(id: string): Promise<RecordStatusPatch> {
+  return fetchJsonNoStore<RecordStatusPatch>(`/api/records/${id}/release`, {
     method: "POST",
   });
 }

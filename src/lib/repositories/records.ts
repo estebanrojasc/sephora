@@ -15,6 +15,11 @@ import {
   normalizeListRecord,
 } from "@/lib/repositories/record-list-projection";
 import {
+  EXCEL_RECORD_PROJECTION,
+  normalizeExcelRecord,
+  RECORD_DETAIL_PROJECTION,
+} from "@/lib/repositories/record-projections";
+import {
   shouldUseGcsForUpload,
   uploadRecordImageToGcs,
 } from "@/lib/storage/record-images";
@@ -57,6 +62,27 @@ export async function listRecords(filters?: {
 export async function findRecordById(id: string): Promise<Record | null> {
   const c = await col();
   return stripMongoId(await c.findOne({ id }));
+}
+
+export async function findRecordByIdForDetail(id: string): Promise<Record | null> {
+  const c = await col();
+  return stripMongoId(
+    await c.findOne({ id }, { projection: RECORD_DETAIL_PROJECTION, maxTimeMS: 25_000 })
+  );
+}
+
+export async function findRecordsByIdsForExcel(ids: string[]): Promise<Record[]> {
+  if (ids.length === 0) return [];
+  const c = await col();
+  const docs = await c
+    .find({ id: { $in: ids } }, { projection: EXCEL_RECORD_PROJECTION, maxTimeMS: 60_000 })
+    .toArray();
+  const byId = new Map(
+    docs.map((d) => [d.id, normalizeExcelRecord(stripMongoId(d) as Record)])
+  );
+  return ids
+    .map((id) => byId.get(id))
+    .filter((r): r is Record => r != null);
 }
 
 export async function insertRecord(payload: UploadPayload): Promise<Record> {

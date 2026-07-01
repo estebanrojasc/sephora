@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findRecordById } from "@/lib/repositories/records";
+import { findRecordByIdForDetail } from "@/lib/repositories/records";
 import { mongoErrorResponse } from "@/lib/api-mongo-error";
 import { resolveRecordImagesForClient } from "@/lib/storage/record-images";
 
@@ -9,7 +9,7 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const record = await findRecordById(id);
+    const record = await findRecordByIdForDetail(id);
     if (!record) {
       return NextResponse.json(
         { message: "Registro no encontrado" },

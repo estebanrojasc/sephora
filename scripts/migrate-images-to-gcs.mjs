@@ -180,19 +180,64 @@ async function main() {
     );
   }
 
+  if (uri.includes("<db_password>") || uri.includes("<password>")) {
+    throw new Error(
+      "La URI aún tiene el placeholder <db_password>. Reemplázalo por tu contraseña real de Atlas."
+    );
+  }
+
+  if (!uri.match(/\/[^/?]+(\?|$)/) && uri.includes("27017")) {
+    console.warn(
+      "Aviso: la URI no incluye nombre de base (ej. /proyectoisaqwen). " +
+        "Atlas suele usar /proyectoisaqwen antes del ?."
+    );
+  }
+
   const { storage, bucketName } = getStorage();
   console.log(`Bucket: ${bucketName}`);
   console.log(`Mongo:  ${uri.replace(/\/\/([^:]+):([^@]+)@/, "//$1:***@")}`);
   console.log(dryRun ? "Modo: DRY RUN (no escribe)" : "Modo: MIGRACIÓN REAL");
 
   const client = new MongoClient(uri);
-  await client.connect();
+  try {
+    console.log("Conectando a MongoDB...");
+    await client.connect();
+    console.log("Conectado.");
+  } catch (err) {
+    if (err?.code === "ECONNREFUSED" && err?.syscall === "querySrv") {
+      console.error(
+        "\nNo se pudo resolver DNS SRV de MongoDB Atlas desde esta máquina/red."
+      );
+      console.error("Opciones:");
+      console.error(
+        "  1. Atlas → Connect → Drivers → copia la URI estándar (mongodb://..., no mongodb+srv://)"
+      );
+      console.error(
+        "  2. Cambia DNS a 8.8.8.8 / 1.1.1.1 y reintenta"
+      );
+      console.error(
+        "  3. Ejecuta desde Railway (donde Mongo ya funciona): railway run npm run migrate:images:gcs"
+      );
+    }
+    if (err?.code === 8000 || err?.codeName === "AtlasError") {
+      console.error(
+        "\nAutenticación fallida. Revisa usuario/contraseña y que la URI incluya /proyectoisaqwen"
+      );
+      console.error(
+        "Si la contraseña tiene caracteres especiales (@ # % etc.), codifícala en URL (encodeURIComponent)."
+      );
+    }
+    throw err;
+  }
   const db = client.db();
   const col = db.collection(COLLECTION);
 
   const query = recordId ? { id: recordId } : {};
+  console.log(
+    "Descargando registros desde Atlas (puede tardar varios minutos: ~29 MB de imágenes base64 en Mongo)..."
+  );
   const records = await col.find(query).toArray();
-  console.log(`Registros a revisar: ${records.length}`);
+  console.log(`Registros descargados: ${records.length}. Procesando imágenes...`);
 
   let migratedRecords = 0;
   let migratedImages = 0;
@@ -202,6 +247,8 @@ async function main() {
   for (const record of records) {
     const images = record.images ?? [];
     if (images.length === 0) continue;
+
+    console.log(`Registro ${record.id} (${images.length} imagen/es)...`);
 
     let recordChanged = false;
     const nextImages = [];
