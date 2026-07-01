@@ -78,12 +78,16 @@ interface ListBlock {
   count: (lists: RendicionLists) => number;
   /** Duplica merge horizontal R:S al insertar filas (etiqueta CREDITO / TRANSFERENCIA). */
   duplicateLabelMerge?: boolean;
+  /** Texto de la etiqueta en columnas R:S (p. ej. CREDITO, TRANSFERENCIA). */
+  rowLabel?: string;
   /**
    * Filas de datos con placeholders en plantilla desde anchorRow (incluye ancla).
    * Crédito: solo 71 (72 = separador antes de transferencias).
    * Transferencias: 73–74. Cheques a fecha: solo 39 (38 = total cheques al día).
    */
   templateDataRows?: number;
+  /** Fila de referencia para bordes/altura al clonar (sin thickBot de cabecera). */
+  cloneStyleRow?: number;
 }
 
 interface ListBlockExpansionMeta {
@@ -107,6 +111,7 @@ const LIST_BLOCKS: ListBlock[] = [
       ),
     /** Solo fila 37; fila 38 = total cheques al día en plantilla. */
     templateDataRows: 1,
+    cloneStyleRow: 40,
   },
   {
     id: "cheques_a_fecha",
@@ -114,6 +119,7 @@ const LIST_BLOCKS: ListBlock[] = [
     layout: CHEQUES_A_FECHA_LAYOUT,
     count: (l) => Math.max(l.cheques_a_fecha?.length ?? 0, 1),
     templateDataRows: 1,
+    cloneStyleRow: 40,
   },
   {
     id: "credito",
@@ -123,6 +129,8 @@ const LIST_BLOCKS: ListBlock[] = [
     /** Solo fila 71; la 72 es separador fijo antes de transferencias. */
     templateDataRows: 1,
     duplicateLabelMerge: true,
+    rowLabel: "CREDITO",
+    cloneStyleRow: 72,
   },
   {
     id: "transferencia",
@@ -131,6 +139,8 @@ const LIST_BLOCKS: ListBlock[] = [
     count: (l) => Math.max(l.transferencias?.length ?? 0, 1),
     templateDataRows: 2,
     duplicateLabelMerge: true,
+    rowLabel: "TRANSFERENCIA",
+    cloneStyleRow: 75,
   },
 ];
 
@@ -400,8 +410,36 @@ function extractColumnStyles(xml: string, rowNum: number): Map<string, number> {
   return map;
 }
 
-function cellHasSharedPlaceholder(inner: string, attrs: string): boolean {
-  return attrs.includes('t="s"') && /<v>\d+<\/v>/.test(inner);
+function isPlaceholderText(text: string): boolean {
+  return /^\{\{[\w.]+\}\}$/.test(text.trim());
+}
+
+function insertRowsAfter(xml: string, afterRow: number, rows: string[]): string {
+  const re = new RegExp(
+    `<row\\b[^>]*\\br="${afterRow}"[^>]*>[\\s\\S]*?</row>`
+  );
+  const m = re.exec(xml);
+  if (!m || m.index === undefined) return xml;
+  const pos = m.index + m[0].length;
+  return xml.slice(0, pos) + rows.join("") + xml.slice(pos);
+}
+
+function normalizeRowAttrs(attrs: string): string {
+  return attrs
+    .replace(/\bthickBot="1"/g, "")
+    .replace(/\bthickTop="1"/g, "")
+    .replace(/\bht="[^"]*"/g, "")
+    .replace(/\bcustomHeight="1"/g, "");
+}
+
+function shiftCellRefInFragment(fragment: string, anchorRow: number, targetRow: number): string {
+  const delta = targetRow - anchorRow;
+  if (delta === 0) return fragment;
+  return fragment.replace(/([A-Z]+)(\d+)/g, (_, col, rowStr) => {
+    const row = parseInt(rowStr, 10);
+    if (row === anchorRow) return `${col}${targetRow}`;
+    return `${col}${row}`;
+  });
 }
 
 function cloneListRowFromAnchor(
@@ -410,7 +448,9 @@ function cloneListRowFromAnchor(
   targetRow: number,
   layout: ListCellLayout[],
   lists: RendicionLists,
-  dataIndex: number
+  dataIndex: number,
+  strings: string[],
+  cloneStyleRow?: number
 ): string {
   const anchorXml = extractRowXml(xml, anchorRow);
   if (!anchorXml) {
@@ -419,14 +459,21 @@ function cloneListRowFromAnchor(
       layout,
       lists,
       dataIndex,
-      extractColumnStyles(xml, anchorRow)
+      extractColumnStyles(xml, cloneStyleRow ?? anchorRow)
     );
   }
 
+  const styleRowXml = extractRowXml(xml, cloneStyleRow ?? anchorRow);
   const layoutByCol = new Map(layout.map((l) => [l.col, l]));
-  const rowAttrs = anchorXml.match(/<row\b([^>]*)>/)?.[1] ?? "";
-  const spansMatch = rowAttrs.match(/\bspans="([^"]+)"/);
+  const rowAttrsRaw =
+    styleRowXml?.match(/<row\b([^>]*)>/)?.[1] ??
+    anchorXml.match(/<row\b([^>]*)>/)?.[1] ??
+    "";
+  const spansMatch = rowAttrsRaw.match(/\bspans="([^"]+)"/);
   const spans = spansMatch ? ` spans="${spansMatch[1]}"` : ' spans="1:23"';
+  const rowAttrs = normalizeRowAttrs(
+    rowAttrsRaw.replace(/\s*r="\d+"/g, "").replace(/\bspans="[^"]+"/g, "")
+  );
 
   const cells: string[] = [];
   for (const cellMatch of anchorXml.matchAll(
@@ -442,7 +489,7 @@ function cloneListRowFromAnchor(
       cells.push(
         buildCellXml(
           ref,
-          cellStyleFromAttrs(attrs),
+          layoutCell.extraStyle,
           listValueAt(lists, layoutCell, dataIndex),
           layoutCell.type
         )
@@ -455,19 +502,24 @@ function cloneListRowFromAnchor(
       continue;
     }
 
-    if (cellHasSharedPlaceholder(inner, attrs) && dataIndex > 0) {
+    const text = cellDisplayText(attrs, inner, strings).trim();
+    if (dataIndex > 0 && isPlaceholderText(text)) {
       cells.push(`<c r="${ref}"${attrs.replace(/\s+t="s"/g, "")}/>`);
       continue;
     }
 
     cells.push(
-      cellMatch[0]
-        .replace(`${col}${anchorRow}`, ref)
-        .replace(new RegExp(`<c r="${col}\\d+"`), `<c r="${ref}"`)
+      shiftCellRefInFragment(
+        cellMatch[0]
+          .replace(`${col}${anchorRow}`, ref)
+          .replace(new RegExp(`<c r="${col}\\d+"`), `<c r="${ref}"`),
+        anchorRow,
+        targetRow
+      )
     );
   }
 
-  return `<row r="${targetRow}"${spans} x14ac:dyDescent="0.3">${cells.join("")}</row>`;
+  return `<row r="${targetRow}"${rowAttrs}${spans} x14ac:dyDescent="0.3">${cells.join("")}</row>`;
 }
 
 function appendMergeCells(xml: string, refs: string[]): string {
@@ -498,7 +550,8 @@ function fillListRowByRef(
   rowNum: number,
   layout: ListCellLayout[],
   lists: RendicionLists,
-  dataIndex: number
+  dataIndex: number,
+  rowLabel?: string
 ): string {
   for (const cell of layout) {
     const ref = `${cell.col}${rowNum}`;
@@ -506,7 +559,15 @@ function fillListRowByRef(
       value: listValueAt(lists, cell, dataIndex) ?? "",
       numeric: cell.type === "number",
     };
-    xml = writeCellAt(xml, ref, scalar);
+    xml = writeCellAt(xml, ref, scalar, cell.extraStyle);
+  }
+  if (rowLabel) {
+    xml = writeCellAt(
+      xml,
+      `R${rowNum}`,
+      { value: rowLabel, numeric: false },
+      177
+    );
   }
   return xml;
 }
@@ -516,10 +577,12 @@ function expandListBlock(
   anchorRow: number,
   layout: ListCellLayout[],
   lists: RendicionLists,
-  _indices: Map<string, number>,
+  strings: string[],
   n: number,
   templateDataRows?: number,
-  duplicateLabelMerge?: boolean
+  duplicateLabelMerge?: boolean,
+  cloneStyleRow?: number,
+  rowLabel?: string
 ): {
   xml: string;
   insertedRows: number;
@@ -532,7 +595,7 @@ function expandListBlock(
       ? anchorRow + templateDataRows - 1
       : anchorRow + count - 1;
 
-  xml = fillListRowByRef(xml, anchorRow, layout, lists, 0);
+  xml = fillListRowByRef(xml, anchorRow, layout, lists, 0, rowLabel);
   if (count <= 1) {
     return {
       xml,
@@ -551,7 +614,7 @@ function expandListBlock(
     row++
   ) {
     if (!worksheetHasRow(xml, row)) break;
-    xml = fillListRowByRef(xml, row, layout, lists, nextDataIndex);
+    xml = fillListRowByRef(xml, row, layout, lists, nextDataIndex, rowLabel);
     lastFilledRow = row;
     nextDataIndex++;
   }
@@ -569,6 +632,11 @@ function expandListBlock(
   const insertAt = lastFilledRow + 1;
   xml = shiftRowsInWorksheet(xml, insertAt, remaining);
 
+  const cloneAnchorRow =
+    templateDataRows != null && templateDataRows > 0
+      ? anchorRow + templateDataRows - 1
+      : anchorRow;
+
   const extra: string[] = [];
   const insertedRowNumbers: number[] = [];
   for (let j = 0; j < remaining; j++) {
@@ -577,11 +645,13 @@ function expandListBlock(
     extra.push(
       cloneListRowFromAnchor(
         xml,
-        anchorRow,
+        cloneAnchorRow,
         rowNum,
         layout,
         lists,
-        nextDataIndex + j
+        nextDataIndex + j,
+        strings,
+        cloneStyleRow
       )
     );
   }
@@ -593,16 +663,65 @@ function expandListBlock(
     );
   }
 
-  const anchorRe = new RegExp(
-    `(<row\\b[^>]*\\br="${lastFilledRow}"[^>]*>[\\s\\S]*?</row>)`
-  );
   return {
-    xml: xml.replace(anchorRe, `$1${extra.join("")}`),
+    xml: insertRowsAfter(xml, lastFilledRow, extra),
     insertedRows: remaining,
     meta: { blockId: "", anchorRow, dataRowCount: count },
     insertedRowNumbers,
   };
 }
+
+function normalizeRowCellRefs(xml: string): string {
+  return xml.replace(
+    /<row\b([^>]*)\br="(\d+)"([^>]*)>([\s\S]*?)<\/row>/g,
+    (full, before, rowNum, after, inner) => {
+      const fixed = inner.replace(
+        /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g,
+        (cell, col, _cellRow, attrs, content) => {
+          const ref = `${col}${rowNum}`;
+          if (content === undefined) return `<c r="${ref}"${attrs}/>`;
+          const body = content.replace(
+            /(\bref=")([A-Z]+\d+)(:([A-Z]+\d+))(")/g,
+            (_, p1, start, range, end, p4) => {
+              const fixRef = (r: string) => {
+                const m = r.match(/^([A-Z]+)(\d+)$/);
+                if (!m) return r;
+                return `${m[1]}${rowNum}`;
+              };
+              return `${p1}${fixRef(start)}${range ? `:${fixRef(end)}` : ""}${p4}`;
+            }
+          );
+          return `<c r="${ref}"${attrs}>${body}</c>`;
+        }
+      );
+      return `<row${before}r="${rowNum}"${after}>${fixed}</row>`;
+    }
+  );
+}
+
+function scrubUnfilledListPlaceholders(
+  xml: string,
+  strings: string[],
+  layouts: ListCellLayout[]
+): string {
+  let out = xml;
+  for (const cell of layouts) {
+    out = replacePlaceholderEverywhere(
+      out,
+      cell.placeholder,
+      { value: "", numeric: cell.type === "number" },
+      strings
+    );
+  }
+  return out;
+}
+
+const ALL_LIST_LAYOUTS: ListCellLayout[] = [
+  ...LIST_LAYOUT,
+  ...CHEQUES_A_FECHA_LAYOUT,
+  ...CREDITO_LAYOUT,
+  ...TRANSF_LAYOUT,
+];
 
 function processWorksheet(
   xml: string,
@@ -622,10 +741,12 @@ function processWorksheet(
         anchorRow,
         block.layout,
         payload.lists,
-        new Map(),
+        strings,
         n,
         block.templateDataRows,
-        block.duplicateLabelMerge
+        block.duplicateLabelMerge,
+        block.cloneStyleRow,
+        block.rowLabel
       );
       xml = nextXml;
       rowShift += insertedRows;
@@ -637,6 +758,9 @@ function processWorksheet(
     xml = replacePlaceholderEverywhere(xml, placeholder, scalar, strings);
   }
 
+  xml = scrubUnfilledListPlaceholders(xml, strings, ALL_LIST_LAYOUTS);
+  xml = normalizeRowCellRefs(xml);
+
   return clearStalePlaceholderCaches(xml);
 }
 
@@ -645,14 +769,19 @@ function cellStyleFromAttrs(attrs: string): number {
   return m ? parseInt(m[1], 10) : 0;
 }
 
-function writeCellAt(xml: string, ref: string, scalar: ScalarValue): string {
+function writeCellAt(
+  xml: string,
+  ref: string,
+  scalar: ScalarValue,
+  fallbackStyle?: number
+): string {
   const type = scalar.numeric ? ("number" as const) : ("text" as const);
   const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const cellRe = new RegExp(
     `<c r="${escapedRef}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`
   );
   const match = xml.match(cellRe);
-  const style = match ? cellStyleFromAttrs(match[1]) : 0;
+  const style = match ? cellStyleFromAttrs(match[1]) : (fallbackStyle ?? 0);
   const built = buildCellXml(ref, style, scalar.value, type);
   if (match) {
     return xml.replace(cellRe, built);
