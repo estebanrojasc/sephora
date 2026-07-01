@@ -14,6 +14,7 @@ export default function DriverHomePage() {
   const { data: records, isLoading } = useRecords({
     deviceId: deviceId ?? undefined,
     requireDeviceId: true,
+    driverPolling: true,
   });
 
   return (

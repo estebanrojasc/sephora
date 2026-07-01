@@ -1,32 +1,31 @@
 import type { Record } from "@/features/records/types";
 
 /**
- * Proyección Mongo para listados admin: sin imágenes base64 ni detalle de
- * extracción. Un registro completo puede pesar ~1.7 MB; la lista solo necesita
- * metadatos para la tabla.
+ * Proyección mínima para listados: solo campos que usa la tabla admin / cards
+ * del conductor. Evita bboxes, rendición, arrays de detalle e imágenes pesadas.
  */
 export const LIST_RECORDS_PROJECTION = {
   _id: 0,
-  "images.url": 0,
-  "images.processedUrl": 0,
-  "extraction._meta.lastRawResponse": 0,
-  "extraction._meta.processedImageIds": 0,
-  "extraction.detalles_cheques": 0,
-  "extraction.n_c_rechazo_total": 0,
-  "extraction.n_c_rechazo_parcial": 0,
-  "extraction.n_c_por_negocios": 0,
-  "extraction.detalle_transferencias": 0,
-  "extraction.detalle_credito_vendedor": 0,
-  "extraction.detalle_efectivo": 0,
-  "extraction.observaciones": 0,
-  "extraction.total_n_c_rechazo_total": 0,
-  "extraction.total_n_c_rechazo_parcial": 0,
-  "extraction.total_n_c_por_negocios": 0,
-  "extraction.total_transferencias": 0,
-  "extraction.total_cheques": 0,
-  "extraction.numero_deposito_en_efectivo": 0,
-  "extraction.monto_deposito_en_efectivo": 0,
-  "extraction.rendicion": 0,
+  id: 1,
+  status: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  deviceId: 1,
+  driverId: 1,
+  driverName: 1,
+  attemptCount: 1,
+  reviewedBy: 1,
+  "images.id": 1,
+  "images.createdAt": 1,
+  "images.processedAt": 1,
+  "extraction.conductor.valor": 1,
+  "extraction.n_recorrido.valor": 1,
+  "extraction.patente.valor": 1,
+  "extraction.auxiliar.valor": 1,
+  "extraction.cant_fact.valor": 1,
+  "extraction.valor_total.valor": 1,
+  "extraction.fecha.valor": 1,
+  "extraction._meta.bitacora": 1,
 } as const;
 
 /** Rellena campos omitidos por la proyección para cumplir el tipo Record. */

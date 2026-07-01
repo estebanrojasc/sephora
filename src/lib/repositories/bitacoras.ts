@@ -26,6 +26,8 @@ function strip<T extends { _id?: unknown }>(doc: T | null): T | null {
   return rest as T;
 }
 
+const BITACORA_LIST_PROJECTION = { rawPaste: 0 } as const;
+
 export async function listBitacoras(filters?: {
   date?: string;
   activeOnly?: boolean;
@@ -35,7 +37,10 @@ export async function listBitacoras(filters?: {
   if (filters?.activeOnly) query.isActive = true;
 
   const docs = await (await col())
-    .find(query, { sort: { date: -1, version: -1 } })
+    .find(query, {
+      sort: { date: -1, version: -1 },
+      projection: BITACORA_LIST_PROJECTION,
+    })
     .toArray();
   return docs.map((d) => strip(d) as Bitacora);
 }

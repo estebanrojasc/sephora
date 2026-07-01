@@ -36,7 +36,10 @@ function safeUriDbName(): string {
   }
 }
 
-export async function runSystemHealthCheck(): Promise<SystemHealthReport> {
+export async function runSystemHealthCheck(options?: {
+  /** Omite countDocuments (más rápido para probes y carga inicial). */
+  skipCounts?: boolean;
+}): Promise<SystemHealthReport> {
   const checks: HealthCheckItem[] = [];
   const at = new Date().toISOString();
   const env = {
@@ -99,19 +102,21 @@ export async function runSystemHealthCheck(): Promise<SystemHealthReport> {
 
   try {
     const db = await getDb();
-    const started = Date.now();
-    const counts = await Promise.all([
-      db.collection(COLLECTIONS.records).countDocuments(),
-      db.collection(COLLECTIONS.bitacoras).countDocuments(),
-      db.collection(COLLECTIONS.catalogs).countDocuments(),
-      db.collection(COLLECTIONS.users).countDocuments(),
-    ]);
-    checks.push({
-      name: "mongo_counts",
-      ok: true,
-      ms: Date.now() - started,
-      detail: `records=${counts[0]}, bitacoras=${counts[1]}, catalogs=${counts[2]}, users=${counts[3]}`,
-    });
+    if (!options?.skipCounts) {
+      const started = Date.now();
+      const counts = await Promise.all([
+        db.collection(COLLECTIONS.records).countDocuments(),
+        db.collection(COLLECTIONS.bitacoras).countDocuments(),
+        db.collection(COLLECTIONS.catalogs).countDocuments(),
+        db.collection(COLLECTIONS.users).countDocuments(),
+      ]);
+      checks.push({
+        name: "mongo_counts",
+        ok: true,
+        ms: Date.now() - started,
+        detail: `records=${counts[0]}, bitacoras=${counts[1]}, catalogs=${counts[2]}, users=${counts[3]}`,
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     checks.push({

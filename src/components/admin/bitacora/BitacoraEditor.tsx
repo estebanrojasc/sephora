@@ -61,7 +61,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
   const createRecord = useCreateRecordFromBitacora();
   const updateRowSettings = useUpdateBitacoraRowSettings();
   const updateBitacoraRow = useUpdateBitacoraRow();
-  const { data: allRecords = [] } = useRecords({ status: "all" });
+  const { data: allRecords = [] } = useRecords({ status: "all", poll: false });
 
   const [step, setStep] = useState(initial ? 2 : 1);
   const [rawPaste, setRawPaste] = useState(initial?.rawPaste ?? "");

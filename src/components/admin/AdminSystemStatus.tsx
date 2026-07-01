@@ -37,7 +37,9 @@ export function AdminSystemStatus() {
     setLoading(true);
     setFetchError(null);
     try {
-      const data = await fetchJsonNoStore<SystemHealthReport>("/api/health");
+      const data = await fetchJsonNoStore<SystemHealthReport>(
+        "/api/health?light=1"
+      );
       setReport(data);
     } catch (e) {
       setReport(null);

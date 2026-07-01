@@ -51,7 +51,7 @@ export async function listRecords(filters?: {
   if (filters?.deviceId) query.deviceId = filters.deviceId;
   const docs = await c
     .find(query, {
-      sort: { createdAt: 1 },
+      sort: { createdAt: -1 },
       projection: LIST_RECORDS_PROJECTION,
       maxTimeMS: 25_000,
     })
@@ -91,19 +91,24 @@ export async function insertRecord(payload: UploadPayload): Promise<Record> {
   const useGcs = shouldUseGcsForUpload();
 
   const images: RecordImage[] = [];
-  for (const img of payload.images) {
-    const imageId = randomUUID();
-    if (useGcs) {
-      const uploaded = await uploadRecordImageToGcs(recordId, img, imageId);
+  if (useGcs) {
+    const uploaded = await Promise.all(
+      payload.images.map(async (img) => {
+        const imageId = randomUUID();
+        const refs = await uploadRecordImageToGcs(recordId, img, imageId);
+        return {
+          id: imageId,
+          url: refs.url,
+          processedUrl: refs.processedUrl,
+          createdAt: now,
+        };
+      })
+    );
+    images.push(...uploaded);
+  } else {
+    for (const img of payload.images) {
       images.push({
-        id: imageId,
-        url: uploaded.url,
-        processedUrl: uploaded.processedUrl,
-        createdAt: now,
-      });
-    } else {
-      images.push({
-        id: imageId,
+        id: randomUUID(),
         url: img.dataUrl,
         processedUrl: img.processedDataUrl,
         createdAt: now,

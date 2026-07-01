@@ -79,7 +79,7 @@ export function BitacoraHintPanel({
 }: BitacoraHintPanelProps) {
   const day = getRecordDayForBitacora(record);
   const { data: bitacora } = useActiveBitacora(day);
-  const { data: allRecords } = useRecords();
+  const { data: allRecords } = useRecords({ poll: false });
 
   const meta = extraction?._meta?.bitacora;
   const autoMatch =
