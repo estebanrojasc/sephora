@@ -5,16 +5,19 @@ import { useSessionStore } from "./session-store";
 
 /** Espera a que Zustand persist restaure role/deviceId desde localStorage. */
 export function useSessionHydrated(): boolean {
-  const [hydrated, setHydrated] = useState(() =>
-    useSessionStore.persist.hasHydrated()
-  );
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (useSessionStore.persist.hasHydrated()) {
+    const persist = useSessionStore.persist;
+    if (!persist?.hasHydrated || !persist.onFinishHydration) {
       setHydrated(true);
       return;
     }
-    return useSessionStore.persist.onFinishHydration(() => {
+    if (persist.hasHydrated()) {
+      setHydrated(true);
+      return;
+    }
+    return persist.onFinishHydration(() => {
       setHydrated(true);
     });
   }, []);
