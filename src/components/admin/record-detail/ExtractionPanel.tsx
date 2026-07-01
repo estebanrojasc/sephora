@@ -48,8 +48,11 @@ import { BitacoraHintPanel } from "./BitacoraHintPanel";
 import { useActiveBitacora } from "@/features/bitacora/queries";
 import {
   getRecordDayForBitacora,
+  listAvailableBitacoraRows,
+  matchRecordToBitacora,
   scoreBitacoraRow,
 } from "@/features/bitacora/match";
+import { blockedBitacoraRowIdsForRecord } from "@/features/bitacora/row-links";
 import { buildBitacoraMetaBlock } from "@/features/bitacora/meta";
 
 interface ExtractionPanelProps {
@@ -113,13 +116,39 @@ export function ExtractionPanel({
 
   const resolveBitacoraMeta = useCallback(
     (explicitRowId?: string) => {
-      const values = formRef.current?.getValues();
+      const values =
+        formRef.current?.getValues() ??
+        liveExtraction ??
+        (record.extraction ? ensureExtractionShape(record.extraction) : null);
       if (!activeBitacora || !values) return undefined;
 
-      const targetRowId =
+      let targetRowId =
         explicitRowId ??
         selectedBitacoraRowId ??
         values._meta?.bitacora?.rowId;
+
+      if (!targetRowId) {
+        const match = matchRecordToBitacora(
+          { ...record, extraction: values },
+          activeBitacora
+        );
+        targetRowId = match?.rowId;
+      }
+
+      if (!targetRowId) {
+        const blocked = blockedBitacoraRowIdsForRecord(
+          activeBitacora,
+          [],
+          record.id
+        );
+        const available = listAvailableBitacoraRows(activeBitacora, {
+          currentRecordId: record.id,
+          currentRowId: null,
+          blockedRowIds: blocked,
+        });
+        targetRowId = available[0]?.id;
+      }
+
       if (!targetRowId) return undefined;
 
       const row = activeBitacora.rows.find((r) => r.id === targetRowId);
@@ -136,8 +165,18 @@ export function ExtractionPanel({
         values
       );
     },
-    [activeBitacora, record, selectedBitacoraRowId]
+    [activeBitacora, liveExtraction, record, selectedBitacoraRowId]
   );
+
+  const explainBitacoraMetaFailure = useCallback(() => {
+    if (!activeBitacora) {
+      toast.error("La bitácora del día aún se está cargando — espera un momento");
+      return;
+    }
+    toast.error(
+      "No hay fila de bitácora disponible. Elige una en el desplegable o revisa que exista bitácora activa para este día."
+    );
+  }, [activeBitacora]);
 
   const handleSelectBitacoraRow = useCallback(
     (rowId: string) => {
@@ -149,7 +188,10 @@ export function ExtractionPanel({
         toast.error("Fila de bitácora no encontrada");
         return;
       }
-      const values = formRef.current?.getValues();
+      const values =
+        formRef.current?.getValues() ??
+        liveExtraction ??
+        (record.extraction ? ensureExtractionShape(record.extraction) : null);
       if (!values) return;
       const matchScore = scoreBitacoraRow(
         { ...record, extraction: values },
@@ -166,7 +208,7 @@ export function ExtractionPanel({
         "Fila de bitácora cambiada — usa «Aplicar todo» o guarda para persistir"
       );
     },
-    [activeBitacora, record]
+    [activeBitacora, liveExtraction, record]
   );
 
   const processedSet = useMemo(
@@ -323,13 +365,14 @@ export function ExtractionPanel({
             selectedRowId={selectedBitacoraRowId}
             rowSelectionDirty={bitacoraRowDirty}
             onSelectRow={handleSelectBitacoraRow}
-            onApplyField={(field, value) => {
-              const meta = resolveBitacoraMeta();
+            onApplyField={(field, value, rowId) => {
+              const meta = resolveBitacoraMeta(rowId);
               if (!meta) {
-                toast.error("Selecciona una fila de bitácora válida");
+                explainBitacoraMetaFailure();
                 return;
               }
               formRef.current?.applyBitacoraField(field, value, meta);
+              setSelectedBitacoraRowId(meta.rowId);
               setBitacoraRowDirty(false);
               toast.success(
                 field === "conductor"
@@ -337,13 +380,14 @@ export function ExtractionPanel({
                   : "Valor de bitácora aplicado — guarda para persistir"
               );
             }}
-            onApplyAll={() => {
-              const meta = resolveBitacoraMeta();
+            onApplyAll={(rowId) => {
+              const meta = resolveBitacoraMeta(rowId);
               if (!meta) {
-                toast.error("Selecciona una fila de bitácora válida");
+                explainBitacoraMetaFailure();
                 return;
               }
               formRef.current?.applyAllBitacora(meta);
+              setSelectedBitacoraRowId(meta.rowId);
               setBitacoraRowDirty(false);
               toast.success(
                 "Valores de bitácora aplicados — guarda para persistir"

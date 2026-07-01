@@ -60,8 +60,12 @@ interface BitacoraHintPanelProps {
   /** true cuando el revisor cambió la fila y aún no aplica valores. */
   rowSelectionDirty?: boolean;
   onSelectRow?: (rowId: string) => void;
-  onApplyField: (field: keyof BitacoraExcelFields, value: string) => void;
-  onApplyAll?: () => void;
+  onApplyField: (
+    field: keyof BitacoraExcelFields,
+    value: string,
+    rowId: string
+  ) => void;
+  onApplyAll?: (rowId: string) => void;
 }
 
 export function BitacoraHintPanel({
@@ -167,13 +171,13 @@ export function BitacoraHintPanel({
           Bitácora del día
         </p>
         <div className="flex items-center gap-2">
-          {onApplyAll && suggestedFlat && (
+          {onApplyAll && suggestedFlat && activeRowId && (
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="h-6 px-2 text-[10px]"
-              onClick={onApplyAll}
+              onClick={() => onApplyAll(activeRowId)}
             >
               Aplicar todo
             </Button>
@@ -276,13 +280,13 @@ export function BitacoraHintPanel({
                     </span>
                   )}
                 </div>
-                {showApply && (
+                {showApply && activeRowId && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="h-6 shrink-0 px-2 text-[10px]"
-                    onClick={() => onApplyField(key, sug)}
+                    onClick={() => onApplyField(key, sug, activeRowId)}
                   >
                     Aplicar
                   </Button>
