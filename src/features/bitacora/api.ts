@@ -5,6 +5,7 @@ import type {
   CreateBitacoraPayload,
   ParseBitacoraResult,
 } from "./types";
+import type { BitacoraRowPatch } from "./row-patch";
 
 export async function fetchBitacoras(params?: {
   date?: string;
@@ -46,15 +47,23 @@ export async function parseBitacoraApi(
   });
 }
 
-export async function updateBitacoraRowSettingsApi(
+export async function updateBitacoraRowApi(
   bitacoraId: string,
-  payload: { rowId: string; allowsMultipleReviews: boolean }
+  payload: { rowId: string } & BitacoraRowPatch
 ): Promise<Bitacora> {
   return fetchJsonNoStore<Bitacora>(`/api/bitacora/${bitacoraId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+/** @deprecated Usar updateBitacoraRowApi */
+export async function updateBitacoraRowSettingsApi(
+  bitacoraId: string,
+  payload: { rowId: string; allowsMultipleReviews: boolean }
+): Promise<Bitacora> {
+  return updateBitacoraRowApi(bitacoraId, payload);
 }
 
 export async function createRecordFromBitacoraApi(payload: {

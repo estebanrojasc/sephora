@@ -36,6 +36,7 @@ import {
   useCreateBitacora,
   useCreateRecordFromBitacora,
   useParseBitacora,
+  useUpdateBitacoraRow,
   useUpdateBitacoraRowSettings,
 } from "@/features/bitacora/queries";
 import { useRecords } from "@/features/records/queries";
@@ -43,6 +44,7 @@ import {
   collectBitacoraRowRecordLinks,
   getRowLinkedRecordIds,
 } from "@/features/bitacora/row-links";
+import { pickPendingDeliveryPatch } from "@/features/bitacora/row-patch";
 import type { Bitacora, BitacoraRow } from "@/features/bitacora/types";
 import { todayIsoDateChile } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
@@ -58,6 +60,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
   const parseBitacora = useParseBitacora();
   const createRecord = useCreateRecordFromBitacora();
   const updateRowSettings = useUpdateBitacoraRowSettings();
+  const updateBitacoraRow = useUpdateBitacoraRow();
   const { data: allRecords = [] } = useRecords({ status: "all" });
 
   const [step, setStep] = useState(initial ? 2 : 1);
@@ -165,11 +168,31 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
       toast.error("Guarda la bitácora antes de crear registros");
       return;
     }
+
+    const current = rows.find((r) => r.id === row.id) ?? row;
+
+    if (current.rowType === "entrega_pendiente") {
+      if (!current.scheduledDate?.trim()) {
+        toast.error(
+          "Indica la fecha programada en la columna «Fecha prog.» antes de crear el registro"
+        );
+        return;
+      }
+    }
+
     setCreatingRowId(row.id);
     try {
+      if (current.rowType === "entrega_pendiente") {
+        await updateBitacoraRow.mutateAsync({
+          bitacoraId: initial.id,
+          rowId: current.id,
+          ...pickPendingDeliveryPatch(current),
+        });
+      }
+
       const { recordId } = await createRecord.mutateAsync({
         bitacoraId: initial.id,
-        rowId: row.id,
+        rowId: current.id,
       });
       setRows((prev) =>
         prev.map((r) => {

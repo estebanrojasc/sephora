@@ -22,6 +22,19 @@ import {
 } from "@/features/bitacora/row-links";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { BitacoraRowBadge } from "./BitacoraRowBadge";
+import { cn } from "@/lib/utils";
+
+function isPendingRowEditableInReadOnly(row: BitacoraRow): boolean {
+  return row.rowType === "entrega_pendiente";
+}
+
+function isCellEditable(
+  row: BitacoraRow,
+  readOnly: boolean
+): boolean {
+  if (!readOnly) return true;
+  return isPendingRowEditableInReadOnly(row);
+}
 
 const COLUMNS: { key: keyof BitacoraRow; label: string }[] = [
   { key: "territorio", label: "Territorio" },
@@ -216,6 +229,12 @@ export function BitacoraPreviewTable({
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">
             {section.title}
           </h3>
+          {section.title.startsWith("Entregas pendientes") && readOnly && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Completa la columna «Fecha prog.» (y otros datos si faltan) antes de
+              crear el registro.
+            </p>
+          )}
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full min-w-[960px] text-sm">
               <thead>
@@ -281,12 +300,29 @@ export function BitacoraPreviewTable({
                       </td>
                       {COLUMNS.map((col) => (
                         <td key={col.key} className="px-1 py-1">
-                          {readOnly ? (
+                          {!isCellEditable(row, readOnly) ? (
                             <span className="text-xs">
                               {col.key === "recorrido"
                                 ? (bitacoraRecorridoCanonical(row) ?? "—")
-                                : ((row[col.key] as string | undefined) ?? "—")}
+                                : col.key === "scheduledDate"
+                                  ? (row.scheduledDate ?? "—")
+                                  : ((row[col.key] as string | undefined) ??
+                                    "—")}
                             </span>
+                          ) : col.key === "scheduledDate" ? (
+                            <Input
+                              type="date"
+                              className={cn(
+                                "h-7 min-w-[120px] text-xs",
+                                row.rowType === "entrega_pendiente" &&
+                                  !row.scheduledDate &&
+                                  "border-amber-500 ring-1 ring-amber-500/40"
+                              )}
+                              value={row.scheduledDate ?? ""}
+                              onChange={(e) =>
+                                updateCell(idx, "scheduledDate", e.target.value)
+                              }
+                            />
                           ) : (
                             <Input
                               className="h-7 min-w-[72px] text-xs"
@@ -364,8 +400,18 @@ export function BitacoraPreviewTable({
                               {canCreate && (
                                 <button
                                   type="button"
-                                  disabled={creatingRowId === row.id}
-                                  className="block text-xs text-indigo-600 hover:underline disabled:opacity-50"
+                                  disabled={
+                                    creatingRowId === row.id ||
+                                    (row.rowType === "entrega_pendiente" &&
+                                      !row.scheduledDate?.trim())
+                                  }
+                                  className="block text-xs text-indigo-600 hover:underline disabled:opacity-50 disabled:no-underline"
+                                  title={
+                                    row.rowType === "entrega_pendiente" &&
+                                    !row.scheduledDate?.trim()
+                                      ? "Indica la fecha programada primero"
+                                      : undefined
+                                  }
                                   onClick={() => onCreateRecord!(row)}
                                 >
                                   {creatingRowId === row.id

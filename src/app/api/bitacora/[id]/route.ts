@@ -2,17 +2,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   findBitacoraById,
-  updateBitacoraRowSettings,
+  updateBitacoraRow,
 } from "@/lib/repositories/bitacoras";
+import { PENDING_DELIVERY_EDITABLE_FIELDS } from "@/features/bitacora/row-patch";
 import { jsonNoStore } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const patchRowSchema = z.object({
-  rowId: z.string().uuid(),
-  allowsMultipleReviews: z.boolean(),
-});
+const optionalString = z.string().optional();
+
+const patchRowSchema = z
+  .object({
+    rowId: z.string().uuid(),
+    allowsMultipleReviews: z.boolean().optional(),
+    scheduledDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha programada inválida (use AAAA-MM-DD)")
+      .optional(),
+    territorio: optionalString,
+    anden: optionalString,
+    patente: optionalString,
+    conductor: optionalString,
+    auxiliar: optionalString,
+    observacion: optionalString,
+    sector: optionalString,
+    recorrido: optionalString,
+    recorridoSuffix: optionalString,
+    primerFolio: optionalString,
+    ultimoFolio: optionalString,
+    cantFact: optionalString,
+    puntos: optionalString,
+    montoTotal: optionalString,
+  })
+  .refine(
+    (data) =>
+      data.allowsMultipleReviews !== undefined ||
+      PENDING_DELIVERY_EDITABLE_FIELDS.some(
+        (key) => data[key as keyof typeof data] !== undefined
+      ),
+    { message: "Nada que actualizar" }
+  );
 
 export async function GET(
   _request: Request,
@@ -56,9 +86,21 @@ export async function PATCH(
     return NextResponse.json({ message: "Fila no encontrada" }, { status: 404 });
   }
 
-  const updated = await updateBitacoraRowSettings(id, parsed.data.rowId, {
-    allowsMultipleReviews: parsed.data.allowsMultipleReviews,
-  });
+  const hasPendingFields = PENDING_DELIVERY_EDITABLE_FIELDS.some(
+    (key) => parsed.data[key as keyof typeof parsed.data] !== undefined
+  );
+  if (hasPendingFields && row.rowType !== "entrega_pendiente") {
+    return NextResponse.json(
+      {
+        message:
+          "Solo las filas de entrega pendiente admiten edición de datos desde aquí",
+      },
+      { status: 400 }
+    );
+  }
+
+  const { rowId, ...patch } = parsed.data;
+  const updated = await updateBitacoraRow(id, rowId, patch);
   if (!updated) {
     return NextResponse.json(
       { message: "No se pudo actualizar la fila" },

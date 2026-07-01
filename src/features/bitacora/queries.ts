@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { BitacoraRowPatch } from "./row-patch";
 import {
   createBitacoraApi,
   createRecordFromBitacoraApi,
@@ -8,7 +9,7 @@ import {
   fetchBitacoraDates,
   fetchBitacoras,
   parseBitacoraApi,
-  updateBitacoraRowSettingsApi,
+  updateBitacoraRowApi,
 } from "./api";
 import type { CreateBitacoraPayload } from "./types";
 
@@ -93,6 +94,22 @@ export function useCreateRecordFromBitacora() {
   });
 }
 
+export function useUpdateBitacoraRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      bitacoraId: string;
+      rowId: string;
+    } & BitacoraRowPatch) => {
+      const { bitacoraId, rowId, ...patch } = payload;
+      return updateBitacoraRowApi(bitacoraId, { rowId, ...patch });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIST_KEY });
+    },
+  });
+}
+
 export function useUpdateBitacoraRowSettings() {
   const qc = useQueryClient();
   return useMutation({
@@ -101,7 +118,7 @@ export function useUpdateBitacoraRowSettings() {
       rowId: string;
       allowsMultipleReviews: boolean;
     }) =>
-      updateBitacoraRowSettingsApi(payload.bitacoraId, {
+      updateBitacoraRowApi(payload.bitacoraId, {
         rowId: payload.rowId,
         allowsMultipleReviews: payload.allowsMultipleReviews,
       }),

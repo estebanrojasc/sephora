@@ -6,6 +6,10 @@ import type {
   BitacoraRow,
   CreateBitacoraPayload,
 } from "@/features/bitacora/types";
+import type { BitacoraRowPatch } from "@/features/bitacora/row-patch";
+import {
+  PENDING_DELIVERY_EDITABLE_FIELDS,
+} from "@/features/bitacora/row-patch";
 
 async function col() {
   return collectionWithIndexes<Bitacora>(COLLECTIONS.bitacoras, [
@@ -132,17 +136,36 @@ export async function updateBitacoraRowLink(
   return appendBitacoraRowRecordLink(bitacoraId, rowId, linkedRecordId);
 }
 
-export async function updateBitacoraRowSettings(
+export async function updateBitacoraRow(
   bitacoraId: string,
   rowId: string,
-  settings: { allowsMultipleReviews?: boolean }
+  patch: BitacoraRowPatch
 ): Promise<Bitacora | null> {
   const c = await col();
   const bitacora = await findBitacoraById(bitacoraId);
   if (!bitacora) return null;
 
-  const rows: BitacoraRow[] = bitacora.rows.map((row) =>
-    row.id === rowId ? { ...row, ...settings } : row
+  const row = bitacora.rows.find((r) => r.id === rowId);
+  if (!row) return null;
+
+  const allowed: Partial<BitacoraRow> = {};
+  if (patch.allowsMultipleReviews !== undefined) {
+    allowed.allowsMultipleReviews = patch.allowsMultipleReviews;
+  }
+  if (row.rowType === "entrega_pendiente") {
+    for (const key of PENDING_DELIVERY_EDITABLE_FIELDS) {
+      if (key in patch) {
+        const value = patch[key];
+        (allowed as Record<string, string | undefined>)[key] =
+          value?.trim() ? value.trim() : undefined;
+      }
+    }
+  }
+
+  if (Object.keys(allowed).length === 0) return bitacora;
+
+  const rows: BitacoraRow[] = bitacora.rows.map((r) =>
+    r.id === rowId ? { ...r, ...allowed } : r
   );
 
   const updated = await c.findOneAndUpdate(
@@ -151,6 +174,14 @@ export async function updateBitacoraRowSettings(
     { returnDocument: "after" }
   );
   return strip(updated);
+}
+
+export async function updateBitacoraRowSettings(
+  bitacoraId: string,
+  rowId: string,
+  settings: { allowsMultipleReviews?: boolean }
+): Promise<Bitacora | null> {
+  return updateBitacoraRow(bitacoraId, rowId, settings);
 }
 
 export async function listDistinctBitacoraDates(): Promise<string[]> {
