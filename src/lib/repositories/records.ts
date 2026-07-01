@@ -219,6 +219,12 @@ export async function releaseFromReview(id: string): Promise<Record | null> {
   const record = await findRecordById(id);
   if (!record) return null;
   if (record.status !== "in_review") return record;
+
+  const hasAiExtraction =
+    (record.attemptCount ?? 0) > 0 ||
+    Boolean(record.extraction?._meta?.processedAt);
+  if (hasAiExtraction) return record;
+
   const newStatus: RecordStatus = record.previousStatus ?? "uploaded";
   return patchRecord(id, {
     status: newStatus,

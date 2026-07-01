@@ -78,19 +78,6 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
 
   const summary = useMemo(() => summarizeBitacoraRows(rows), [rows]);
 
-  const stepCounts = useMemo(() => {
-    const counts: Partial<Record<number, number>> = {};
-    const pasteLines = rawPaste
-      .split(/\r?\n/)
-      .filter((l) => l.trim()).length;
-    if (pasteLines > 0) counts[1] = pasteLines;
-    if (summary.total > 0) {
-      counts[2] = summary.total;
-      if (step >= 3) counts[3] = summary.total;
-    }
-    return counts;
-  }, [rawPaste, summary.total, step]);
-
   useEffect(() => {
     if (!initial) return;
     setRows(initial.rows ?? []);
@@ -302,7 +289,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
 
   return (
     <div className="space-y-8">
-      <BitacoraStepper currentStep={step} stepCounts={stepCounts} />
+      <BitacoraStepper currentStep={step} />
 
       {step === 1 && (
         <div className="space-y-6">

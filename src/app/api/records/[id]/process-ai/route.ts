@@ -3,6 +3,7 @@ import {
   findRecordById,
   incrementAttemptCount,
   markImageProcessed,
+  openForReview,
   saveExtraction,
 } from "@/lib/repositories/records";
 import { recordAttempt } from "@/lib/repositories/extraction-attempts";
@@ -184,9 +185,10 @@ export async function POST(
     await markImageProcessed(id, img.id);
   }
 
-  const recordForClient = updated
-    ? await resolveRecordImagesForClient(updated)
-    : updated;
+  const afterAi = (await openForReview(id)) ?? updated;
+  const recordForClient = afterAi
+    ? await resolveRecordImagesForClient(afterAi)
+    : afterAi;
 
   return NextResponse.json({
     extraction: normalized,

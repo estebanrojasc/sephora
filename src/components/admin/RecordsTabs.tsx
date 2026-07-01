@@ -8,6 +8,13 @@ import { cn } from "@/lib/utils";
 interface RecordsTabsProps {
   value: RecordStatus | "all";
   onChange: (value: RecordStatus | "all") => void;
+  /** Conteos por tab (filtrados por día); solo se muestran si > 0. */
+  counts?: Partial<Record<RecordStatus | "all", number>>;
+}
+
+function formatTabLabel(label: string, count?: number): string {
+  if (count != null && count > 0) return `${label} (${count})`;
+  return label;
 }
 
 const tabColors: Record<string, string> = {
@@ -24,7 +31,7 @@ const tabColors: Record<string, string> = {
   all: "data-active:bg-indigo-50 data-active:text-indigo-700 data-active:border-indigo-200 dark:data-active:bg-indigo-950/60 dark:data-active:text-indigo-200",
 };
 
-export function RecordsTabs({ value, onChange }: RecordsTabsProps) {
+export function RecordsTabs({ value, onChange, counts }: RecordsTabsProps) {
   return (
     <Tabs
       value={value}
@@ -46,7 +53,7 @@ export function RecordsTabs({ value, onChange }: RecordsTabsProps) {
               )}
             >
               {Icon && <Icon className="size-3.5" />}
-              {tab.label}
+              {formatTabLabel(tab.label, counts?.[tab.value])}
             </TabsTrigger>
           );
         })}

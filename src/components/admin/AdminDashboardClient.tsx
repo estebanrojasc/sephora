@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { RecordsTabs } from "@/components/admin/RecordsTabs";
 import { RecordsTable } from "@/components/admin/RecordsTable";
@@ -55,19 +55,35 @@ export function AdminDashboardClient() {
   }
 
   const {
-    data: records,
+    data: allRecords = [],
     isLoading,
     isError,
     error,
     refetch,
-  } = useRecords({ status: statusFilter });
+  } = useRecords({ status: "all" });
   const { data: activeBitacora } = useActiveBitacora(dayFilter);
 
-  const filteredRecords = filterRecordsByDay(
-    records ?? [],
-    dayFilter,
-    dayMode
+  const dayRecords = useMemo(
+    () => filterRecordsByDay(allRecords, dayFilter, dayMode),
+    [allRecords, dayFilter, dayMode]
   );
+
+  const tabCounts = useMemo(() => {
+    const counts: Partial<Record<RecordStatus | "all", number>> = {
+      all: dayRecords.length,
+    };
+    for (const record of dayRecords) {
+      counts[record.status] = (counts[record.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [dayRecords]);
+
+  const filteredRecords = useMemo(() => {
+    if (statusFilter === "all") return dayRecords;
+    return dayRecords.filter((r) => r.status === statusFilter);
+  }, [dayRecords, statusFilter]);
+
+  const showTableLoading = isLoading && allRecords.length === 0;
 
   if (!filtersReady) {
     return (
@@ -84,7 +100,11 @@ export function AdminDashboardClient() {
         description="Revise los envíos de los conductores. Los registros en cola aparecen primero."
       />
 
-      <RecordsTabs value={statusFilter} onChange={handleTabChange} />
+      <RecordsTabs
+        value={statusFilter}
+        onChange={handleTabChange}
+        counts={tabCounts}
+      />
 
       {isError ? (
         <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
@@ -112,7 +132,7 @@ export function AdminDashboardClient() {
 
       <RecordsTable
         records={filteredRecords}
-        isLoading={isLoading}
+        isLoading={showTableLoading}
         enableBulkExcel={statusFilter === "saved"}
         activeBitacora={activeBitacora}
       />
