@@ -7,7 +7,6 @@ import {
   getSignedReadUrl,
   getSignedWriteUrl,
   isGcsConfigured,
-  objectExistsViaSignedUrl,
   uploadDataUrlToGcs,
 } from "@/lib/storage/gcs";
 import {
@@ -132,7 +131,7 @@ export async function prepareRecordImageUploads(
       );
       const original = {
         key: origKey,
-        uploadUrl: await getSignedWriteUrl(origKey, img.originalContentType),
+        uploadUrl: getSignedWriteUrl(origKey, img.originalContentType),
         contentType: img.originalContentType,
       };
 
@@ -147,7 +146,7 @@ export async function prepareRecordImageUploads(
         );
         processed = {
           key: procKey,
-          uploadUrl: await getSignedWriteUrl(procKey, img.processedContentType),
+          uploadUrl: getSignedWriteUrl(procKey, img.processedContentType),
           contentType: img.processedContentType,
         };
       }
@@ -178,15 +177,5 @@ export async function verifyDirectUploadObjects(
     if (img.processedUrl) {
       assertRecordImageKey(recordId, img.id, img.processedUrl, "processed");
     }
-  }
-
-  const checks = images.flatMap((img) => {
-    const tasks = [objectExistsViaSignedUrl(img.url)];
-    if (img.processedUrl) tasks.push(objectExistsViaSignedUrl(img.processedUrl));
-    return tasks;
-  });
-  const results = await Promise.all(checks);
-  if (results.some((ok) => !ok)) {
-    throw new Error("Faltan objetos en GCS; reintenta la subida");
   }
 }

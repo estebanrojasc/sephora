@@ -8,6 +8,7 @@ import {
   getUploadSignedUrlTtlMs,
   isGcsConfigured,
 } from "@/lib/storage/config";
+import { canSignGcsUrls, signGcsV4Url } from "@/lib/storage/gcs-sign";
 import { parseDataUrl } from "@/lib/storage/image-ref";
 
 let storageClient: Storage | null = null;
@@ -81,37 +82,43 @@ export async function uploadDataUrlToGcs(
   return uploadBufferToGcs(objectKey, buffer, mimeType);
 }
 
-export async function getSignedReadUrl(objectKey: string): Promise<string> {
-  return withGcsRetry(async () => {
-    const file = bucket().file(objectKey);
-    const [url] = await file.getSignedUrl({
-      version: "v4",
-      action: "read",
-      expires: Date.now() + getSignedUrlTtlMs(),
-    });
-    return url;
+export function getSignedReadUrl(objectKey: string): string {
+  return signGcsV4Url({
+    objectKey,
+    method: "GET",
+    expiresMs: getSignedUrlTtlMs(),
   });
 }
 
-export async function getSignedWriteUrl(
+export function getSignedWriteUrl(
   objectKey: string,
   contentType: string
-): Promise<string> {
-  return withGcsRetry(async () => {
-    const file = bucket().file(objectKey);
-    const [url] = await file.getSignedUrl({
-      version: "v4",
-      action: "write",
-      expires: Date.now() + getUploadSignedUrlTtlMs(),
-      contentType,
-    });
-    return url;
+): string {
+  return signGcsV4Url({
+    objectKey,
+    method: "PUT",
+    expiresMs: getUploadSignedUrlTtlMs(),
+    contentType,
   });
 }
 
 export async function downloadObjectAsBuffer(
   objectKey: string
 ): Promise<{ buffer: Buffer; contentType: string }> {
+  if (getGcsCredentials()) {
+    const url = getSignedReadUrl(objectKey);
+    const res = await withGcsRetry(async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`No se pudo descargar ${objectKey} (${response.status})`);
+      }
+      return response;
+    });
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const contentType = res.headers.get("content-type") ?? "image/jpeg";
+    return { buffer, contentType };
+  }
+
   const file = bucket().file(objectKey);
   const [buffer] = await file.download();
   const [metadata] = await file.getMetadata();
@@ -122,25 +129,27 @@ export async function downloadObjectAsBuffer(
 }
 
 export async function objectExists(objectKey: string): Promise<boolean> {
+  if (getGcsCredentials()) {
+    const url = getSignedReadUrl(objectKey);
+    const res = await fetch(url, { method: "HEAD" });
+    return res.ok;
+  }
   const [exists] = await bucket().file(objectKey).exists();
   return exists;
 }
 
-/**
- * Verifica existencia sin llamar a la API autenticada de GCS (evita OAuth en Railway).
- * Firma la URL localmente con la private key y hace HEAD al objeto.
- */
+/** Verifica firma local + existencia vía HEAD (sin OAuth). */
 export async function objectExistsViaSignedUrl(
   objectKey: string
 ): Promise<boolean> {
   return withGcsRetry(async () => {
-    const url = await getSignedReadUrl(objectKey);
+    const url = getSignedReadUrl(objectKey);
     const res = await fetch(url, { method: "HEAD" });
     return res.ok;
   });
 }
 
-/** Verifica que las credenciales GCS puedan obtener token OAuth (Railway ↔ Google). */
+/** Verifica que la private key puede firmar URLs (sin llamar a OAuth). */
 export async function pingGcsAuth(): Promise<{
   ok: boolean;
   ms: number;
@@ -151,16 +160,17 @@ export async function pingGcsAuth(): Promise<{
   }
   const started = Date.now();
   try {
-    await withGcsRetry(async () => {
-      const file = bucket().file("_healthcheck/ping.txt");
-      await file.getSignedUrl({
-        version: "v4",
-        action: "write",
-        expires: Date.now() + 60_000,
-        contentType: "text/plain",
-      });
-    });
-    return { ok: true, ms: Date.now() - started };
+    if (!canSignGcsUrls()) {
+      return {
+        ok: false,
+        ms: Date.now() - started,
+        error: "No se pudo firmar con GCS_PRIVATE_KEY (revisa formato en Railway)",
+      };
+    }
+    return {
+      ok: true,
+      ms: Date.now() - started,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, ms: Date.now() - started, error: message };

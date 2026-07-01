@@ -88,7 +88,7 @@ export async function runSystemHealthCheck(options?: {
       ok: gcsAuth.ok,
       ms: gcsAuth.ms,
       detail: gcsAuth.ok
-        ? `token OAuth OK en ${gcsAuth.ms}ms`
+        ? `firma local OK en ${gcsAuth.ms}ms`
         : undefined,
       error: gcsAuth.error,
     });
