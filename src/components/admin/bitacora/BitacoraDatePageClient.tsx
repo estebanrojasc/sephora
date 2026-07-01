@@ -64,7 +64,7 @@ export function BitacoraDatePageClient() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && versions.length === 0) {
     return <p className="text-sm text-muted-foreground">Cargando…</p>;
   }
 

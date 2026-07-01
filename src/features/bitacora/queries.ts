@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BitacoraRowPatch } from "./row-patch";
 import {
   createBitacoraApi,
@@ -47,8 +47,9 @@ export function useBitacoraVersions(date: string | undefined) {
     queryKey: [...LIST_KEY, "versions", date],
     queryFn: () => fetchBitacoras({ date: date! }),
     enabled: Boolean(date),
-    staleTime: 0,
+    staleTime: 30_000,
     refetchOnMount: "always",
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -10,7 +10,7 @@ import {
   Loader2,
   Save,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,8 +71,36 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
   const [warnings, setWarnings] = useState<string[]>([]);
   const [creatingRowId, setCreatingRowId] = useState<string | null>(null);
   const [parsed, setParsed] = useState(Boolean(initial?.rows.length));
+  /** Último pegado parseado; evita reparsear al volver del paso Revisar. */
+  const [parsedFromPaste, setParsedFromPaste] = useState<string | null>(
+    initial?.rawPaste?.trim() ? initial.rawPaste : null
+  );
 
   const summary = useMemo(() => summarizeBitacoraRows(rows), [rows]);
+
+  const stepCounts = useMemo(() => {
+    const counts: Partial<Record<number, number>> = {};
+    const pasteLines = rawPaste
+      .split(/\r?\n/)
+      .filter((l) => l.trim()).length;
+    if (pasteLines > 0) counts[1] = pasteLines;
+    if (summary.total > 0) {
+      counts[2] = summary.total;
+      if (step >= 3) counts[3] = summary.total;
+    }
+    return counts;
+  }, [rawPaste, summary.total, step]);
+
+  useEffect(() => {
+    if (!initial) return;
+    setRows(initial.rows ?? []);
+    setRawPaste(initial.rawPaste ?? "");
+    setDate(initial.date);
+    setTitle(initial.title ?? "");
+    setParsed(Boolean(initial.rows?.length));
+    setParsedFromPaste(initial.rawPaste?.trim() ? initial.rawPaste : null);
+    setStep(2);
+  }, [initial?.id]);
 
   const rowRecordLinks = useMemo(() => {
     if (!initial) return undefined;
@@ -87,6 +115,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
     if (h.title) setTitle(h.title);
     setWarnings(h.warnings);
     setParsed(h.rows.length > 0);
+    setParsedFromPaste(raw);
     return h;
   }, []);
 
@@ -106,10 +135,13 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
       toast.error("Pega la tabla de Excel primero");
       return;
     }
-    const h = applyHeuristic(rawPaste);
-    if (h.rows.length === 0) {
-      toast.error("No se detectaron filas. Verifica el contenido pegado.");
-      return;
+    const pasteChanged = parsedFromPaste !== rawPaste;
+    if (pasteChanged || rows.length === 0) {
+      const h = applyHeuristic(rawPaste);
+      if (h.rows.length === 0) {
+        toast.error("No se detectaron filas. Verifica el contenido pegado.");
+        return;
+      }
     }
     setStep(2);
   };
@@ -270,7 +302,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
 
   return (
     <div className="space-y-8">
-      <BitacoraStepper currentStep={step} />
+      <BitacoraStepper currentStep={step} stepCounts={stepCounts} />
 
       {step === 1 && (
         <div className="space-y-6">

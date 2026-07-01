@@ -29,10 +29,21 @@ export const BITACORA_STEPS: BitacoraStep[] = [
 
 interface BitacoraStepperProps {
   currentStep: number;
+  /** Cantidad opcional por paso (se muestra como «Label (N)» solo si N > 0). */
+  stepCounts?: Partial<Record<number, number>>;
   className?: string;
 }
 
-export function BitacoraStepper({ currentStep, className }: BitacoraStepperProps) {
+function formatStepLabel(label: string, count?: number): string {
+  if (count != null && count > 0) return `${label} (${count})`;
+  return label;
+}
+
+export function BitacoraStepper({
+  currentStep,
+  stepCounts,
+  className,
+}: BitacoraStepperProps) {
   return (
     <nav aria-label="Pasos de carga" className={cn("w-full", className)}>
       <ol className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -68,7 +79,7 @@ export function BitacoraStepper({ currentStep, className }: BitacoraStepperProps
                     active ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
-                  {step.label}
+                  {formatStepLabel(step.label, stepCounts?.[step.id])}
                 </p>
                 <p className="text-xs text-muted-foreground">{step.description}</p>
               </div>
