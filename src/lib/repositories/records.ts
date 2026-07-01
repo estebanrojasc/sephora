@@ -10,6 +10,10 @@ import {
   type UploadPayload,
   type UpdateExtractionPayload,
 } from "@/features/records/types";
+import {
+  LIST_RECORDS_PROJECTION,
+  normalizeListRecord,
+} from "@/lib/repositories/record-list-projection";
 
 async function col() {
   return collectionWithIndexes<Record>(COLLECTIONS.records, [
@@ -36,8 +40,14 @@ export async function listRecords(filters?: {
     query.status = filters.status as RecordStatus;
   }
   if (filters?.deviceId) query.deviceId = filters.deviceId;
-  const docs = await c.find(query, { sort: { createdAt: 1 } }).toArray();
-  return docs.map((d) => stripMongoId(d) as Record);
+  const docs = await c
+    .find(query, {
+      sort: { createdAt: 1 },
+      projection: LIST_RECORDS_PROJECTION,
+      maxTimeMS: 25_000,
+    })
+    .toArray();
+  return docs.map((d) => normalizeListRecord(stripMongoId(d) as Record));
 }
 
 export async function findRecordById(id: string): Promise<Record | null> {

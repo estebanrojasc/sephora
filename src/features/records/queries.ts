@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchRecord, fetchRecords } from "./api";
 import type { RecordStatus } from "./types";
 
-const RECORDS_LIST_REFETCH_INTERVAL_MS = 5_000;
+const RECORDS_LIST_REFETCH_INTERVAL_MS = 15_000;
 
 export const recordKeys = {
   all: ["records"] as const,

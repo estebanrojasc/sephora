@@ -67,11 +67,14 @@ export async function runSystemHealthCheck(): Promise<SystemHealthReport> {
 
   try {
     const ping = await pingMongo();
+    const slow = ping.ms > 3_000;
     checks.push({
       name: "mongo_ping",
       ok: true,
       ms: ping.ms,
-      detail: `pong en ${ping.ms}ms`,
+      detail: slow
+        ? `pong en ${ping.ms}ms (lento: Railway↔Atlas; la lista ya no carga imágenes)`
+        : `pong en ${ping.ms}ms`,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
