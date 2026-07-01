@@ -1,24 +1,39 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
-import { BitacoraDayList } from "@/components/admin/bitacora/BitacoraEditor";
-import { useBitacoraDates } from "@/features/bitacora/queries";
+import { BitacoraDayList } from "@/components/admin/bitacora/BitacoraDayList";
+import { fetchBitacoraDates } from "@/features/bitacora/api";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function BitacoraListPageClient() {
   const router = useRouter();
-  const { data: dates, isLoading, isError, error, refetch, isFetching } =
-    useBitacoraDates();
+  const [dates, setDates] = useState<string[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await fetchBitacoraDates();
+      setDates(next);
+    } catch (e) {
+      setDates([]);
+      setError(e instanceof Error ? e.message : "Error desconocido");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
+    void load();
     router.refresh();
-    void refetch();
-  }, [router, refetch]);
+  }, [load, router]);
 
   return (
     <div className="space-y-6">
@@ -28,6 +43,7 @@ export function BitacoraListPageClient() {
         action={
           <Link
             href="/admin/bitacora/nueva"
+            prefetch={false}
             className={cn(buttonVariants({ size: "sm" }))}
           >
             <Plus className="size-4" />
@@ -35,30 +51,23 @@ export function BitacoraListPageClient() {
           </Link>
         }
       />
-      {isError ? (
+      {error ? (
         <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
           <p className="font-medium">No se pudo cargar la lista</p>
-          <p className="mt-1 text-xs opacity-90">
-            {error instanceof Error ? error.message : "Error desconocido"}
-          </p>
+          <p className="mt-1 text-xs opacity-90">{error}</p>
           <button
             type="button"
             className="mt-2 text-xs underline"
-            onClick={() => void refetch()}
+            onClick={() => void load()}
           >
             Reintentar
           </button>
         </div>
       ) : null}
-      {isLoading ? (
+      {loading ? (
         <p className="text-sm text-muted-foreground">Cargando bitácoras…</p>
       ) : (
-        <>
-          {isFetching && (dates?.length ?? 0) > 0 ? (
-            <p className="text-xs text-muted-foreground">Actualizando…</p>
-          ) : null}
-          <BitacoraDayList dates={dates ?? []} />
-        </>
+        <BitacoraDayList dates={dates ?? []} />
       )}
     </div>
   );

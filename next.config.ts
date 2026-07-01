@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Router cache del cliente: no reutilizar segmentos RSC obsoletos en admin.
+  experimental: {
+    staleTimes: {
+      dynamic: 0,
+      static: 30,
+    },
+  },
   // Evita 304 en páginas admin (RSC segments cacheados en Vercel).
   async headers() {
     return [

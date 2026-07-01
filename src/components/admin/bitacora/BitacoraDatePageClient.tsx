@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/common/PageHeader";
 import {
   BitacoraEditor,
@@ -13,7 +13,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function BitacoraDatePageClient() {
-  const router = useRouter();
   const params = useParams();
   const date = decodeURIComponent(String(params.date ?? ""));
   const {
@@ -26,9 +25,8 @@ export function BitacoraDatePageClient() {
   const [selectedId, setSelectedId] = useState<string | undefined>();
 
   useEffect(() => {
-    router.refresh();
-    void refetch();
-  }, [router, refetch, date]);
+    setSelectedId(undefined);
+  }, [date]);
 
   const active = versions.find((v) => v.isActive);
   const selected =

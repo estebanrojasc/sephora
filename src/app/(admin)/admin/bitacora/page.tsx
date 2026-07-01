@@ -1,14 +1,7 @@
-import { BitacoraListPageClient } from "@/components/admin/bitacora/BitacoraListPageClient";
-import {
-  adminPageSegmentConfig,
-  ensureAdminDynamicRender,
-} from "@/lib/admin-dynamic-page";
+"use client";
 
-export const dynamic = adminPageSegmentConfig.dynamic;
-export const revalidate = adminPageSegmentConfig.revalidate;
-export const fetchCache = adminPageSegmentConfig.fetchCache;
-
-export default async function BitacoraListPage() {
-  await ensureAdminDynamicRender();
-  return <BitacoraListPageClient />;
-}
+/**
+ * Página 100 % cliente: evita segment cache RSC de Vercel (304 con lista vacía).
+ * Los datos vienen siempre de GET /api/bitacora/dates en el montaje.
+ */
+export { BitacoraListPageClient as default } from "@/components/admin/bitacora/BitacoraListPageClient";

@@ -1,11 +1,10 @@
-import {
-  adminPageSegmentConfig,
-  ensureAdminDynamicRender,
-} from "@/lib/admin-dynamic-page";
+import { AdminRenderNonce } from "@/components/admin/AdminRenderNonce";
+import { adminRenderNonce, ensureAdminDynamicRender } from "@/lib/admin-dynamic-page";
 
-export const dynamic = adminPageSegmentConfig.dynamic;
-export const revalidate = adminPageSegmentConfig.revalidate;
-export const fetchCache = adminPageSegmentConfig.fetchCache;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+export const runtime = "nodejs";
 
 export default async function AdminRouteGroupLayout({
   children,
@@ -13,5 +12,10 @@ export default async function AdminRouteGroupLayout({
   children: React.ReactNode;
 }) {
   await ensureAdminDynamicRender();
-  return children;
+  return (
+    <>
+      <AdminRenderNonce nonce={adminRenderNonce()} />
+      {children}
+    </>
+  );
 }

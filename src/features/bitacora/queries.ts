@@ -45,6 +45,8 @@ export function useBitacoraVersions(date: string | undefined) {
     queryKey: [...LIST_KEY, "versions", date],
     queryFn: () => fetchBitacoras({ date: date! }),
     enabled: Boolean(date),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 

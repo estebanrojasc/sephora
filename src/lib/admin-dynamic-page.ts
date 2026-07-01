@@ -9,3 +9,8 @@ export async function ensureAdminDynamicRender(): Promise<void> {
   await headers();
   await cookies();
 }
+
+/** Marca única por request para invalidar ETag / segment cache obsoleto. */
+export function adminRenderNonce(): number {
+  return Date.now();
+}

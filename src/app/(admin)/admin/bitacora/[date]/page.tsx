@@ -1,12 +1,10 @@
 import { BitacoraDatePageClient } from "@/components/admin/bitacora/BitacoraDatePageClient";
-import {
-  adminPageSegmentConfig,
-  ensureAdminDynamicRender,
-} from "@/lib/admin-dynamic-page";
+import { ensureAdminDynamicRender } from "@/lib/admin-dynamic-page";
 
-export const dynamic = adminPageSegmentConfig.dynamic;
-export const revalidate = adminPageSegmentConfig.revalidate;
-export const fetchCache = adminPageSegmentConfig.fetchCache;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+export const runtime = "nodejs";
 
 export default async function BitacoraDatePage() {
   await ensureAdminDynamicRender();

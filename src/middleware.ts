@@ -82,7 +82,9 @@ export async function middleware(request: NextRequest) {
 
   if (!isPathProtected(pathname)) {
     void SEMIPUBLIC_API_PREFIXES;
-    return NextResponse.next();
+    const response = NextResponse.next();
+    if (isRsc) applyNoStoreHeaders(response);
+    return response;
   }
 
   const authorized = await isAuthorized(request);
@@ -94,6 +96,13 @@ export async function middleware(request: NextRequest) {
       requestHeaders.delete("if-modified-since");
       requestHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
       requestHeaders.set("Pragma", "no-cache");
+      requestHeaders.set("X-Requested-With", "no-cache");
+      if (isRsc) {
+        requestHeaders.set("x-vercel-skip-toolbar", "1");
+        requestHeaders.set("x-nextjs-data", "1");
+        // Fuerza MISS en segment cache (clave distinta por request).
+        requestHeaders.set("x-rsc-bust", String(Date.now()));
+      }
     }
     const response = NextResponse.next({
       request: { headers: requestHeaders },
@@ -106,7 +115,12 @@ export async function middleware(request: NextRequest) {
     ) {
       applyNoStoreHeaders(response);
       response.headers.delete("etag");
+      response.headers.delete("last-modified");
       response.headers.set("x-middleware-cache", "no-cache");
+      response.headers.set("x-vercel-cache", "MISS");
+      if (isRsc && pathname.startsWith("/admin")) {
+        response.headers.set("x-rsc-bust", requestHeaders.get("x-rsc-bust") ?? "");
+      }
     }
     return response;
   }
