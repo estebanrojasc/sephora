@@ -13,6 +13,7 @@ export default function DriverHomePage() {
   const deviceId = useSessionStore((s) => s.deviceId);
   const { data: records, isLoading } = useRecords({
     deviceId: deviceId ?? undefined,
+    requireDeviceId: true,
   });
 
   return (

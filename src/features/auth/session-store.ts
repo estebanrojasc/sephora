@@ -47,6 +47,8 @@ export const useSessionStore = create<SessionState>()(
           deviceId,
           admin: null,
         });
+        // Evita que una cookie admin previa redirija al panel en el mismo navegador.
+        void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
       },
 
       setAdminFromServer: (admin) => {
@@ -83,11 +85,20 @@ export const useSessionStore = create<SessionState>()(
             user: AdminInfo | null;
             totalAdmins: number;
           };
-          set((state) => ({
-            totalAdmins: data.totalAdmins,
-            admin: data.user,
-            role: data.user ? "admin" : state.role === "admin" ? null : state.role,
-          }));
+          set((state) => {
+            if (state.role === "driver") {
+              return { totalAdmins: data.totalAdmins };
+            }
+            return {
+              totalAdmins: data.totalAdmins,
+              admin: data.user,
+              role: data.user
+                ? "admin"
+                : state.role === "admin"
+                  ? null
+                  : state.role,
+            };
+          });
         } catch {
           // ignore
         }

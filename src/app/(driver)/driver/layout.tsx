@@ -7,6 +7,7 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { APP_NAME } from "@/lib/constants";
+import { useSessionHydrated } from "@/features/auth/use-session-hydrated";
 import { useSessionStore } from "@/features/auth/session-store";
 
 export default function DriverLayout({
@@ -15,15 +16,25 @@ export default function DriverLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const hydrated = useSessionHydrated();
   const { role, clearSession, hydrateDeviceId } = useSessionStore();
 
   useEffect(() => {
+    if (!hydrated) return;
     if (role !== "driver") {
       router.replace("/");
       return;
     }
     hydrateDeviceId();
-  }, [role, router, hydrateDeviceId]);
+  }, [hydrated, role, router, hydrateDeviceId]);
+
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Cargando sesión…
+      </div>
+    );
+  }
 
   if (role !== "driver") return null;
 

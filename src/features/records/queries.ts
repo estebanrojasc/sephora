@@ -16,10 +16,13 @@ export const recordKeys = {
 export function useRecords(params?: {
   status?: RecordStatus | "all";
   deviceId?: string;
+  /** Si true, no consulta hasta tener deviceId (flujo conductor). */
+  requireDeviceId?: boolean;
 }) {
   return useQuery({
     queryKey: recordKeys.list(params?.status, params?.deviceId),
     queryFn: () => fetchRecords(params),
+    enabled: params?.requireDeviceId ? Boolean(params.deviceId) : true,
     staleTime: 0,
     refetchOnMount: "always",
     // Los envíos pueden llegar desde otro dispositivo/navegador. Sin polling,

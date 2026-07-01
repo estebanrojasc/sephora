@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ClipboardList, Smartphone, LogIn } from "lucide-react";
@@ -13,23 +13,27 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { APP_NAME, COPY } from "@/lib/constants";
+import { useSessionHydrated } from "@/features/auth/use-session-hydrated";
 import { useSessionStore } from "@/features/auth/session-store";
 
 export default function HomePage() {
   const router = useRouter();
+  const hydrated = useSessionHydrated();
   const { role, admin, setDriver, hydrateAdminFromServer } = useSessionStore();
+  const [adminChecked, setAdminChecked] = useState(false);
 
   useEffect(() => {
-    void hydrateAdminFromServer();
+    void hydrateAdminFromServer().finally(() => setAdminChecked(true));
   }, [hydrateAdminFromServer]);
 
   useEffect(() => {
-    if (role === "driver") router.replace("/driver");
-  }, [role, router]);
-
-  useEffect(() => {
+    if (!hydrated || !adminChecked) return;
+    if (role === "driver") {
+      router.replace("/driver");
+      return;
+    }
     if (admin) router.replace("/admin");
-  }, [admin, router]);
+  }, [hydrated, adminChecked, role, admin, router]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-8 p-6">
