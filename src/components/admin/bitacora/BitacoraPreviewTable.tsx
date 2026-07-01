@@ -147,6 +147,16 @@ export function BitacoraPreviewTable({
               <Plus className="size-3.5" />
               Agregar ruta
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => addRow("entrega_pendiente")}
+            >
+              <Plus className="size-3.5" />
+              Agregar entrega pendiente
+            </Button>
           </div>
         )}
       </div>
@@ -176,6 +186,16 @@ export function BitacoraPreviewTable({
           >
             <Plus className="size-3.5" />
             Agregar ruta
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => addRow("entrega_pendiente")}
+          >
+            <Plus className="size-3.5" />
+            Agregar entrega pendiente
           </Button>
           {otros.length > 0 && (
             <Button
@@ -317,7 +337,8 @@ export function BitacoraPreviewTable({
                       {(showRowSettingsColumn || onToggleMultipleReviews) && (
                         <td className="px-2 py-1 align-top space-y-2">
                           {(row.rowType === "manual" ||
-                            row.rowType === "ruta") && (
+                            row.rowType === "ruta" ||
+                            row.rowType === "entrega_pendiente") && (
                             <>
                               <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                 <input

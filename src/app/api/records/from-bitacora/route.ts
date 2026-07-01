@@ -48,9 +48,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (row.rowType !== "manual" && row.rowType !== "ruta") {
+  if (
+    row.rowType !== "manual" &&
+    row.rowType !== "ruta" &&
+    row.rowType !== "entrega_pendiente"
+  ) {
     return NextResponse.json(
-      { message: "Solo se pueden crear registros desde filas de ruta o manuales" },
+      {
+        message:
+          "Solo se pueden crear registros desde filas de ruta, manuales o entrega pendiente",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (row.rowType === "entrega_pendiente" && !row.scheduledDate?.trim()) {
+    return NextResponse.json(
+      { message: "La entrega pendiente debe tener fecha programada" },
       { status: 400 }
     );
   }

@@ -280,6 +280,7 @@ export function RecordsTable({
             open={bulkOpen}
             onOpenChange={setBulkOpen}
             records={selectedRecords.length > 0 ? selectedRecords : records}
+            activeBitacora={activeBitacora}
           />
         </div>
       )}

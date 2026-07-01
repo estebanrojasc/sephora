@@ -51,6 +51,8 @@ const credSheet = new TextDecoder().decode(
 const credOk =
   getCell(credSheet, "M71") === "Dist. MENE Spa" &&
   getCell(credSheet, "M74") === "CO JUANTIA" &&
+  getCell(credSheet, "L71") === "260006344" &&
+  getCell(credSheet, "L74") === "260006344" &&
   getCell(credSheet, "M75") === "" &&
   getCell(credSheet, "L76") === "260006344" &&
   getCell(credSheet, "M76") === "Minirosket natalia";

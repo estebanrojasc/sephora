@@ -67,7 +67,13 @@ export function canCreateRecordForBitacoraRow(
   row: BitacoraRow,
   links: BitacoraRowRecordLink[]
 ): boolean {
-  if (row.rowType !== "manual" && row.rowType !== "ruta") return false;
+  if (
+    row.rowType !== "manual" &&
+    row.rowType !== "ruta" &&
+    row.rowType !== "entrega_pendiente"
+  ) {
+    return false;
+  }
   if (links.length === 0) return true;
   return rowAllowsMultipleReviews(row);
 }
@@ -82,7 +88,13 @@ export function blockedBitacoraRowIdsForRecord(
   const blocked = new Set<string>();
 
   for (const row of bitacora.rows) {
-    if (row.rowType !== "ruta" && row.rowType !== "manual") continue;
+    if (
+      row.rowType !== "ruta" &&
+      row.rowType !== "manual" &&
+      row.rowType !== "entrega_pendiente"
+    ) {
+      continue;
+    }
     const rowLinks = links.get(row.id) ?? [];
     const otherLinks = rowLinks.filter((l) => l.recordId !== currentRecordId);
     if (otherLinks.length > 0 && !rowAllowsMultipleReviews(row)) {

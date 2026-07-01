@@ -10,10 +10,12 @@ import type {
 import { buildRendicionPayload, mergeRendicionPayloads } from "./build-rendicion";
 import {
   TEMPLATE_RESUMEN_ROWS,
-  recordLabel,
   scalarForPlaceholder,
   summaryColumnForRecord,
 } from "./consolidated-resumen";
+import {
+  SUM_FORMULA_RULES,
+} from "./excel-formulas";
 
 const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
@@ -57,6 +59,7 @@ const CHEQUES_A_FECHA_LAYOUT: ListCellLayout[] = [
 
 /** Fila 71: primera fila del bloque CREDITO. Solo esa fila lleva placeholders. */
 const CREDITO_LAYOUT: ListCellLayout[] = [
+  { col: "L", list: "credito_vendedor", field: "recorrido", type: "text", extraStyle: 49, placeholder: "{{cred_recorrido}}" },
   { col: "M", list: "credito_vendedor", field: "cliente", type: "text", extraStyle: 63, placeholder: "{{cred_cliente}}" },
   { col: "P", list: "credito_vendedor", field: "no_fac", type: "text", extraStyle: 66, placeholder: "{{cred_fac}}" },
   { col: "T", list: "credito_vendedor", field: "valor", type: "number", extraStyle: 159, placeholder: "{{cred_valor}}" },
@@ -65,7 +68,7 @@ const CREDITO_LAYOUT: ListCellLayout[] = [
 
 /** Fila 73: primera fila del bloque TRANSFERENCIA. Columnas según plantilla (banco en U, no O). */
 const TRANSF_LAYOUT: ListCellLayout[] = [
-  { col: "L", list: "transferencias", field: "recorrido", type: "text", extraStyle: 49, placeholder: "{{transf_recorrido}}", firstRowOnly: true },
+  { col: "L", list: "transferencias", field: "recorrido", type: "text", extraStyle: 49, placeholder: "{{transf_recorrido}}" },
   { col: "M", list: "transferencias", field: "cliente", type: "text", extraStyle: 89, placeholder: "{{transf_cliente}}" },
   { col: "P", list: "transferencias", field: "no_fac", type: "text", extraStyle: 91, placeholder: "{{transf_fac}}" },
   { col: "T", list: "transferencias", field: "valor", type: "number", extraStyle: 69, placeholder: "{{transf_valor}}" },
@@ -73,9 +76,12 @@ const TRANSF_LAYOUT: ListCellLayout[] = [
 ];
 
 interface ListBlock {
+  id: string;
   anchorRow: number;
   layout: ListCellLayout[];
   count: (lists: RendicionLists) => number;
+  /** Duplica merge horizontal R:S al insertar filas (etiqueta CREDITO / TRANSFERENCIA). */
+  duplicateLabelMerge?: boolean;
   /**
    * Filas de datos con placeholders en plantilla desde anchorRow (incluye ancla).
    * Crédito: solo 71 (72 = separador antes de transferencias).
@@ -84,8 +90,15 @@ interface ListBlock {
   templateDataRows?: number;
 }
 
+interface ListBlockExpansionMeta {
+  blockId: string;
+  anchorRow: number;
+  dataRowCount: number;
+}
+
 const LIST_BLOCKS: ListBlock[] = [
   {
+    id: "cheques_rech",
     anchorRow: LIST_ROW,
     layout: LIST_LAYOUT,
     count: (l) =>
@@ -100,23 +113,28 @@ const LIST_BLOCKS: ListBlock[] = [
     templateDataRows: 1,
   },
   {
+    id: "cheques_a_fecha",
     anchorRow: CHEQUES_A_FECHA_ROW,
     layout: CHEQUES_A_FECHA_LAYOUT,
     count: (l) => Math.max(l.cheques_a_fecha?.length ?? 0, 1),
     templateDataRows: 1,
   },
   {
+    id: "credito",
     anchorRow: CREDITO_ROW,
     layout: CREDITO_LAYOUT,
     count: (l) => Math.max(l.credito_vendedor?.length ?? 0, 1),
     /** Solo fila 71; la 72 es separador fijo antes de transferencias. */
     templateDataRows: 1,
+    duplicateLabelMerge: true,
   },
   {
+    id: "transferencia",
     anchorRow: TRANSF_ROW,
     layout: TRANSF_LAYOUT,
     count: (l) => Math.max(l.transferencias?.length ?? 0, 1),
     templateDataRows: 2,
+    duplicateLabelMerge: true,
   },
 ];
 
@@ -232,6 +250,7 @@ function replaceCellsByStringIndex(
   return xml.replace(cellRe, (full, attrs, vIdx) => {
     if (parseInt(vIdx, 10) !== idx) return full;
     if (!/\bt="s"/.test(attrs)) return full;
+    if (/<f\b/.test(full)) return full;
     return buildCellFromAttrs(attrs, scalar);
   });
 }
@@ -293,17 +312,183 @@ function buildExtraListRowXml(
   rowNum: number,
   layout: ListCellLayout[],
   lists: RendicionLists,
-  i: number
+  i: number,
+  columnStyles?: Map<string, number>
 ): string {
   const cells = layout.map((cell) =>
     buildCellXml(
       `${cell.col}${rowNum}`,
-      cell.extraStyle,
+      columnStyles?.get(cell.col) ?? cell.extraStyle,
       listValueAt(lists, cell, i),
       cell.type
     )
   );
   return `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${cells.join("")}</row>`;
+}
+
+function extractRowXml(xml: string, rowNum: number): string | null {
+  const re = new RegExp(`<row\\b[^>]*\\br="${rowNum}"[^>]*>[\\s\\S]*?<\\/row>`);
+  return xml.match(re)?.[0] ?? null;
+}
+
+function extractColumnStyles(xml: string, rowNum: number): Map<string, number> {
+  const map = new Map<string, number>();
+  const rowXml = extractRowXml(xml, rowNum);
+  if (!rowXml) return map;
+  for (const m of rowXml.matchAll(
+    /<c r="([A-Z]+)\d+"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g
+  )) {
+    map.set(m[1]!, cellStyleFromAttrs(m[2]!));
+  }
+  return map;
+}
+
+function cellHasSharedPlaceholder(inner: string, attrs: string): boolean {
+  return attrs.includes('t="s"') && /<v>\d+<\/v>/.test(inner);
+}
+
+function cloneListRowFromAnchor(
+  xml: string,
+  anchorRow: number,
+  targetRow: number,
+  layout: ListCellLayout[],
+  lists: RendicionLists,
+  dataIndex: number
+): string {
+  const anchorXml = extractRowXml(xml, anchorRow);
+  if (!anchorXml) {
+    return buildExtraListRowXml(
+      targetRow,
+      layout,
+      lists,
+      dataIndex,
+      extractColumnStyles(xml, anchorRow)
+    );
+  }
+
+  const layoutByCol = new Map(layout.map((l) => [l.col, l]));
+  const rowAttrs = anchorXml.match(/<row\b([^>]*)>/)?.[1] ?? "";
+  const spansMatch = rowAttrs.match(/\bspans="([^"]+)"/);
+  const spans = spansMatch ? ` spans="${spansMatch[1]}"` : ' spans="1:23"';
+
+  const cells: string[] = [];
+  for (const cellMatch of anchorXml.matchAll(
+    /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g
+  )) {
+    const col = cellMatch[1]!;
+    const attrs = cellMatch[3]!;
+    const inner = cellMatch[4] ?? "";
+    const ref = `${col}${targetRow}`;
+    const layoutCell = layoutByCol.get(col);
+
+    if (layoutCell) {
+      cells.push(
+        buildCellXml(
+          ref,
+          cellStyleFromAttrs(attrs),
+          listValueAt(lists, layoutCell, dataIndex),
+          layoutCell.type
+        )
+      );
+      continue;
+    }
+
+    if (cellMatch[0].endsWith("/>")) {
+      cells.push(`<c r="${ref}"${attrs}/>`);
+      continue;
+    }
+
+    if (cellHasSharedPlaceholder(inner, attrs) && dataIndex > 0) {
+      cells.push(`<c r="${ref}"${attrs.replace(/\s+t="s"/g, "")}/>`);
+      continue;
+    }
+
+    cells.push(
+      cellMatch[0]
+        .replace(`${col}${anchorRow}`, ref)
+        .replace(new RegExp(`<c r="${col}\\d+"`), `<c r="${ref}"`)
+    );
+  }
+
+  return `<row r="${targetRow}"${spans} x14ac:dyDescent="0.3">${cells.join("")}</row>`;
+}
+
+function appendMergeCells(xml: string, refs: string[]): string {
+  if (refs.length === 0) return xml;
+  const tags = refs.map((r) => `<mergeCell ref="${r}"/>`).join("");
+  const mcRe =
+    /<mergeCells\b[^>]*\bcount="(\d+)"[^>]*>([\s\S]*?)<\/mergeCells>/;
+  const m = xml.match(mcRe);
+  if (m) {
+    const newCount = parseInt(m[1]!, 10) + refs.length;
+    return xml.replace(
+      mcRe,
+      `<mergeCells count="${newCount}">${m[2]}${tags}</mergeCells>`
+    );
+  }
+  return xml.replace(
+    "</worksheet>",
+    `<mergeCells count="${refs.length}">${tags}</mergeCells></worksheet>`
+  );
+}
+
+function writeFormulaAt(xml: string, ref: string, formula: string): string {
+  const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const cellRe = new RegExp(
+    `<c r="${escapedRef}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`
+  );
+  const match = xml.match(cellRe);
+  const style = match ? cellStyleFromAttrs(match[1]!) : 0;
+  const built = `<c r="${ref}" s="${style}"><f>${formula}</f></c>`;
+  if (match) {
+    return xml.replace(cellRe, built);
+  }
+  const rowMatch = ref.match(/(\d+)$/);
+  if (!rowMatch) return xml;
+  const rowNum = rowMatch[1]!;
+  const rowRe = new RegExp(
+    `(<row\\b[^>]*\\br="${rowNum}"[^>]*>)([\\s\\S]*?)(</row>)`
+  );
+  return xml.replace(rowRe, `$1${built}$2$3`);
+}
+
+function findCellRefByPlaceholderIndex(
+  xml: string,
+  idx: number,
+  sumColumn?: string
+): string | null {
+  for (const m of xml.matchAll(
+    /<c r="([A-Z]+)(\d+)"([^>]*)>\s*<v>(\d+)<\/v>\s*<\/c>/g
+  )) {
+    if (parseInt(m[4]!, 10) !== idx || !m[3]!.includes('t="s"')) continue;
+    if (sumColumn && m[1] !== sumColumn) continue;
+    return `${m[1]}${m[2]}`;
+  }
+  return null;
+}
+
+function applySumFormulas(
+  xml: string,
+  indices: Map<string, number>,
+  expansions: ListBlockExpansionMeta[]
+): string {
+  for (const rule of SUM_FORMULA_RULES) {
+    const idx = indices.get(rule.placeholder);
+    if (idx === undefined) continue;
+
+    const expansion = expansions.find((e) => e.blockId === rule.blockId);
+    if (!expansion || expansion.dataRowCount <= 0) continue;
+
+    const firstRow = expansion.anchorRow;
+    const lastRow = expansion.anchorRow + expansion.dataRowCount - 1;
+    const formula = `SUMA(${rule.sumColumn}${firstRow}:${rule.sumColumn}${lastRow})`;
+
+    const ref = findCellRefByPlaceholderIndex(xml, idx, rule.sumColumn);
+    if (ref) {
+      xml = writeFormulaAt(xml, ref, formula);
+    }
+  }
+  return xml;
 }
 
 function worksheetHasRow(xml: string, rowNum: number): boolean {
@@ -335,8 +520,14 @@ function expandListBlock(
   lists: RendicionLists,
   _indices: Map<string, number>,
   n: number,
-  templateDataRows?: number
-): { xml: string; insertedRows: number } {
+  templateDataRows?: number,
+  duplicateLabelMerge?: boolean
+): {
+  xml: string;
+  insertedRows: number;
+  meta: ListBlockExpansionMeta;
+  insertedRowNumbers: number[];
+} {
   const count = Math.max(n, 1);
   const maxReuseRow =
     templateDataRows != null
@@ -344,7 +535,14 @@ function expandListBlock(
       : anchorRow + count - 1;
 
   xml = fillListRowByRef(xml, anchorRow, layout, lists, 0);
-  if (count <= 1) return { xml, insertedRows: 0 };
+  if (count <= 1) {
+    return {
+      xml,
+      insertedRows: 0,
+      meta: { blockId: "", anchorRow, dataRowCount: count },
+      insertedRowNumbers: [],
+    };
+  }
 
   let nextDataIndex = 1;
   let lastFilledRow = anchorRow;
@@ -361,15 +559,39 @@ function expandListBlock(
   }
 
   const remaining = count - nextDataIndex;
-  if (remaining <= 0) return { xml, insertedRows: 0 };
+  if (remaining <= 0) {
+    return {
+      xml,
+      insertedRows: 0,
+      meta: { blockId: "", anchorRow, dataRowCount: count },
+      insertedRowNumbers: [],
+    };
+  }
 
   const insertAt = lastFilledRow + 1;
   xml = shiftRowsInWorksheet(xml, insertAt, remaining);
 
   const extra: string[] = [];
+  const insertedRowNumbers: number[] = [];
   for (let j = 0; j < remaining; j++) {
+    const rowNum = insertAt + j;
+    insertedRowNumbers.push(rowNum);
     extra.push(
-      buildExtraListRowXml(insertAt + j, layout, lists, nextDataIndex + j)
+      cloneListRowFromAnchor(
+        xml,
+        anchorRow,
+        rowNum,
+        layout,
+        lists,
+        nextDataIndex + j
+      )
+    );
+  }
+
+  if (duplicateLabelMerge) {
+    xml = appendMergeCells(
+      xml,
+      insertedRowNumbers.map((row) => `R${row}:S${row}`)
     );
   }
 
@@ -379,6 +601,8 @@ function expandListBlock(
   return {
     xml: xml.replace(anchorRe, `$1${extra.join("")}`),
     insertedRows: remaining,
+    meta: { blockId: "", anchorRow, dataRowCount: count },
+    insertedRowNumbers,
   };
 }
 
@@ -390,30 +614,39 @@ function processWorksheet(
 ): string {
   xml = trimSparseTailRows(xml);
 
-  for (const [placeholder, scalar] of Object.entries(payload.scalars)) {
-    if (options?.skipScalarPlaceholders?.has(placeholder)) continue;
-    const idx = indices.get(placeholder);
-    if (idx === undefined) continue;
-    xml = replaceCellsByStringIndex(xml, idx, scalar);
-  }
+  const expansions: ListBlockExpansionMeta[] = [];
 
   if (options?.expandLists !== false) {
     let rowShift = 0;
     for (const block of LIST_BLOCKS) {
       const anchorRow = block.anchorRow + rowShift;
       const n = block.count(payload.lists);
-      const { xml: nextXml, insertedRows } = expandListBlock(
+      const { xml: nextXml, insertedRows, meta } = expandListBlock(
         xml,
         anchorRow,
         block.layout,
         payload.lists,
         indices,
         n,
-        block.templateDataRows
+        block.templateDataRows,
+        block.duplicateLabelMerge
       );
       xml = nextXml;
+      expansions.push({
+        blockId: block.id,
+        anchorRow,
+        dataRowCount: meta.dataRowCount,
+      });
       rowShift += insertedRows;
     }
+    xml = applySumFormulas(xml, indices, expansions);
+  }
+
+  for (const [placeholder, scalar] of Object.entries(payload.scalars)) {
+    if (options?.skipScalarPlaceholders?.has(placeholder)) continue;
+    const idx = indices.get(placeholder);
+    if (idx === undefined) continue;
+    xml = replaceCellsByStringIndex(xml, idx, scalar);
   }
 
   return clearStalePlaceholderCaches(xml);
@@ -445,7 +678,7 @@ function writeCellAt(xml: string, ref: string, scalar: ScalarValue): string {
   return xml.replace(rowRe, `$1${built}$2$3`);
 }
 
-/** Resumen superior (filas 1–21): un registro por columna B, C, D… */
+/** Resumen superior (filas 1–17): un registro por columna B, C, D… */
 function fillUpperSummarySection(
   xml: string,
   records: AppRecord[],
@@ -455,12 +688,6 @@ function fillUpperSummarySection(
     const payload = payloads[i]!;
     const col = summaryColumnForRecord(i);
 
-    // Etiqueta del registro en fila 8 (vacía en plantilla), sin pisar sector (fila 4).
-    xml = writeCellAt(xml, `${col}8`, {
-      value: recordLabel(records[i]!),
-      numeric: false,
-    });
-
     for (const field of TEMPLATE_RESUMEN_ROWS) {
       const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
       xml = writeCellAt(
@@ -468,34 +695,6 @@ function fillUpperSummarySection(
         `${col}${field.row}`,
         scalar ?? { value: "", numeric: field.sum ?? false }
       );
-    }
-  }
-
-  if (records.length > 1) {
-    const aggStart = 21;
-    xml = writeCellAt(xml, `A${aggStart}`, {
-      value: "TOTALES CONSOLIDADOS",
-      numeric: false,
-    });
-    let aggRow = aggStart + 1;
-    for (const field of TEMPLATE_RESUMEN_ROWS.filter((f) => f.sum)) {
-      let sum = 0;
-      let any = false;
-      for (const payload of payloads) {
-        const scalar = scalarForPlaceholder(payload.scalars, field.placeholder);
-        if (!scalar?.value.trim()) continue;
-        const n = parseNumber(scalar.value);
-        if (n !== null) {
-          sum += n;
-          any = true;
-        }
-      }
-      if (!any) continue;
-      xml = writeCellAt(xml, `B${aggRow}`, {
-        value: String(sum),
-        numeric: true,
-      });
-      aggRow++;
     }
   }
 

@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
   const template = await readFile(TEMPLATE_PATH);
   const rendered = buildConsolidatedWorkbook(template, records);
-  const filename = buildConsolidatedFilename(records.length);
+  const filename = buildConsolidatedFilename(records);
   const encodedFilename = encodeURIComponent(filename);
 
   return new Response(toArrayBuffer(rendered), {

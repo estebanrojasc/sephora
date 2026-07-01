@@ -19,8 +19,12 @@ export function buildExtractionFromBitacoraRow(
   bitacora?: Bitacora
 ): Extraction {
   const base = createEmptyExtraction();
-  const fechaDisplay = bitacoraDate
-    ? formatChileanDate(bitacoraDate)
+  const fechaIso =
+    row.rowType === "entrega_pendiente" && row.scheduledDate
+      ? row.scheduledDate
+      : bitacoraDate;
+  const fechaDisplay = fechaIso
+    ? formatChileanDate(fechaIso)
     : row.scheduledDate
       ? formatChileanDate(row.scheduledDate)
       : "";

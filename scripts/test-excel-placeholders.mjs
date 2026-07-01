@@ -89,8 +89,48 @@ const payload = buildRendicionPayload({
   extraction: e,
 });
 
+function getFormula(sheet, ref) {
+  const m = sheet.match(
+    new RegExp(`<c r="${ref}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`)
+  );
+  if (!m) return "";
+  return m[2]?.match(/<f>([^<]*)<\/f>/)?.[1] ?? "";
+}
+
+function findFormulaCell(sheet, column, pattern) {
+  for (const m of sheet.matchAll(
+    new RegExp(`<c r="${column}(\\d+)"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`, "g")
+  )) {
+    const f = m[3]?.match(/<f>([^<]*)<\/f>/)?.[1] ?? "";
+    if (pattern.test(f)) return `${column}${m[1]}`;
+  }
+  return null;
+}
+
 const out = renderRendicionExcel(template, payload);
 const leftover = scanPlaceholders(out);
+
+const sheet = new TextDecoder().decode(
+  unzipSync(out)["xl/worksheets/sheet1.xml"]
+);
+
+const o38Formula =
+  getFormula(sheet, "O38") ||
+  getFormula(sheet, findFormulaCell(sheet, "O", /SUMA\(O37:O\d+\)/) ?? "");
+
+const formulaChecks = [
+  ["O total SUMA cheques al dia", /SUMA\(O37:O\d+\)/, o38Formula],
+  ["Q65 SUMA rech total", /SUMA\(Q37:Q\d+\)/, getFormula(sheet, "Q65")],
+  ["S65 SUMA rech parcial", /SUMA\(S37:S\d+\)/, getFormula(sheet, "S65")],
+  ["U65 SUMA negocio", /SUMA\(U37:U\d+\)/, getFormula(sheet, "U65")],
+];
+
+let formulasOk = true;
+for (const [label, expected, actual] of formulaChecks) {
+  const pass = expected.test(actual);
+  if (!pass) formulasOk = false;
+  console.log(pass ? "OK" : "FAIL", label, actual || "(sin fórmula)");
+}
 
 if (leftover.length === 0) {
   console.log("PASS: ningún {{}} sin reemplazar en la hoja");
@@ -99,3 +139,5 @@ if (leftover.length === 0) {
   for (const line of leftover) console.log(" ", line);
   process.exit(1);
 }
+
+if (!formulasOk) process.exit(1);

@@ -82,8 +82,9 @@ const checks = [
   ["B3 != C3", true, get("B3") !== get("C3") && get("B3") !== "VARIOS"],
   ["B4 sector reg1", "SECTOR R1", get("B4")],
   ["C4 sector reg2", "SECTOR R2", get("C4")],
-  ["B8 label reg1", "111", get("B8")],
-  ["C8 label reg2", "222", get("C8")],
+  ["B8 sin auto-fill", true, get("B8") === "" || get("B8") === "(empty)"],
+  ["B21 sin totales auto", true, get("B21") === "" || get("B21") === "(empty)"],
+  ["A21 sin label total", true, get("A21") === "" || get("A21") === "(empty)"],
 ];
 
 let ok = true;

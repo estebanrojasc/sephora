@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import type { Record } from "@/features/records/types";
 import { getRecordConductorLabel } from "@/features/records/display";
 import { duplicateRecorridoKeys } from "@/features/records/filter-by-day";
+import type { Bitacora } from "@/features/bitacora/types";
+import { sortRecordsByBitacora } from "@/features/bitacora/sort-records-by-bitacora";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -26,6 +28,7 @@ interface BulkExcelExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   records: Record[];
+  activeBitacora?: Bitacora | null;
 }
 
 function recorridoKey(record: Record): string {
@@ -36,6 +39,7 @@ export function BulkExcelExportDialog({
   open,
   onOpenChange,
   records,
+  activeBitacora = null,
 }: BulkExcelExportDialogProps) {
   const [loading, setLoading] = useState(false);
   const [orderedRecords, setOrderedRecords] = useState<Record[]>([]);
@@ -47,9 +51,9 @@ export function BulkExcelExportDialog({
 
   useEffect(() => {
     if (open) {
-      setOrderedRecords(records);
+      setOrderedRecords(sortRecordsByBitacora(records, activeBitacora));
     }
-  }, [open, records]);
+  }, [open, records, activeBitacora]);
 
   function requestClose() {
     if (loading) return;
@@ -129,9 +133,9 @@ export function BulkExcelExportDialog({
         <DialogHeader>
           <DialogTitle>Excel unificado</DialogTitle>
           <DialogDescription>
-            Exporta los registros visibles en la tabla (día y tab actuales).
-            Incluye hoja Resumen y una hoja RUTA por registro. Ordena las filas
-            antes de descargar. Máximo 50 registros.
+            Exporta los registros visibles en la tabla (día y tab actuales) en
+            una hoja Resumen consolidada. Ordena las filas antes de descargar.
+            Máximo 50 registros.
           </DialogDescription>
         </DialogHeader>
 
@@ -197,8 +201,8 @@ export function BulkExcelExportDialog({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            {orderedRecords.length} registro(s) · el orden define el orden de las
-            hojas RUTA
+            {orderedRecords.length} registro(s) · el orden define las columnas
+            del resumen
             {orderedRecords.length > 50 && " — reduce la selección (máx. 50)"}
           </p>
         </div>
