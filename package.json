@@ -11,6 +11,7 @@
     "migrate:mock:dry": "node scripts/migrate-mock-db.mjs --dry-run",
     "migrate:images:gcs": "node scripts/migrate-images-to-gcs.mjs",
     "migrate:images:gcs:dry": "node scripts/migrate-images-to-gcs.mjs --dry-run",
+    "test:excel:credito": "tsx scripts/test-excel-credito-cheques.mjs",
     "delete:mock": "node scripts/delete-mock-db.mjs",
     "delete:mock:dry": "node scripts/delete-mock-db.mjs --dry-run"
   },

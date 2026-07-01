@@ -11,7 +11,6 @@ import { buildRendicionPayload, mergeRendicionPayloads } from "./build-rendicion
 import {
   TEMPLATE_RESUMEN_ROWS,
   recordLabel,
-  RESUMEN_UPPER_SCALAR_PLACEHOLDERS,
   scalarForPlaceholder,
   summaryColumnForRecord,
 } from "./consolidated-resumen";
@@ -78,8 +77,9 @@ interface ListBlock {
   layout: ListCellLayout[];
   count: (lists: RendicionLists) => number;
   /**
-   * Filas de datos reservadas en plantilla desde anchorRow (incluye ancla).
-   * Crédito: 71–72. Transferencias: 73–74. Evita pisar FALTANTE/TOTAL.
+   * Filas de datos con placeholders en plantilla desde anchorRow (incluye ancla).
+   * Crédito: solo 71 (72 = separador antes de transferencias).
+   * Transferencias: 73–74. Cheques al día: solo 39 (38 = separador).
    */
   templateDataRows?: number;
 }
@@ -109,7 +109,8 @@ const LIST_BLOCKS: ListBlock[] = [
     anchorRow: CREDITO_ROW,
     layout: CREDITO_LAYOUT,
     count: (l) => Math.max(l.credito_vendedor?.length ?? 0, 1),
-    templateDataRows: 2,
+    /** Solo fila 71; la 72 es separador fijo antes de transferencias. */
+    templateDataRows: 1,
   },
   {
     anchorRow: TRANSF_ROW,
@@ -526,9 +527,9 @@ export function renderConsolidatedResumenWorksheet(
 
   let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
   xml = fillUpperSummarySection(xml, records, payloads);
-  xml = processWorksheet(xml, merged, indices, {
-    skipScalarPlaceholders: RESUMEN_UPPER_SCALAR_PLACEHOLDERS,
-  });
+  // El resumen superior ya escribe celdas B+ como inline/número; no hace falta
+  // saltar placeholders: solo quedan referencias shared string en la zona inferior (col Q+).
+  xml = processWorksheet(xml, merged, indices);
 
   return clearStalePlaceholderCaches(xml);
 }
