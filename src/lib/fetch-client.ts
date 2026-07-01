@@ -1,5 +1,26 @@
+export class ApiFetchError extends Error {
+  readonly status: number;
+  readonly url: string;
+  readonly body: unknown;
+
+  constructor(status: number, url: string, body: unknown) {
+    const b = body as { message?: string; detail?: string; error?: string };
+    const parts = [
+      `HTTP ${status}`,
+      b.message,
+      b.detail,
+      b.error,
+    ].filter(Boolean);
+    super(parts.join(" — ") || `Error ${status}`);
+    this.name = "ApiFetchError";
+    this.status = status;
+    this.url = url;
+    this.body = body;
+  }
+}
+
 /**
- * Fetch JSON sin caché (navegador / CDN Vercel). Evita 304 con payload obsoleto.
+ * Fetch JSON sin caché (navegador / CDN). Errores incluyen status + detalle del servidor.
  */
 export async function fetchJsonNoStore<T>(
   url: string,
@@ -38,15 +59,22 @@ export async function fetchJsonNoStore<T>(
       },
     });
     if (retry.ok) return retry.json() as Promise<T>;
-    throw new Error(
-      "Datos en caché obsoletos (304). Recarga con Ctrl+F5 o espera unos segundos."
-    );
+    throw new ApiFetchError(304, url, {
+      message: "Respuesta 304 en caché. Recarga con Ctrl+F5.",
+    });
   }
+
+  const text = await res.text();
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = { message: text.slice(0, 500) || res.statusText };
+  }
+
   if (!res.ok) {
-    const data = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(
-      (data as { message?: string }).message ?? `Error ${res.status}`
-    );
+    throw new ApiFetchError(res.status, url, body);
   }
-  return res.json() as Promise<T>;
+
+  return body as T;
 }

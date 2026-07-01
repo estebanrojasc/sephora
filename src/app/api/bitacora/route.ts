@@ -9,6 +9,7 @@ import { mongoErrorResponse } from "@/lib/api-mongo-error";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 10;
 
 const rowSchema = z.object({
   id: z.string(),

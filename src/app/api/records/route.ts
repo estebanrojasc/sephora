@@ -5,6 +5,7 @@ import { jsonNoStore } from "@/lib/api-response";
 import { mongoErrorResponse } from "@/lib/api-mongo-error";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 10;
 
 export async function GET(request: NextRequest) {
   const status = request.nextUrl.searchParams.get("status") as

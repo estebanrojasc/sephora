@@ -16,6 +16,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { AdminSystemStatus } from "@/components/admin/AdminSystemStatus";
 import { APP_NAME, COPY } from "@/lib/constants";
 import { useSessionStore } from "@/features/auth/session-store";
 import { cn } from "@/lib/utils";
@@ -156,7 +157,10 @@ export default function AdminLayout({
           <p className="hidden font-medium lg:block">{COPY.admin.title}</p>
           <ThemeToggle />
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          <AdminSystemStatus />
+          {children}
+        </main>
       </div>
     </div>
   );
