@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from "next/server";
+import type { CompleteDirectUploadPayload } from "@/features/records/types";
+import { completeDirectRecordUpload } from "@/lib/repositories/records";
+import { shouldUseGcsForUpload } from "@/lib/storage/record-images";
+
+function validateCompleteBody(
+  body: CompleteDirectUploadPayload
+): string | null {
+  if (!body.recordId?.trim()) return "recordId requerido";
+  if (!body.deviceId?.trim()) return "deviceId requerido";
+  if (!body.driverId?.trim()) return "driverId requerido";
+  if (!body.driverName?.trim()) return "driverName requerido";
+  if (!Array.isArray(body.images) || body.images.length === 0) {
+    return "Se requiere al menos una imagen";
+  }
+  for (const img of body.images) {
+    if (!img.id?.trim()) return "id requerido por imagen";
+    if (!img.url?.trim()) return "url requerida por imagen";
+    if (!img.name?.trim()) return "name requerido por imagen";
+  }
+  return null;
+}
+
+export async function POST(request: NextRequest) {
+  if (!shouldUseGcsForUpload()) {
+    return NextResponse.json(
+      { message: "GCS no configurado", code: "GCS_NOT_CONFIGURED" },
+      { status: 503 }
+    );
+  }
+
+  let body: CompleteDirectUploadPayload;
+  try {
+    body = (await request.json()) as CompleteDirectUploadPayload;
+  } catch {
+    return NextResponse.json({ message: "JSON inválido" }, { status: 400 });
+  }
+
+  const validationError = validateCompleteBody(body);
+  if (validationError) {
+    return NextResponse.json({ message: validationError }, { status: 400 });
+  }
+
+  try {
+    const record = await completeDirectRecordUpload(body);
+    return NextResponse.json(record, { status: 201 });
+  } catch (err) {
+    console.error("[api/records/upload/complete]", err);
+    if (err instanceof Error && err.message === "RECORD_ALREADY_EXISTS") {
+      return NextResponse.json(
+        { message: "El registro ya existe" },
+        { status: 409 }
+      );
+    }
+    const message =
+      err instanceof Error ? err.message : "Error al guardar el registro";
+    return NextResponse.json({ message }, { status: 500 });
+  }
+}

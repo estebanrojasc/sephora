@@ -8,6 +8,7 @@ import {
   type RecordImage,
   type RecordStatus,
   type UploadPayload,
+  type CompleteDirectUploadPayload,
   type UpdateExtractionPayload,
 } from "@/features/records/types";
 import {
@@ -22,6 +23,7 @@ import {
 import {
   shouldUseGcsForUpload,
   uploadRecordImageToGcs,
+  verifyDirectUploadObjects,
 } from "@/lib/storage/record-images";
 
 async function col() {
@@ -118,6 +120,39 @@ export async function insertRecord(payload: UploadPayload): Promise<Record> {
 
   const record: Record = {
     id: recordId,
+    deviceId: payload.deviceId,
+    driverId: payload.driverId,
+    driverName: payload.driverName,
+    status: "uploaded",
+    createdAt: now,
+    updatedAt: now,
+    images,
+    attemptCount: 0,
+  };
+  await (await col()).insertOne(record);
+  return record;
+}
+
+export async function completeDirectRecordUpload(
+  payload: CompleteDirectUploadPayload
+): Promise<Record> {
+  const existing = await (await col()).findOne({ id: payload.recordId });
+  if (existing) {
+    throw new Error("RECORD_ALREADY_EXISTS");
+  }
+
+  await verifyDirectUploadObjects(payload.recordId, payload.images);
+
+  const now = new Date().toISOString();
+  const images: RecordImage[] = payload.images.map((img) => ({
+    id: img.id,
+    url: img.url,
+    processedUrl: img.processedUrl,
+    createdAt: now,
+  }));
+
+  const record: Record = {
+    id: payload.recordId,
     deviceId: payload.deviceId,
     driverId: payload.driverId,
     driverName: payload.driverName,

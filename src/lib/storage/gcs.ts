@@ -5,6 +5,7 @@ import {
   getGcsCredentials,
   getGcsProjectId,
   getSignedUrlTtlMs,
+  getUploadSignedUrlTtlMs,
   isGcsConfigured,
 } from "@/lib/storage/config";
 import { parseDataUrl } from "@/lib/storage/image-ref";
@@ -33,6 +34,29 @@ function getStorage(): Storage {
 
 function bucket() {
   return getStorage().bucket(getGcsBucketName());
+}
+
+async function withGcsRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code?: string }).code)
+          : "";
+      const retryable =
+        code === "ERR_STREAM_PREMATURE_CLOSE" ||
+        code === "ECONNRESET" ||
+        code === "ETIMEDOUT" ||
+        code === "ENOTFOUND";
+      if (!retryable || i === attempts - 1) break;
+      await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  throw lastError;
 }
 
 export async function uploadBufferToGcs(
@@ -67,6 +91,22 @@ export async function getSignedReadUrl(objectKey: string): Promise<string> {
   return url;
 }
 
+export async function getSignedWriteUrl(
+  objectKey: string,
+  contentType: string
+): Promise<string> {
+  return withGcsRetry(async () => {
+    const file = bucket().file(objectKey);
+    const [url] = await file.getSignedUrl({
+      version: "v4",
+      action: "write",
+      expires: Date.now() + getUploadSignedUrlTtlMs(),
+      contentType,
+    });
+    return url;
+  });
+}
+
 export async function downloadObjectAsBuffer(
   objectKey: string
 ): Promise<{ buffer: Buffer; contentType: string }> {
@@ -82,6 +122,33 @@ export async function downloadObjectAsBuffer(
 export async function objectExists(objectKey: string): Promise<boolean> {
   const [exists] = await bucket().file(objectKey).exists();
   return exists;
+}
+
+/** Verifica que las credenciales GCS puedan obtener token OAuth (Railway ↔ Google). */
+export async function pingGcsAuth(): Promise<{
+  ok: boolean;
+  ms: number;
+  error?: string;
+}> {
+  if (!isGcsConfigured()) {
+    return { ok: false, ms: 0, error: "GCS no configurado" };
+  }
+  const started = Date.now();
+  try {
+    await withGcsRetry(async () => {
+      const file = bucket().file("_healthcheck/ping.txt");
+      await file.getSignedUrl({
+        version: "v4",
+        action: "write",
+        expires: Date.now() + 60_000,
+        contentType: "text/plain",
+      });
+    });
+    return { ok: true, ms: Date.now() - started };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, ms: Date.now() - started, error: message };
+  }
 }
 
 export { isGcsConfigured };

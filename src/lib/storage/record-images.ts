@@ -1,10 +1,13 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { Record, RecordImage } from "@/features/records/types";
 import type { VisionProvider } from "@/features/vision/types";
 import {
   downloadObjectAsBuffer,
   getSignedReadUrl,
+  getSignedWriteUrl,
   isGcsConfigured,
+  objectExists,
   uploadDataUrlToGcs,
 } from "@/lib/storage/gcs";
 import {
@@ -101,4 +104,89 @@ export async function uploadRecordImageToGcs(
 
 export function shouldUseGcsForUpload(): boolean {
   return isGcsConfigured();
+}
+
+export interface PreparedImageUpload {
+  imageId: string;
+  original: { key: string; uploadUrl: string; contentType: string };
+  processed?: { key: string; uploadUrl: string; contentType: string };
+}
+
+export async function prepareRecordImageUploads(
+  recordId: string,
+  images: Array<{ originalContentType: string; processedContentType?: string }>
+): Promise<PreparedImageUpload[]> {
+  if (!isGcsConfigured()) {
+    throw new Error("GCS_NOT_CONFIGURED");
+  }
+
+  return Promise.all(
+    images.map(async (img) => {
+      const imageId = randomUUID();
+      const origExt = mimeToExt(img.originalContentType);
+      const origKey = recordImageObjectKey(
+        recordId,
+        imageId,
+        "original",
+        origExt
+      );
+      const original = {
+        key: origKey,
+        uploadUrl: await getSignedWriteUrl(origKey, img.originalContentType),
+        contentType: img.originalContentType,
+      };
+
+      let processed: PreparedImageUpload["processed"];
+      if (img.processedContentType) {
+        const procExt = mimeToExt(img.processedContentType);
+        const procKey = recordImageObjectKey(
+          recordId,
+          imageId,
+          "processed",
+          procExt
+        );
+        processed = {
+          key: procKey,
+          uploadUrl: await getSignedWriteUrl(procKey, img.processedContentType),
+          contentType: img.processedContentType,
+        };
+      }
+
+      return { imageId, original, processed };
+    })
+  );
+}
+
+function assertRecordImageKey(
+  recordId: string,
+  imageId: string,
+  key: string,
+  variant: "original" | "processed"
+): void {
+  const prefix = `records/${recordId}/${imageId}/${variant}.`;
+  if (!key.startsWith(prefix)) {
+    throw new Error(`Clave GCS inválida para imagen ${imageId}`);
+  }
+}
+
+export async function verifyDirectUploadObjects(
+  recordId: string,
+  images: Array<{ id: string; url: string; processedUrl?: string }>
+): Promise<void> {
+  for (const img of images) {
+    assertRecordImageKey(recordId, img.id, img.url, "original");
+    if (img.processedUrl) {
+      assertRecordImageKey(recordId, img.id, img.processedUrl, "processed");
+    }
+  }
+
+  const checks = images.flatMap((img) => {
+    const tasks = [objectExists(img.url)];
+    if (img.processedUrl) tasks.push(objectExists(img.processedUrl));
+    return tasks;
+  });
+  const results = await Promise.all(checks);
+  if (results.some((ok) => !ok)) {
+    throw new Error("Faltan objetos en GCS; reintenta la subida");
+  }
 }

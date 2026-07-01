@@ -187,6 +187,40 @@ export interface UploadPayload {
   }[];
 }
 
+export interface PrepareDirectUploadPayload {
+  deviceId: string;
+  driverId: string;
+  driverName: string;
+  images: {
+    originalContentType: string;
+    processedContentType?: string;
+  }[];
+}
+
+export interface DirectUploadSlot {
+  imageId: string;
+  original: { key: string; uploadUrl: string; contentType: string };
+  processed?: { key: string; uploadUrl: string; contentType: string };
+}
+
+export interface PrepareDirectUploadResponse {
+  recordId: string;
+  uploads: DirectUploadSlot[];
+}
+
+export interface CompleteDirectUploadPayload {
+  recordId: string;
+  deviceId: string;
+  driverId: string;
+  driverName: string;
+  images: {
+    id: string;
+    url: string;
+    processedUrl?: string;
+    name: string;
+  }[];
+}
+
 export interface ProcessAIPayload {
   /**
    * IDs de imágenes a procesar. Si está vacío o no se pasa, se procesan

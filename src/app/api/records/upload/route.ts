@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { insertRecord } from "@/lib/repositories/records";
 import type { UploadPayload } from "@/features/records/types";
+import { shouldUseGcsForUpload } from "@/lib/storage/record-images";
 
 export async function POST(request: NextRequest) {
+  if (shouldUseGcsForUpload()) {
+    return NextResponse.json(
+      {
+        message:
+          "Con GCS activo la subida es directa al bucket: /api/records/upload/prepare y /complete",
+        code: "USE_DIRECT_UPLOAD",
+      },
+      { status: 410 }
+    );
+  }
+
   let body: UploadPayload;
   try {
     body = (await request.json()) as UploadPayload;

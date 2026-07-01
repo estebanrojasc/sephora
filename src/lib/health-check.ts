@@ -1,6 +1,7 @@
 import "server-only";
 import { COLLECTIONS, getDb, pingMongo } from "@/lib/mongo";
-import { isGcsConfigured } from "@/lib/storage/config";
+import { getGcsCredentialsError, isGcsConfigured } from "@/lib/storage/config";
+import { pingGcsAuth } from "@/lib/storage/gcs";
 
 export interface HealthCheckItem {
   name: string;
@@ -76,8 +77,22 @@ export async function runSystemHealthCheck(options?: {
     ok: env.hasGcs,
     detail: env.hasGcs
       ? `bucket ${process.env.GCS_BUCKET?.trim()}`
-      : "GCS_BUCKET o credenciales no configuradas (imágenes quedan en Mongo como base64)",
+      : getGcsCredentialsError() ??
+        "GCS_BUCKET o credenciales no configuradas (imágenes quedan en Mongo como base64)",
   });
+
+  if (env.hasGcs && !options?.skipCounts) {
+    const gcsAuth = await pingGcsAuth();
+    checks.push({
+      name: "gcs_auth",
+      ok: gcsAuth.ok,
+      ms: gcsAuth.ms,
+      detail: gcsAuth.ok
+        ? `token OAuth OK en ${gcsAuth.ms}ms`
+        : undefined,
+      error: gcsAuth.error,
+    });
+  }
 
   try {
     const ping = await pingMongo();
