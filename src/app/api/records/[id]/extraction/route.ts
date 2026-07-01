@@ -10,6 +10,8 @@ import { applyCatalogsToExtraction } from "@/features/catalogs/apply-to-extracti
 import { syncBitacoraMetaInExtraction } from "@/features/bitacora/meta";
 import { listActiveCatalogs } from "@/lib/repositories/catalogs";
 import type { UpdateExtractionPayload } from "@/features/records/types";
+import { mongoErrorResponse } from "@/lib/api-mongo-error";
+import { resolveRecordImagesForClient } from "@/lib/storage/record-images";
 
 /**
  * Aplica un PATCH de extracción (correcciones manuales del admin). Cuando hay
@@ -53,7 +55,9 @@ export async function PATCH(
 
   // Si no cambió nada, devolvemos el record tal cual (sin generar attempt).
   if (modifiedFields.length === 0) {
-    return NextResponse.json(result.record);
+    return NextResponse.json(
+      await resolveRecordImagesForClient(result.record)
+    );
   }
 
   const attempt = await recordAttempt({
@@ -69,5 +73,6 @@ export async function PATCH(
   const updated = await saveExtraction(id, nextExtraction, attempt.id);
   await incrementAttemptCount(id);
 
-  return NextResponse.json(updated ?? result.record);
+  const recordOut = updated ?? result.record;
+  return NextResponse.json(await resolveRecordImagesForClient(recordOut));
 }

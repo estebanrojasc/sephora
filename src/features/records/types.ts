@@ -14,14 +14,13 @@ export type RecordStatus =
 export interface RecordImage {
   id: string;
   /**
-   * URL/dataURL de la versión ORIGINAL (alta resolución).
-   * Es la que ve el admin con zoom.
+   * Referencia a la imagen original (alta resolución).
+   * Puede ser: clave GCS (`records/...`), data URL legacy o URL firmada en respuestas API.
    */
   url: string;
   /**
-   * URL/dataURL de la versión PROCESADA (menor resolución).
-   * Es la que se envía al modelo cuando se procesa con IA.
-   * Si no existe, se cae a `url`.
+   * Referencia a la versión procesada (menor resolución) para IA.
+   * Mismo formato que `url`. Si no existe, se usa `url`.
    */
   processedUrl?: string;
   createdAt: string;

@@ -1,5 +1,6 @@
 import "server-only";
 import { COLLECTIONS, getDb, pingMongo } from "@/lib/mongo";
+import { isGcsConfigured } from "@/lib/storage/config";
 
 export interface HealthCheckItem {
   name: string;
@@ -19,6 +20,7 @@ export interface SystemHealthReport {
     railway: boolean;
     hasMongoUri: boolean;
     hasAuthSecret: boolean;
+    hasGcs: boolean;
     mongoDbName: string;
   };
   checks: HealthCheckItem[];
@@ -43,6 +45,7 @@ export async function runSystemHealthCheck(): Promise<SystemHealthReport> {
     railway: Boolean(process.env.RAILWAY_ENVIRONMENT),
     hasMongoUri: Boolean(process.env.MONGODB_URI?.trim()),
     hasAuthSecret: Boolean(process.env.AUTH_SECRET?.trim()),
+    hasGcs: isGcsConfigured(),
     mongoDbName: safeUriDbName(),
   };
 
@@ -64,6 +67,14 @@ export async function runSystemHealthCheck(): Promise<SystemHealthReport> {
   } else {
     checks.push({ name: "AUTH_SECRET", ok: true, detail: "configurada" });
   }
+
+  checks.push({
+    name: "gcs_storage",
+    ok: env.hasGcs,
+    detail: env.hasGcs
+      ? `bucket ${process.env.GCS_BUCKET?.trim()}`
+      : "GCS_BUCKET o credenciales no configuradas (imágenes quedan en Mongo como base64)",
+  });
 
   try {
     const ping = await pingMongo();

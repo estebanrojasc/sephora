@@ -13,6 +13,7 @@ import {
   shouldRequestBboxes,
   VisionProviderError,
 } from "@/features/vision";
+import { resolveImagesForVision, resolveRecordImagesForClient } from "@/lib/storage/record-images";
 import { mergeExtractions } from "@/features/records/extraction-merge";
 import { applyCatalogsToExtraction } from "@/features/catalogs/apply-to-extraction";
 import { listActiveCatalogs } from "@/lib/repositories/catalogs";
@@ -68,8 +69,11 @@ export async function POST(
   }
 
   // Usamos las versiones procesadas (más livianas) cuando existan.
-  const imageDataUrls = targetImages.map(
-    (img) => img.processedUrl ?? img.url
+  const imageRefs = targetImages.map((img) => img.processedUrl ?? img.url);
+  const visionProvider = resolveVisionProvider() ?? "gemini";
+  const imageDataUrls = await resolveImagesForVision(
+    imageRefs,
+    visionProvider
   );
 
   const previous = body.reset ? undefined : record.extraction;
@@ -180,5 +184,13 @@ export async function POST(
     await markImageProcessed(id, img.id);
   }
 
-  return NextResponse.json({ extraction: normalized, record: updated, attempt });
+  const recordForClient = updated
+    ? await resolveRecordImagesForClient(updated)
+    : updated;
+
+  return NextResponse.json({
+    extraction: normalized,
+    record: recordForClient,
+    attempt,
+  });
 }

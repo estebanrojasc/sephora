@@ -14,6 +14,10 @@ import {
   LIST_RECORDS_PROJECTION,
   normalizeListRecord,
 } from "@/lib/repositories/record-list-projection";
+import {
+  shouldUseGcsForUpload,
+  uploadRecordImageToGcs,
+} from "@/lib/storage/record-images";
 
 async function col() {
   return collectionWithIndexes<Record>(COLLECTIONS.records, [
@@ -57,14 +61,32 @@ export async function findRecordById(id: string): Promise<Record | null> {
 
 export async function insertRecord(payload: UploadPayload): Promise<Record> {
   const now = new Date().toISOString();
-  const images: RecordImage[] = payload.images.map((img) => ({
-    id: randomUUID(),
-    url: img.dataUrl,
-    processedUrl: img.processedDataUrl,
-    createdAt: now,
-  }));
+  const recordId = randomUUID();
+  const useGcs = shouldUseGcsForUpload();
+
+  const images: RecordImage[] = [];
+  for (const img of payload.images) {
+    const imageId = randomUUID();
+    if (useGcs) {
+      const uploaded = await uploadRecordImageToGcs(recordId, img, imageId);
+      images.push({
+        id: imageId,
+        url: uploaded.url,
+        processedUrl: uploaded.processedUrl,
+        createdAt: now,
+      });
+    } else {
+      images.push({
+        id: imageId,
+        url: img.dataUrl,
+        processedUrl: img.processedDataUrl,
+        createdAt: now,
+      });
+    }
+  }
+
   const record: Record = {
-    id: randomUUID(),
+    id: recordId,
     deviceId: payload.deviceId,
     driverId: payload.driverId,
     driverName: payload.driverName,

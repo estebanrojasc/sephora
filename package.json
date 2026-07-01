@@ -9,12 +9,15 @@
     "lint": "eslint",
     "migrate:mock": "node scripts/migrate-mock-db.mjs",
     "migrate:mock:dry": "node scripts/migrate-mock-db.mjs --dry-run",
+    "migrate:images:gcs": "node scripts/migrate-images-to-gcs.mjs",
+    "migrate:images:gcs:dry": "node scripts/migrate-images-to-gcs.mjs --dry-run",
     "delete:mock": "node scripts/delete-mock-db.mjs",
     "delete:mock:dry": "node scripts/delete-mock-db.mjs --dry-run"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@faker-js/faker": "^10.4.0",
+    "@google-cloud/storage": "^7.21.0",
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.100.11",
     "@tanstack/react-table": "^8.21.3",
