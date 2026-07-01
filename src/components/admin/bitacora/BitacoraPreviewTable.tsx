@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BitacoraRow, BitacoraRowType } from "@/features/bitacora/types";
+import { bitacoraRecorridoCanonical } from "@/features/bitacora/meta";
+import {
+  canCreateRecordForBitacoraRow,
+  defaultAllowsMultipleReviews,
+  rowAllowsMultipleReviews,
+  type BitacoraRowRecordLink,
+} from "@/features/bitacora/row-links";
+import { StatusBadge } from "@/components/common/StatusBadge";
 import { BitacoraRowBadge } from "./BitacoraRowBadge";
 
 const COLUMNS: { key: keyof BitacoraRow; label: string }[] = [
@@ -45,6 +54,11 @@ interface BitacoraPreviewTableProps {
   onCreateRecord?: (row: BitacoraRow) => void;
   creatingRowId?: string | null;
   readOnly?: boolean;
+  rowRecordLinks?: Map<string, BitacoraRowRecordLink[]>;
+  onToggleMultipleReviews?: (
+    rowId: string,
+    allowsMultipleReviews: boolean
+  ) => void;
 }
 
 export function BitacoraPreviewTable({
@@ -53,6 +67,8 @@ export function BitacoraPreviewTable({
   onCreateRecord,
   creatingRowId,
   readOnly = false,
+  rowRecordLinks,
+  onToggleMultipleReviews,
 }: BitacoraPreviewTableProps) {
   const updateRow = (idx: number, patch: Partial<BitacoraRow>) => {
     const next = [...rows];
@@ -83,9 +99,18 @@ export function BitacoraPreviewTable({
         id: newId(),
         rowType,
         manualSubtype: rowType === "manual" ? "ingreso_manual" : undefined,
+        allowsMultipleReviews: defaultAllowsMultipleReviews({
+          id: "",
+          rowType,
+        }),
       },
     ]);
   };
+
+  const showLinksColumn = Boolean(rowRecordLinks);
+  const showActionsColumn = Boolean(onCreateRecord);
+  const showRowSettingsColumn =
+    showActionsColumn || Boolean(onToggleMultipleReviews) || !readOnly;
 
   const sections = [
     { title: "Rutas del día", items: rutas },
@@ -186,7 +211,12 @@ export function BitacoraPreviewTable({
                       {col.label}
                     </th>
                   ))}
-                  {onCreateRecord && (
+                  {showLinksColumn && (
+                    <th className="px-2 py-1.5 text-left text-xs font-medium">
+                      Revisiones
+                    </th>
+                  )}
+                  {(showRowSettingsColumn || onToggleMultipleReviews) && (
                     <th className="px-2 py-1.5 text-xs font-medium">Acción</th>
                   )}
                 </tr>
@@ -194,6 +224,11 @@ export function BitacoraPreviewTable({
               <tbody>
                 {section.items.map((row) => {
                   const idx = rows.findIndex((r) => r.id === row.id);
+                  const links = rowRecordLinks?.get(row.id) ?? [];
+                  const canCreate =
+                    onCreateRecord &&
+                    canCreateRecordForBitacoraRow(row, links);
+                  const allowsMultiple = rowAllowsMultipleReviews(row);
                   return (
                     <tr key={row.id} className="border-b last:border-0">
                       <td className="px-2 py-1 align-top">
@@ -228,38 +263,103 @@ export function BitacoraPreviewTable({
                         <td key={col.key} className="px-1 py-1">
                           {readOnly ? (
                             <span className="text-xs">
-                              {(row[col.key] as string | undefined) ?? "—"}
+                              {col.key === "recorrido"
+                                ? (bitacoraRecorridoCanonical(row) ?? "—")
+                                : ((row[col.key] as string | undefined) ?? "—")}
                             </span>
                           ) : (
                             <Input
                               className="h-7 min-w-[72px] text-xs"
-                              value={(row[col.key] as string | undefined) ?? ""}
+                              value={
+                                col.key === "recorrido"
+                                  ? (row.recorrido ??
+                                    row.recorridoSuffix ??
+                                    "")
+                                  : ((row[col.key] as string | undefined) ??
+                                    "")
+                              }
                               onChange={(e) =>
-                                updateCell(idx, col.key, e.target.value)
+                                updateCell(
+                                  idx,
+                                  col.key === "recorrido"
+                                    ? "recorrido"
+                                    : col.key,
+                                  e.target.value
+                                )
                               }
                             />
                           )}
                         </td>
                       ))}
-                      {onCreateRecord && (
+                      {showLinksColumn && (
                         <td className="px-2 py-1 align-top">
+                          {links.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">
+                              —
+                            </span>
+                          ) : (
+                            <ul className="space-y-1">
+                              {links.map((link) => (
+                                <li key={link.recordId}>
+                                  <Link
+                                    href={`/admin/records/${link.recordId}`}
+                                    className="inline-flex flex-wrap items-center gap-1 text-xs text-indigo-600 hover:underline"
+                                  >
+                                    <span>{link.label}</span>
+                                    <StatusBadge status={link.status} />
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </td>
+                      )}
+                      {(showRowSettingsColumn || onToggleMultipleReviews) && (
+                        <td className="px-2 py-1 align-top space-y-2">
                           {(row.rowType === "manual" ||
                             row.rowType === "ruta") && (
-                            <button
-                              type="button"
-                              disabled={
-                                Boolean(row.linkedRecordId) ||
-                                creatingRowId === row.id
-                              }
-                              className="text-xs text-indigo-600 hover:underline disabled:opacity-50"
-                              onClick={() => onCreateRecord(row)}
-                            >
-                              {row.linkedRecordId
-                                ? "Vinculado"
-                                : creatingRowId === row.id
-                                  ? "Creando…"
-                                  : "Crear registro"}
-                            </button>
+                            <>
+                              <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                <input
+                                  type="checkbox"
+                                  className="size-3.5 rounded border"
+                                  checked={allowsMultiple}
+                                  disabled={
+                                    readOnly && !onToggleMultipleReviews
+                                  }
+                                  onChange={(e) => {
+                                    const next = e.target.checked;
+                                    if (onToggleMultipleReviews) {
+                                      onToggleMultipleReviews(row.id, next);
+                                      return;
+                                    }
+                                    updateRow(idx, {
+                                      allowsMultipleReviews: next,
+                                    });
+                                  }}
+                                />
+                                Varias revisiones
+                              </label>
+                              {canCreate && (
+                                <button
+                                  type="button"
+                                  disabled={creatingRowId === row.id}
+                                  className="block text-xs text-indigo-600 hover:underline disabled:opacity-50"
+                                  onClick={() => onCreateRecord!(row)}
+                                >
+                                  {creatingRowId === row.id
+                                    ? "Creando…"
+                                    : links.length > 0
+                                      ? "Otra revisión"
+                                      : "Crear registro"}
+                                </button>
+                              )}
+                              {!canCreate && links.length > 0 && (
+                                <span className="block text-[10px] text-muted-foreground">
+                                  Vinculada
+                                </span>
+                              )}
+                            </>
                           )}
                         </td>
                       )}

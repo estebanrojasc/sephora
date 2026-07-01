@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,14 +14,16 @@ import {
 } from "@/components/ui/select";
 import type { Extraction, Record } from "@/features/records/types";
 import { useActiveBitacora } from "@/features/bitacora/queries";
+import { useRecords } from "@/features/records/queries";
 import {
   formatBitacoraRowLabel,
   getRecordDayForBitacora,
-  listAssignableBitacoraRows,
+  listAvailableBitacoraRows,
   matchRecordToBitacora,
   scoreBitacoraRow,
 } from "@/features/bitacora/match";
 import { rowToExcelFields, type BitacoraExcelFields } from "@/features/bitacora/meta";
+import { blockedBitacoraRowIdsForRecord } from "@/features/bitacora/row-links";
 import { cn } from "@/lib/utils";
 
 const DISPLAY_FIELDS: {
@@ -54,6 +57,8 @@ interface BitacoraHintPanelProps {
   record: Record;
   extraction: Extraction | null;
   selectedRowId?: string | null;
+  /** true cuando el revisor cambió la fila y aún no aplica valores. */
+  rowSelectionDirty?: boolean;
   onSelectRow?: (rowId: string) => void;
   onApplyField: (field: keyof BitacoraExcelFields, value: string) => void;
   onApplyAll?: () => void;
@@ -63,12 +68,14 @@ export function BitacoraHintPanel({
   record,
   extraction,
   selectedRowId,
+  rowSelectionDirty = false,
   onSelectRow,
   onApplyField,
   onApplyAll,
 }: BitacoraHintPanelProps) {
   const day = getRecordDayForBitacora(record);
   const { data: bitacora } = useActiveBitacora(day);
+  const { data: allRecords } = useRecords();
 
   const meta = extraction?._meta?.bitacora;
   const autoMatch =
@@ -76,10 +83,34 @@ export function BitacoraHintPanel({
       ? matchRecordToBitacora(record, bitacora)
       : null;
 
-  const assignable = bitacora ? listAssignableBitacoraRows(bitacora) : [];
+  const currentRowId = selectedRowId ?? meta?.rowId ?? null;
+
+  const occupiedRowIds = useMemo(() => {
+    if (!bitacora) return new Set<string>();
+    return blockedBitacoraRowIdsForRecord(
+      bitacora,
+      allRecords ?? [],
+      record.id
+    );
+  }, [allRecords, bitacora, record.id]);
+
+  const assignable = useMemo(
+    () =>
+      bitacora
+        ? listAvailableBitacoraRows(bitacora, {
+            currentRecordId: record.id,
+            currentRowId,
+            blockedRowIds: occupiedRowIds,
+          })
+        : [],
+    [bitacora, record.id, currentRowId, occupiedRowIds]
+  );
+
   const activeRowId =
-    selectedRowId ?? meta?.rowId ?? autoMatch?.rowId ?? assignable[0]?.id ?? "";
-  const activeRow = assignable.find((r) => r.id === activeRowId);
+    currentRowId ?? autoMatch?.rowId ?? assignable[0]?.id ?? "";
+  const activeRow =
+    assignable.find((r) => r.id === activeRowId) ??
+    bitacora?.rows.find((r) => r.id === activeRowId);
 
   const score =
     meta?.matchScore ??
@@ -112,7 +143,9 @@ export function BitacoraHintPanel({
     return (
       <Alert className="border-dashed">
         <AlertDescription className="text-xs">
-          Bitácora del {day} sin filas de ruta o manual.{" "}
+          {occupiedRowIds.size > 0
+            ? "Todas las filas de ruta/manual ya están vinculadas a otros registros."
+            : `Bitácora del ${day} sin filas de ruta o manual.`}{" "}
           <Link
             href={`/admin/bitacora/${day}`}
             className="text-indigo-600 hover:underline"
@@ -160,6 +193,13 @@ export function BitacoraHintPanel({
         </div>
       </div>
 
+      {rowSelectionDirty && (
+        <p className="text-[10px] font-medium text-indigo-700 dark:text-indigo-300">
+          Cambiaste la fila — usa «Aplicar todo» para actualizar los valores del
+          formulario.
+        </p>
+      )}
+
       <div className="space-y-1">
         <p className="text-[10px] text-muted-foreground">
           Fila de bitácora (elige si el match automático no es correcto):
@@ -171,7 +211,9 @@ export function BitacoraHintPanel({
           }}
         >
           <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Seleccionar fila…" />
+            <SelectValue placeholder="Seleccionar fila…">
+              {activeRow ? formatBitacoraRowLabel(activeRow) : undefined}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {assignable.map((row) => (
@@ -207,6 +249,7 @@ export function BitacoraHintPanel({
             const differs =
               current.trim().toLowerCase() !== sug.trim().toLowerCase();
             const applied = meta?.applied?.[key];
+            const showApply = differs || (rowSelectionDirty && Boolean(sug));
             return (
               <div
                 key={key}
@@ -233,7 +276,7 @@ export function BitacoraHintPanel({
                     </span>
                   )}
                 </div>
-                {differs && (
+                {showApply && (
                   <Button
                     type="button"
                     variant="ghost"

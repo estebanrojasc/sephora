@@ -36,7 +36,13 @@ import {
   useCreateBitacora,
   useCreateRecordFromBitacora,
   useParseBitacora,
+  useUpdateBitacoraRowSettings,
 } from "@/features/bitacora/queries";
+import { useRecords } from "@/features/records/queries";
+import {
+  collectBitacoraRowRecordLinks,
+  getRowLinkedRecordIds,
+} from "@/features/bitacora/row-links";
 import type { Bitacora, BitacoraRow } from "@/features/bitacora/types";
 import { todayIsoDateChile } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
@@ -51,6 +57,8 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
   const createBitacora = useCreateBitacora();
   const parseBitacora = useParseBitacora();
   const createRecord = useCreateRecordFromBitacora();
+  const updateRowSettings = useUpdateBitacoraRowSettings();
+  const { data: allRecords = [] } = useRecords({ status: "all" });
 
   const [step, setStep] = useState(initial ? 2 : 1);
   const [rawPaste, setRawPaste] = useState(initial?.rawPaste ?? "");
@@ -62,6 +70,11 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
   const [parsed, setParsed] = useState(Boolean(initial?.rows.length));
 
   const summary = useMemo(() => summarizeBitacoraRows(rows), [rows]);
+
+  const rowRecordLinks = useMemo(() => {
+    if (!initial) return undefined;
+    return collectBitacoraRowRecordLinks({ ...initial, rows }, allRecords);
+  }, [initial, rows, allRecords]);
 
   const applyHeuristic = useCallback((raw: string) => {
     const grid = parseClipboardToGrid(raw);
@@ -159,9 +172,15 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
         rowId: row.id,
       });
       setRows((prev) =>
-        prev.map((r) =>
-          r.id === row.id ? { ...r, linkedRecordId: recordId } : r
-        )
+        prev.map((r) => {
+          if (r.id !== row.id) return r;
+          const linkedRecordIds = [...getRowLinkedRecordIds(r), recordId];
+          return {
+            ...r,
+            linkedRecordId: linkedRecordIds[0],
+            linkedRecordIds,
+          };
+        })
       );
       toast.success("Registro creado");
       router.push(`/admin/records/${recordId}`);
@@ -169,6 +188,34 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
       toast.error(e instanceof Error ? e.message : "Error al crear registro");
     } finally {
       setCreatingRowId(null);
+    }
+  };
+
+  const handleToggleMultipleReviews = async (
+    rowId: string,
+    allowsMultipleReviews: boolean
+  ) => {
+    if (!initial?.id) return;
+    try {
+      await updateRowSettings.mutateAsync({
+        bitacoraId: initial.id,
+        rowId,
+        allowsMultipleReviews,
+      });
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === rowId ? { ...r, allowsMultipleReviews } : r
+        )
+      );
+      toast.success(
+        allowsMultipleReviews
+          ? "Esta fila admite varias revisiones"
+          : "Solo una revisión por fila"
+      );
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "No se pudo actualizar la fila"
+      );
     }
   };
 
@@ -191,6 +238,8 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
           readOnly
           onCreateRecord={handleCreateRecord}
           creatingRowId={creatingRowId}
+          rowRecordLinks={rowRecordLinks}
+          onToggleMultipleReviews={handleToggleMultipleReviews}
         />
       </div>
     );

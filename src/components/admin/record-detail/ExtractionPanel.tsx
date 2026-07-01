@@ -48,7 +48,6 @@ import { BitacoraHintPanel } from "./BitacoraHintPanel";
 import { useActiveBitacora } from "@/features/bitacora/queries";
 import {
   getRecordDayForBitacora,
-  matchRecordToBitacora,
   scoreBitacoraRow,
 } from "@/features/bitacora/match";
 import { buildBitacoraMetaBlock } from "@/features/bitacora/meta";
@@ -76,6 +75,10 @@ export function ExtractionPanel({
   const [liveExtraction, setLiveExtraction] = useState<Extraction | null>(() =>
     record.extraction ? ensureExtractionShape(record.extraction) : null
   );
+  const [selectedBitacoraRowId, setSelectedBitacoraRowId] = useState<
+    string | null
+  >(() => record.extraction?._meta?.bitacora?.rowId ?? null);
+  const [bitacoraRowDirty, setBitacoraRowDirty] = useState(false);
 
   const handleFormStateChange = useCallback(
     (next: Extraction) => {
@@ -90,6 +93,8 @@ export function ExtractionPanel({
       ? ensureExtractionShape(record.extraction)
       : null;
     setLiveExtraction(next);
+    setSelectedBitacoraRowId(next?._meta?.bitacora?.rowId ?? null);
+    setBitacoraRowDirty(false);
     onLiveExtractionChange?.(next);
   }, [record.extraction, record.id, onLiveExtractionChange]);
 
@@ -107,48 +112,61 @@ export function ExtractionPanel({
   const { data: activeBitacora } = useActiveBitacora(bitacoraDay);
 
   const resolveBitacoraMeta = useCallback(
-    (rowId?: string) => {
+    (explicitRowId?: string) => {
       const values = formRef.current?.getValues();
-      if (values?._meta?.bitacora && !rowId) return values._meta.bitacora;
       if (!activeBitacora || !values) return undefined;
 
       const targetRowId =
-        rowId ?? values._meta?.bitacora?.rowId ?? undefined;
-      const row = targetRowId
-        ? activeBitacora.rows.find((r) => r.id === targetRowId)
-        : undefined;
-      const match = matchRecordToBitacora(
-        { ...record, extraction: values },
-        activeBitacora
-      );
-      const resolvedRow =
-        row ??
-        match?.row ??
-        (targetRowId
-          ? activeBitacora.rows.find((r) => r.id === targetRowId)
-          : undefined);
-      if (!resolvedRow) return undefined;
+        explicitRowId ??
+        selectedBitacoraRowId ??
+        values._meta?.bitacora?.rowId;
+      if (!targetRowId) return undefined;
+
+      const row = activeBitacora.rows.find((r) => r.id === targetRowId);
+      if (!row) return undefined;
 
       const matchScore = scoreBitacoraRow(
         { ...record, extraction: values },
-        resolvedRow
+        row
       );
       return buildBitacoraMetaBlock(
         activeBitacora,
-        resolvedRow,
+        row,
         matchScore,
         values
       );
     },
-    [activeBitacora, record]
+    [activeBitacora, record, selectedBitacoraRowId]
   );
 
   const handleSelectBitacoraRow = useCallback(
     (rowId: string) => {
-      const meta = resolveBitacoraMeta(rowId);
-      if (meta) formRef.current?.setBitacoraMeta(meta);
+      setSelectedBitacoraRowId(rowId);
+      setBitacoraRowDirty(true);
+      if (!activeBitacora) return;
+      const row = activeBitacora.rows.find((r) => r.id === rowId);
+      if (!row) {
+        toast.error("Fila de bitácora no encontrada");
+        return;
+      }
+      const values = formRef.current?.getValues();
+      if (!values) return;
+      const matchScore = scoreBitacoraRow(
+        { ...record, extraction: values },
+        row
+      );
+      const meta = buildBitacoraMetaBlock(
+        activeBitacora,
+        row,
+        matchScore,
+        values
+      );
+      formRef.current?.setBitacoraMeta(meta);
+      toast.message(
+        "Fila de bitácora cambiada — usa «Aplicar todo» o guarda para persistir"
+      );
     },
-    [resolveBitacoraMeta]
+    [activeBitacora, record]
   );
 
   const processedSet = useMemo(
@@ -243,11 +261,6 @@ export function ExtractionPanel({
           <p className="max-w-sm text-sm text-muted-foreground">
             {COPY.admin.noExtraction}
           </p>
-          <BitacoraHintPanel
-            record={record}
-            extraction={null}
-            onApplyField={() => {}}
-          />
           <p className="text-xs text-muted-foreground">
             Se procesarán las{" "}
             <span className="font-semibold text-foreground">
@@ -307,11 +320,17 @@ export function ExtractionPanel({
           <BitacoraHintPanel
             record={record}
             extraction={liveExtraction}
-            selectedRowId={liveExtraction?._meta?.bitacora?.rowId}
+            selectedRowId={selectedBitacoraRowId}
+            rowSelectionDirty={bitacoraRowDirty}
             onSelectRow={handleSelectBitacoraRow}
             onApplyField={(field, value) => {
               const meta = resolveBitacoraMeta();
+              if (!meta) {
+                toast.error("Selecciona una fila de bitácora válida");
+                return;
+              }
               formRef.current?.applyBitacoraField(field, value, meta);
+              setBitacoraRowDirty(false);
               toast.success(
                 field === "conductor"
                   ? "Conductor aplicado — cabecera actualizada; guarda para persistir"
@@ -320,7 +339,12 @@ export function ExtractionPanel({
             }}
             onApplyAll={() => {
               const meta = resolveBitacoraMeta();
+              if (!meta) {
+                toast.error("Selecciona una fila de bitácora válida");
+                return;
+              }
               formRef.current?.applyAllBitacora(meta);
+              setBitacoraRowDirty(false);
               toast.success(
                 "Valores de bitácora aplicados — guarda para persistir"
               );

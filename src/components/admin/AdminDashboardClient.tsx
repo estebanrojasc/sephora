@@ -12,43 +12,46 @@ import { useRecords } from "@/features/records/queries";
 import { useActiveBitacora } from "@/features/bitacora/queries";
 import { filterRecordsByDay } from "@/features/records/filter-by-day";
 import type { RecordStatus } from "@/features/records/types";
-import { todayIsoDateChile } from "@/lib/date-utils";
+import {
+  readStoredAdminDay,
+  readStoredAdminDayMode,
+  readStoredAdminTab,
+  writeStoredAdminDay,
+  writeStoredAdminDayMode,
+  writeStoredAdminTab,
+} from "@/lib/admin-session-storage";
 import { COPY } from "@/lib/constants";
-
-const ADMIN_TAB_STORAGE_KEY = "admin-records-tab";
-
-function readStoredTab(): RecordStatus | "all" {
-  if (typeof window === "undefined") return "uploaded";
-  const stored = sessionStorage.getItem(ADMIN_TAB_STORAGE_KEY);
-  const allowed: (RecordStatus | "all")[] = [
-    "uploaded",
-    "in_review",
-    "errors",
-    "saved",
-    "rejected",
-    "all",
-  ];
-  return allowed.includes(stored as RecordStatus | "all")
-    ? (stored as RecordStatus | "all")
-    : "uploaded";
-}
 
 export function AdminDashboardClient() {
   const [statusFilter, setStatusFilter] = useState<RecordStatus | "all">(
     "uploaded"
   );
-  const [tabReady, setTabReady] = useState(false);
-  const [dayFilter, setDayFilter] = useState(() => todayIsoDateChile());
-  const [dayMode, setDayMode] = useState<RecordsDayFilterMode>("created");
+  const [filtersReady, setFiltersReady] = useState(false);
+  const [dayFilter, setDayFilter] = useState(() => readStoredAdminDay());
+  const [dayMode, setDayMode] = useState<RecordsDayFilterMode>(() =>
+    readStoredAdminDayMode()
+  );
 
   useEffect(() => {
-    setStatusFilter(readStoredTab());
-    setTabReady(true);
+    setStatusFilter(readStoredAdminTab());
+    setDayFilter(readStoredAdminDay());
+    setDayMode(readStoredAdminDayMode());
+    setFiltersReady(true);
   }, []);
 
   function handleTabChange(value: RecordStatus | "all") {
     setStatusFilter(value);
-    sessionStorage.setItem(ADMIN_TAB_STORAGE_KEY, value);
+    writeStoredAdminTab(value);
+  }
+
+  function handleDayChange(date: string) {
+    setDayFilter(date);
+    writeStoredAdminDay(date);
+  }
+
+  function handleDayModeChange(mode: RecordsDayFilterMode) {
+    setDayMode(mode);
+    writeStoredAdminDayMode(mode);
   }
 
   const {
@@ -66,7 +69,7 @@ export function AdminDashboardClient() {
     dayMode
   );
 
-  if (!tabReady) {
+  if (!filtersReady) {
     return (
       <div className="flex h-40 items-center justify-center text-muted-foreground">
         Cargando panel…
@@ -101,9 +104,9 @@ export function AdminDashboardClient() {
 
       <RecordsDayFilter
         date={dayFilter}
-        onDateChange={setDayFilter}
+        onDateChange={handleDayChange}
         mode={dayMode}
-        onModeChange={setDayMode}
+        onModeChange={handleDayModeChange}
         recordCount={filteredRecords.length}
       />
 

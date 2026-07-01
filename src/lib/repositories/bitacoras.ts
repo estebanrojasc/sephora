@@ -92,17 +92,57 @@ export async function createBitacoraVersion(
   return doc;
 }
 
+export async function appendBitacoraRowRecordLink(
+  bitacoraId: string,
+  rowId: string,
+  recordId: string
+): Promise<Bitacora | null> {
+  const c = await col();
+  const bitacora = await findBitacoraById(bitacoraId);
+  if (!bitacora) return null;
+
+  const rows: BitacoraRow[] = bitacora.rows.map((row) => {
+    if (row.id !== rowId) return row;
+    const existing = new Set<string>();
+    if (row.linkedRecordId) existing.add(row.linkedRecordId);
+    for (const id of row.linkedRecordIds ?? []) existing.add(id);
+    existing.add(recordId);
+    const linkedRecordIds = [...existing];
+    return {
+      ...row,
+      linkedRecordId: linkedRecordIds[0],
+      linkedRecordIds,
+    };
+  });
+
+  const updated = await c.findOneAndUpdate(
+    { id: bitacoraId },
+    { $set: { rows, updatedAt: new Date().toISOString() } },
+    { returnDocument: "after" }
+  );
+  return strip(updated);
+}
+
+/** @deprecated Usar appendBitacoraRowRecordLink */
 export async function updateBitacoraRowLink(
   bitacoraId: string,
   rowId: string,
   linkedRecordId: string
+): Promise<Bitacora | null> {
+  return appendBitacoraRowRecordLink(bitacoraId, rowId, linkedRecordId);
+}
+
+export async function updateBitacoraRowSettings(
+  bitacoraId: string,
+  rowId: string,
+  settings: { allowsMultipleReviews?: boolean }
 ): Promise<Bitacora | null> {
   const c = await col();
   const bitacora = await findBitacoraById(bitacoraId);
   if (!bitacora) return null;
 
   const rows: BitacoraRow[] = bitacora.rows.map((row) =>
-    row.id === rowId ? { ...row, linkedRecordId } : row
+    row.id === rowId ? { ...row, ...settings } : row
   );
 
   const updated = await c.findOneAndUpdate(

@@ -101,12 +101,20 @@ for (const r of rows) {
 }
 
 const aFechaRows = rows.filter((r) => r.m.includes("07-2026") || r.m.includes("07/2026"));
-const alDiaRows = rows.filter((r) => r.m.includes("30-06") || r.m.includes("30/06"));
+const alDiaRows = rows.filter(
+  (r) =>
+    r.m.includes("30-06") ||
+    r.m.includes("30/06") ||
+    r.m.includes("28-06") ||
+    r.m.includes("28/06")
+);
 const ok =
-  aFechaRows.length === 3 &&
+  aFechaRows.length >= 3 &&
   alDiaRows.length >= 1 &&
-  payload.lists.cheques_a_fecha.length === 3;
+  payload.lists.cheques_a_fecha.length === 3 &&
+  rows.some((r) => r.row === 37 && alDiaRows.some((d) => d.row === 37));
 console.log(ok ? "PASS row37 expansion" : "FAIL row37 expansion", {
   aFechaRows: aFechaRows.length,
   alDiaRows: alDiaRows.length,
+  row37m: rows.find((r) => r.row === 37)?.m,
 });

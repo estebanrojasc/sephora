@@ -2,57 +2,33 @@
 /* eslint-disable */
 // @ts-nocheck
 /**
- * Migra imágenes base64 almacenadas en MongoDB → Google Cloud Storage.
+ * Migra imágenes base64 en MongoDB → Google Cloud Storage.
+ *
+ * IMPORTANTE: al terminar, Mongo deja de guardar base64. Cada images[].url y
+ * images[].processedUrl pasa a ser una clave GCS (records/{recordId}/...).
  *
  * Uso:
- *   node scripts/migrate-images-to-gcs.mjs --dry-run --mongodb-uri="mongodb+srv://..."
- *   node scripts/migrate-images-to-gcs.mjs --mongodb-uri="mongodb+srv://..."
- *   node scripts/migrate-images-to-gcs.mjs --record-id=<uuid> --mongodb-uri="..."
+ *   node scripts/migrate-images-to-gcs.mjs --dry-run --mongodb-uri="..."
+ *   node scripts/migrate-images-to-gcs.mjs --mongodb-uri="..."
  *
- * MongoDB:
- *   La URI NO se lee de .env.local (para no mezclar Atlas con dev local).
- *   Pásala con --mongodb-uri=... o define MONGODB_URI en el entorno del shell.
- *
- * GCS (desde .env.local o entorno):
- *   GCS_BUCKET, GCS_PROJECT_ID, GCS_CLIENT_EMAIL, GCS_PRIVATE_KEY
- *   — o bien GCS_SERVICE_ACCOUNT_JSON en una línea.
+ * Auditar base64 restante:
+ *   node scripts/audit-mongo-images.mjs --mongodb-uri="..."
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { MongoClient } from "mongodb";
 import { Storage } from "@google-cloud/storage";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT = path.resolve(__dirname, "..");
-const COLLECTION = "records";
-
-/** Claves que el script no carga desde .env.local */
-const SKIP_FROM_ENV_LOCAL = new Set(["MONGODB_URI"]);
-
-function loadEnvLocal() {
-  const envPath = path.join(ROOT, ".env.local");
-  if (!fs.existsSync(envPath)) return;
-  const raw = fs.readFileSync(envPath, "utf8");
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 0) continue;
-    const key = trimmed.slice(0, eq).trim();
-    if (SKIP_FROM_ENV_LOCAL.has(key)) continue;
-    let value = trimmed.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    if (!(key in process.env)) process.env[key] = value;
-  }
-}
+import path from "node:path";
+import {
+  loadEnvLocal,
+  SCRIPTS_ROOT,
+  isDataUrl,
+  isGcsObjectKey,
+  parseDataUrl,
+  mimeToExt,
+  recordImageObjectKey,
+  normalizePrivateKey,
+  maskMongoUri,
+} from "./lib/mongo-script-utils.mjs";
 
 function parseArgs() {
   const dryRun = process.argv.includes("--dry-run");
@@ -69,9 +45,7 @@ function parseArgs() {
   return { dryRun, recordId, mongodbUri };
 }
 
-function normalizePrivateKey(key) {
-  return key.replace(/\\n/g, "\n");
-}
+const COLLECTION = "records";
 
 function getGcsCredentials() {
   const json = process.env.GCS_SERVICE_ACCOUNT_JSON?.trim();
@@ -97,53 +71,34 @@ function getGcsCredentials() {
   return null;
 }
 
-function isDataUrl(ref) {
-  return typeof ref === "string" && ref.startsWith("data:");
-}
-
-function isGcsObjectKey(ref) {
-  return typeof ref === "string" && ref.startsWith("records/") && !ref.startsWith("http");
-}
-
-function parseDataUrl(dataUrl) {
-  const m = dataUrl.match(/^data:([^;]+);base64,([\s\S]*)$/);
-  if (!m) throw new Error("Data URL inválida");
-  return { mimeType: m[1], buffer: Buffer.from(m[2], "base64") };
-}
-
-function mimeToExt(mimeType) {
-  const m = mimeType.toLowerCase();
-  if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
-  if (m.includes("webp")) return "webp";
-  if (m.includes("png")) return "png";
-  return "jpg";
-}
-
-function recordImageObjectKey(recordId, imageId, variant, ext) {
-  return `records/${recordId}/${imageId}/${variant}.${ext}`;
+function assertGcsEnv() {
+  const bucket = process.env.GCS_BUCKET?.trim();
+  if (!bucket) {
+    throw new Error(
+      "GCS_BUCKET no definido. Agrégalo en .env.local en la raíz del proyecto " +
+        `(esperado: ${path.join(SCRIPTS_ROOT, ".env.local")})`
+    );
+  }
+  const creds = getGcsCredentials();
+  if (!creds) {
+    throw new Error(
+      "Credenciales GCS no definidas en .env.local (GCS_CLIENT_EMAIL + GCS_PRIVATE_KEY " +
+        "o GCS_SERVICE_ACCOUNT_JSON)."
+    );
+  }
+  return bucket;
 }
 
 function getStorage() {
-  const bucket = process.env.GCS_BUCKET?.trim();
-  if (!bucket) throw new Error("GCS_BUCKET no definido");
-
+  const bucket = assertGcsEnv();
   const credentials = getGcsCredentials();
-  const options = {};
-  if (credentials) {
-    options.projectId =
-      process.env.GCS_PROJECT_ID?.trim() ?? credentials.project_id;
-    options.credentials = {
+  const options = {
+    projectId: process.env.GCS_PROJECT_ID?.trim() ?? credentials.project_id,
+    credentials: {
       client_email: credentials.client_email,
       private_key: credentials.private_key,
-    };
-  } else if (process.env.GCS_PROJECT_ID?.trim()) {
-    options.projectId = process.env.GCS_PROJECT_ID.trim();
-  } else {
-    throw new Error(
-      "Credenciales GCS no definidas. Usa GCS_CLIENT_EMAIL + GCS_PRIVATE_KEY o GCS_SERVICE_ACCOUNT_JSON."
-    );
-  }
-
+    },
+  };
   return { storage: new Storage(options), bucketName: bucket };
 }
 
@@ -156,18 +111,27 @@ async function uploadBuffer(storage, bucketName, objectKey, buffer, contentType)
   });
 }
 
+async function objectExists(storage, bucketName, objectKey) {
+  const [exists] = await storage.bucket(bucketName).file(objectKey).exists();
+  return exists;
+}
+
 async function migrateImageRef(storage, bucketName, dataUrl, objectKey, dryRun) {
   const { mimeType, buffer } = parseDataUrl(dataUrl);
   const sizeKb = Math.round(buffer.length / 1024);
   if (dryRun) {
-    return { objectKey, sizeKb, uploaded: false };
+    return { objectKey, sizeKb, uploaded: false, skippedUpload: false };
   }
-  await uploadBuffer(storage, bucketName, objectKey, buffer, mimeType);
-  return { objectKey, sizeKb, uploaded: true };
+  const exists = await objectExists(storage, bucketName, objectKey);
+  if (!exists) {
+    await uploadBuffer(storage, bucketName, objectKey, buffer, mimeType);
+    return { objectKey, sizeKb, uploaded: true, skippedUpload: false };
+  }
+  return { objectKey, sizeKb, uploaded: false, skippedUpload: true };
 }
 
 async function main() {
-  loadEnvLocal();
+  loadEnvLocal({ skipKeys: ["MONGODB_URI"] });
   const { dryRun, recordId, mongodbUri } = parseArgs();
 
   const uri = mongodbUri?.trim() || process.env.MONGODB_URI?.trim();
@@ -195,7 +159,7 @@ async function main() {
 
   const { storage, bucketName } = getStorage();
   console.log(`Bucket: ${bucketName}`);
-  console.log(`Mongo:  ${uri.replace(/\/\/([^:]+):([^@]+)@/, "//$1:***@")}`);
+  console.log(`Mongo:  ${maskMongoUri(uri)}`);
   console.log(dryRun ? "Modo: DRY RUN (no escribe)" : "Modo: MIGRACIÓN REAL");
 
   const client = new MongoClient(uri);
@@ -242,6 +206,7 @@ async function main() {
   let migratedRecords = 0;
   let migratedImages = 0;
   let skippedImages = 0;
+  let mongoFieldsCleaned = 0;
   let totalKb = 0;
 
   for (const record of records) {
@@ -270,9 +235,11 @@ async function main() {
         next.url = key;
         totalKb += result.sizeKb;
         migratedImages += 1;
+        mongoFieldsCleaned += 1;
         recordChanged = true;
+        const tag = result.skippedUpload ? "ya en GCS, limpiando Mongo" : "subida";
         console.log(
-          `  [${record.id}] ${img.id} original → ${key} (${result.sizeKb} KB)`
+          `  [${record.id}] ${img.id} original → ${key} (${result.sizeKb} KB, ${tag})`
         );
       } else if (isGcsObjectKey(img.url)) {
         skippedImages += 1;
@@ -292,9 +259,11 @@ async function main() {
         next.processedUrl = key;
         totalKb += result.sizeKb;
         migratedImages += 1;
+        mongoFieldsCleaned += 1;
         recordChanged = true;
+        const tag = result.skippedUpload ? "ya en GCS, limpiando Mongo" : "subida";
         console.log(
-          `  [${record.id}] ${img.id} processed → ${key} (${result.sizeKb} KB)`
+          `  [${record.id}] ${img.id} processed → ${key} (${result.sizeKb} KB, ${tag})`
         );
       } else if (img.processedUrl && isGcsObjectKey(img.processedUrl)) {
         skippedImages += 1;
@@ -317,12 +286,21 @@ async function main() {
   await client.close();
 
   console.log("\n--- Resumen ---");
-  console.log(`Registros migrados: ${migratedRecords}`);
-  console.log(`Imágenes subidas:   ${migratedImages}`);
-  console.log(`Referencias ya GCS: ${skippedImages}`);
-  console.log(`Datos movidos:      ~${Math.round(totalKb / 1024)} MB`);
+  console.log(`Registros actualizados en Mongo: ${migratedRecords}`);
+  console.log(`Imágenes procesadas:            ${migratedImages}`);
+  console.log(`Campos base64 → clave GCS:    ${mongoFieldsCleaned}`);
+  console.log(`Referencias ya en GCS:        ${skippedImages}`);
+  console.log(`Datos movidos a bucket:       ~${Math.round(totalKb / 1024)} MB`);
+  if (!dryRun && migratedRecords > 0) {
+    console.log(
+      "\nMongo ya no guarda base64 en esos registros (solo claves records/...)."
+    );
+    console.log(
+      "Verifica con: node scripts/audit-mongo-images.mjs --mongodb-uri=\"...\""
+    );
+  }
   if (dryRun) {
-    console.log("\nEjecuta sin --dry-run para aplicar los cambios.");
+    console.log("\nDry-run: no se escribió GCS ni Mongo. Quita --dry-run para limpiar.");
   }
 }
 

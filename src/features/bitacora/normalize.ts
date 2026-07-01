@@ -65,7 +65,27 @@ export function normalizeBitacoraRow(input: unknown): BitacoraRow {
       : undefined,
     scheduledDate: normalizeDateField(obj.scheduledDate),
     linkedRecordId: asString(obj.linkedRecordId),
+    linkedRecordIds: normalizeLinkedRecordIds(obj),
+    allowsMultipleReviews:
+      typeof obj.allowsMultipleReviews === "boolean"
+        ? obj.allowsMultipleReviews
+        : undefined,
   };
+}
+
+function normalizeLinkedRecordIds(
+  obj: Record<string, unknown>
+): string[] | undefined {
+  const ids = new Set<string>();
+  const legacy = asString(obj.linkedRecordId);
+  if (legacy) ids.add(legacy);
+  if (Array.isArray(obj.linkedRecordIds)) {
+    for (const id of obj.linkedRecordIds) {
+      const s = asString(id);
+      if (s) ids.add(s);
+    }
+  }
+  return ids.size > 0 ? [...ids] : undefined;
 }
 
 /** Formato legible para patentes (TWBD - 63). */

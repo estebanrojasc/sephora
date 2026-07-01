@@ -160,7 +160,7 @@ export function ExtractionForm({
       },
       applyBitacoraField: (field, value, initialMeta) => {
         setState((s) => {
-          const baseMeta = s._meta?.bitacora ?? initialMeta;
+          const baseMeta = initialMeta ?? s._meta?.bitacora;
           if (!baseMeta) return s;
 
           const extractionKey = BITACORA_TO_EXTRACTION[field];
@@ -188,7 +188,7 @@ export function ExtractionForm({
       },
       applyAllBitacora: (initialMeta) => {
         setState((s) => {
-          const baseMeta = s._meta?.bitacora ?? initialMeta;
+          const baseMeta = initialMeta ?? s._meta?.bitacora;
           if (!baseMeta) return s;
           const bitacora = applyAllBitacoraSuggested(baseMeta);
           if (!bitacora) return s;

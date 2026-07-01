@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/common/PageHeader";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/admin/bitacora/BitacoraEditor";
 import { useBitacoraVersions } from "@/features/bitacora/queries";
 import { buttonVariants } from "@/components/ui/button";
+import { writeStoredBitacoraDate } from "@/lib/admin-session-storage";
 import { cn } from "@/lib/utils";
 
 export function BitacoraDatePageClient() {
@@ -26,6 +28,10 @@ export function BitacoraDatePageClient() {
 
   useEffect(() => {
     setSelectedId(undefined);
+  }, [date]);
+
+  useEffect(() => {
+    if (date) writeStoredBitacoraDate(date);
   }, [date]);
 
   const active = versions.find((v) => v.isActive);
@@ -78,6 +84,13 @@ export function BitacoraDatePageClient() {
 
   return (
     <div className="space-y-6">
+      <Link
+        href="/admin/bitacora"
+        className="inline-flex h-8 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" />
+        Volver al listado
+      </Link>
       <PageHeader
         title={title}
         description={`Fecha ${date} · versión ${selected.version}${selected.isActive ? " (activa)" : ""}`}

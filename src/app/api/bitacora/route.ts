@@ -38,6 +38,8 @@ const rowSchema = z.object({
   montoTotal: z.string().optional(),
   scheduledDate: z.string().optional(),
   linkedRecordId: z.string().optional(),
+  linkedRecordIds: z.array(z.string()).optional(),
+  allowsMultipleReviews: z.boolean().optional(),
 });
 
 const createSchema = z.object({

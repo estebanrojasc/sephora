@@ -28,7 +28,12 @@ export interface BitacoraRow {
 
   /** Fecha propia de entrega pendiente (≠ date de la bitácora). */
   scheduledDate?: string;
+  /** @deprecated Usar linkedRecordIds. Primer registro vinculado explícitamente. */
   linkedRecordId?: string;
+  /** Registros creados desde esta fila (botón «Crear registro»). */
+  linkedRecordIds?: string[];
+  /** Si true, la misma fila puede asociarse a más de una revisión. */
+  allowsMultipleReviews?: boolean;
 }
 
 export interface Bitacora {

@@ -46,6 +46,17 @@ export async function parseBitacoraApi(
   });
 }
 
+export async function updateBitacoraRowSettingsApi(
+  bitacoraId: string,
+  payload: { rowId: string; allowsMultipleReviews: boolean }
+): Promise<Bitacora> {
+  return fetchJsonNoStore<Bitacora>(`/api/bitacora/${bitacoraId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function createRecordFromBitacoraApi(payload: {
   bitacoraId: string;
   rowId: string;

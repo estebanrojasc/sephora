@@ -19,8 +19,8 @@ const decoder = new TextDecoder("utf-8");
 const encoder = new TextEncoder();
 
 const LIST_ROW = 37;
-/** Fila ancla del bloque de cheques al día (placeholders {{chq_dia_*}}). */
-const CHEQUES_AL_DIA_ROW = 39;
+/** Fila ancla: cheques a fecha ({{chq_fechas}} en plantilla). */
+const CHEQUES_A_FECHA_ROW = 39;
 const CREDITO_ROW = 71;
 /** Primera fila de datos del bloque TRANSFERENCIA (debajo de crédito). */
 const TRANSF_ROW = 73;
@@ -37,9 +37,9 @@ interface ListCellLayout {
 }
 
 const LIST_LAYOUT: ListCellLayout[] = [
-  { col: "M", list: "cheques_a_fecha", field: "fecha", type: "text", extraStyle: 37, placeholder: "{{chq_fechas}}" },
-  { col: "N", list: "cheques_a_fecha", field: "banco", type: "text", extraStyle: 38, placeholder: "{{chq_bancos}}" },
-  { col: "O", list: "cheques_a_fecha", field: "valor", type: "number", extraStyle: 39, placeholder: "{{chq_valores}}" },
+  { col: "M", list: "cheques_al_dia", field: "fecha", type: "text", extraStyle: 37, placeholder: "{{chq_dia_fechas}}" },
+  { col: "N", list: "cheques_al_dia", field: "banco", type: "text", extraStyle: 38, placeholder: "{{chq_dia_bancos}}" },
+  { col: "O", list: "cheques_al_dia", field: "valor", type: "number", extraStyle: 39, placeholder: "{{chq_dia_valores}}" },
   { col: "P", list: "rech_total", field: "fac", type: "number", extraStyle: 42, placeholder: "{{rech_tot_fac}}" },
   { col: "Q", list: "rech_total", field: "val", type: "number", extraStyle: 72, placeholder: "{{rech_tot_val}}" },
   { col: "R", list: "rech_parcial", field: "fac", type: "number", extraStyle: 44, placeholder: "{{rech_par_fac}}" },
@@ -48,11 +48,11 @@ const LIST_LAYOUT: ListCellLayout[] = [
   { col: "U", list: "negocio", field: "val", type: "number", extraStyle: 72, placeholder: "{{neg_val}}" },
 ];
 
-/** Bloque independiente para cheques al día (fila 39 en plantilla). */
-const CHEQUES_AL_DIA_LAYOUT: ListCellLayout[] = [
-  { col: "M", list: "cheques_al_dia", field: "fecha", type: "text", extraStyle: 37, placeholder: "{{chq_dia_fechas}}" },
-  { col: "N", list: "cheques_al_dia", field: "banco", type: "text", extraStyle: 38, placeholder: "{{chq_dia_bancos}}" },
-  { col: "O", list: "cheques_al_dia", field: "valor", type: "number", extraStyle: 39, placeholder: "{{chq_dia_valores}}" },
+/** Bloque cheques a fecha (fila 39 en plantilla; fila 38 = total cheques al día). */
+const CHEQUES_A_FECHA_LAYOUT: ListCellLayout[] = [
+  { col: "M", list: "cheques_a_fecha", field: "fecha", type: "text", extraStyle: 37, placeholder: "{{chq_fechas}}" },
+  { col: "N", list: "cheques_a_fecha", field: "banco", type: "text", extraStyle: 38, placeholder: "{{chq_bancos}}" },
+  { col: "O", list: "cheques_a_fecha", field: "valor", type: "number", extraStyle: 39, placeholder: "{{chq_valores}}" },
 ];
 
 /** Fila 71: primera fila del bloque CREDITO. Solo esa fila lleva placeholders. */
@@ -79,7 +79,7 @@ interface ListBlock {
   /**
    * Filas de datos con placeholders en plantilla desde anchorRow (incluye ancla).
    * Crédito: solo 71 (72 = separador antes de transferencias).
-   * Transferencias: 73–74. Cheques al día: solo 39 (38 = separador).
+   * Transferencias: 73–74. Cheques a fecha: solo 39 (38 = total cheques al día).
    */
   templateDataRows?: number;
 }
@@ -90,19 +90,19 @@ const LIST_BLOCKS: ListBlock[] = [
     layout: LIST_LAYOUT,
     count: (l) =>
       Math.max(
-        l.cheques_a_fecha?.length ?? 0,
+        l.cheques_al_dia?.length ?? 0,
         l.rech_total?.length ?? 0,
         l.rech_parcial?.length ?? 0,
         l.negocio?.length ?? 0,
         1
       ),
-    /** Solo fila 37; fila 38+ es encabezado cheques al día. */
+    /** Solo fila 37; fila 38 = total cheques al día en plantilla. */
     templateDataRows: 1,
   },
   {
-    anchorRow: CHEQUES_AL_DIA_ROW,
-    layout: CHEQUES_AL_DIA_LAYOUT,
-    count: (l) => Math.max(l.cheques_al_dia?.length ?? 0, 1),
+    anchorRow: CHEQUES_A_FECHA_ROW,
+    layout: CHEQUES_A_FECHA_LAYOUT,
+    count: (l) => Math.max(l.cheques_a_fecha?.length ?? 0, 1),
     templateDataRows: 1,
   },
   {

@@ -8,6 +8,7 @@ import {
   fetchBitacoraDates,
   fetchBitacoras,
   parseBitacoraApi,
+  updateBitacoraRowSettingsApi,
 } from "./api";
 import type { CreateBitacoraPayload } from "./types";
 
@@ -88,6 +89,24 @@ export function useCreateRecordFromBitacora() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: LIST_KEY });
       void qc.invalidateQueries({ queryKey: ["records"] });
+    },
+  });
+}
+
+export function useUpdateBitacoraRowSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      bitacoraId: string;
+      rowId: string;
+      allowsMultipleReviews: boolean;
+    }) =>
+      updateBitacoraRowSettingsApi(payload.bitacoraId, {
+        rowId: payload.rowId,
+        allowsMultipleReviews: payload.allowsMultipleReviews,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIST_KEY });
     },
   });
 }

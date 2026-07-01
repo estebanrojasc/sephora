@@ -66,14 +66,39 @@ export function listAssignableBitacoraRows(bitacora: Bitacora): BitacoraRow[] {
   );
 }
 
+/** Filas elegibles en el selector, excluyendo las ya vinculadas a otros registros. */
+export function listAvailableBitacoraRows(
+  bitacora: Bitacora,
+  options: {
+    currentRecordId: string;
+    currentRowId?: string | null;
+    /** Filas con revisión ajena que no admiten más de una. */
+    blockedRowIds?: ReadonlySet<string>;
+  }
+): BitacoraRow[] {
+  const { currentRecordId, currentRowId, blockedRowIds } = options;
+  return listAssignableBitacoraRows(bitacora).filter((row) => {
+    if (currentRowId && row.id === currentRowId) return true;
+    if (blockedRowIds?.has(row.id)) return false;
+    return true;
+  });
+}
+
 export function formatBitacoraRowLabel(row: BitacoraRow): string {
+  const recorrido = bitacoraRecorridoCanonical(row);
   const parts = [
+    recorrido ? `Rec. ${recorrido}` : undefined,
     row.conductor,
-    bitacoraRecorridoCanonical(row),
     row.patente,
     row.sector,
   ].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : `Fila ${row.id.slice(0, 8)}`;
+  if (parts.length > 0) return parts.join(" · ");
+  if (row.primerFolio) return `Folio ${row.primerFolio}`;
+  if (row.manualSubtype) return row.manualSubtype.replace(/_/g, " ");
+  if (row.territorio || row.anden) {
+    return [row.territorio, row.anden].filter(Boolean).join(" · ");
+  }
+  return "Fila sin datos";
 }
 
 export function rowToSuggested(row: BitacoraRow): BitacoraSuggestedFields {

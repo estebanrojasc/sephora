@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { BitacoraDayList } from "@/components/admin/bitacora/BitacoraDayList";
 import { fetchBitacoraDates } from "@/features/bitacora/api";
+import { readStoredBitacoraDate } from "@/lib/admin-session-storage";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,11 @@ export function BitacoraListPageClient() {
   const [dates, setDates] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastDate, setLastDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLastDate(readStoredBitacoraDate());
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,6 +67,17 @@ export function BitacoraListPageClient() {
           </button>
         </div>
       ) : null}
+      {lastDate && (dates ?? []).includes(lastDate) && (
+        <p className="text-sm">
+          Última bitácora visitada:{" "}
+          <Link
+            href={`/admin/bitacora/${lastDate}`}
+            className="font-medium text-indigo-600 hover:underline"
+          >
+            {lastDate}
+          </Link>
+        </p>
+      )}
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando bitácoras…</p>
       ) : (

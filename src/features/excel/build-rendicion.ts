@@ -47,9 +47,7 @@ function appendResumenBitacoraScalars(
     ["{{extraction._meta.bitacora.excel.patente}}", excel?.patente ?? text(e.patente), false],
   ];
   for (const [key, value, numeric] of entries) {
-    if (value != null && value !== "") {
-      scalars[key] = { value, numeric };
-    }
+    scalars[key] = { value: value ?? "", numeric };
   }
 }
 

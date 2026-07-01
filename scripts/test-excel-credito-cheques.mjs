@@ -86,19 +86,23 @@ const chqSheet = new TextDecoder().decode(
   ]
 );
 
+const m37 = getCell(chqSheet, "M37");
+const m38 = getCell(chqSheet, "M38");
+const m40 = getCell(chqSheet, "M40");
 const chqOk =
   chqPayload.lists.cheques_al_dia.length === 2 &&
   chqPayload.lists.cheques_a_fecha.length === 1 &&
-  getCell(chqSheet, "M37").includes("15") &&
-  getCell(chqSheet, "M39").includes("30") &&
-  getCell(chqSheet, "M40").includes("28");
+  (m37.includes("30") || m37.includes("28")) &&
+  (m38.includes("30") || m38.includes("28")) &&
+  m37 !== m38 &&
+  m40.includes("15");
 
 console.log(chqOk ? "PASS cheques al dia" : "FAIL cheques al dia", {
   alDia: chqPayload.lists.cheques_al_dia.length,
   aFecha: chqPayload.lists.cheques_a_fecha.length,
-  r37: getCell(chqSheet, "M37"),
-  r39: getCell(chqSheet, "M39"),
-  r40: getCell(chqSheet, "M40"),
+  r37: m37,
+  r38: m38,
+  r40: m40,
 });
 
 process.exit(credOk && chqOk ? 0 : 1);

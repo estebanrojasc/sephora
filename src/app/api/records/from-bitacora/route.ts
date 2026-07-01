@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAdminRecordFromBitacora } from "@/features/bitacora/build-extraction";
 import {
+  appendBitacoraRowRecordLink,
   findBitacoraById,
-  updateBitacoraRowLink,
 } from "@/lib/repositories/bitacoras";
 import { insertRecordFromBitacora } from "@/lib/repositories/records";
+import {
+  getRowLinkedRecordIds,
+  rowAllowsMultipleReviews,
+} from "@/features/bitacora/row-links";
 
 const bodySchema = z.object({
   bitacoraId: z.string().uuid(),
@@ -33,9 +37,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Fila no encontrada" }, { status: 404 });
   }
 
-  if (row.linkedRecordId) {
+  const existingLinks = getRowLinkedRecordIds(row);
+  if (existingLinks.length > 0 && !rowAllowsMultipleReviews(row)) {
     return NextResponse.json(
-      { message: "Ya existe un registro vinculado a esta fila", recordId: row.linkedRecordId },
+      {
+        message: "Ya existe un registro vinculado a esta fila",
+        recordId: existingLinks[0],
+      },
       { status: 409 }
     );
   }
@@ -49,7 +57,7 @@ export async function POST(request: NextRequest) {
 
   const partial = buildAdminRecordFromBitacora(row, bitacora.date, bitacora);
   const record = await insertRecordFromBitacora(partial);
-  await updateBitacoraRowLink(bitacoraId, rowId, record.id);
+  await appendBitacoraRowRecordLink(bitacoraId, rowId, record.id);
 
   return NextResponse.json({ recordId: record.id, record }, { status: 201 });
 }
