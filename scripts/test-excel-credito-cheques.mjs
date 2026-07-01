@@ -6,17 +6,26 @@ import { renderRendicionExcel } from "../src/features/excel/render.ts";
 
 const template = readFileSync("templates/RUTA CFT-ABL -2026.xlsx");
 
-function getCell(sheet, ref) {
+function getCell(sheet, strings, ref) {
   const m = sheet.match(
     new RegExp(`<c r="${ref}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`)
   );
   if (!m) return "";
   const inner = m[2] ?? "";
-  return (
-    inner.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/)?.[1] ??
-    inner.match(/<v>([^<]*)<\/v>/)?.[1] ??
-    ""
-  );
+  const vm = inner.match(/<v>(\d+)<\/v>/);
+  if (vm && m[1].includes('t="s"')) return strings[parseInt(vm[1], 10)] ?? "";
+  const isT = inner.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
+  if (isT) return isT[1];
+  const vn = inner.match(/<v>([^<]+)<\/v>/);
+  return vn ? vn[1] : "";
+}
+
+function fechaCol(sheet, strings, row) {
+  for (const col of ["K", "M"]) {
+    const v = getCell(sheet, strings, `${col}${row}`);
+    if (v && !v.includes("{{")) return { col, v };
+  }
+  return { col: "K", v: "" };
 }
 
 // --- Crédito: fila separadora vacía entre créditos y transferencia ---
@@ -32,35 +41,40 @@ credExtraction.detalle_transferencias = [
   { cliente: { valor: "Minirosket natalia", bbox: [0, 0, 0, 0] }, no_fac: { valor: "605731", bbox: [0, 0, 0, 0] }, valor: { valor: "42098", bbox: [0, 0, 0, 0] }, banco: { valor: "Banco Estado", bbox: [0, 0, 0, 0] } },
 ];
 
-const credSheet = new TextDecoder().decode(
-  unzipSync(
-    renderRendicionExcel(
-      template,
-      buildRendicionPayload({
-        id: "cred",
-        status: "saved",
-        createdAt: "",
-        updatedAt: "",
-        images: [],
-        extraction: credExtraction,
-      })
-    )
-  )["xl/worksheets/sheet1.xml"]
+const credFiles = unzipSync(
+  renderRendicionExcel(
+    template,
+    buildRendicionPayload({
+      id: "cred",
+      status: "saved",
+      createdAt: "",
+      updatedAt: "",
+      images: [],
+      extraction: credExtraction,
+    })
+  )
 );
+const credStrings = [];
+for (const m of new TextDecoder()
+  .decode(credFiles["xl/sharedStrings.xml"])
+  .matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
+  credStrings.push(m[1].replace(/<[^>]+>/g, ""));
+}
+const credSheet = new TextDecoder().decode(credFiles["xl/worksheets/sheet1.xml"]);
 
 const credOk =
-  getCell(credSheet, "M71") === "Dist. MENE Spa" &&
-  getCell(credSheet, "M74") === "CO JUANTIA" &&
-  getCell(credSheet, "L71") === "260006344" &&
-  getCell(credSheet, "L74") === "260006344" &&
-  getCell(credSheet, "M75") === "" &&
-  getCell(credSheet, "L76") === "260006344" &&
-  getCell(credSheet, "M76") === "Minirosket natalia";
+  getCell(credSheet, credStrings, "M71") === "Dist. MENE Spa" &&
+  getCell(credSheet, credStrings, "M74") === "CO JUANTIA" &&
+  getCell(credSheet, credStrings, "L71") === "260006344" &&
+  getCell(credSheet, credStrings, "L74") === "260006344" &&
+  getCell(credSheet, credStrings, "M75") === "" &&
+  getCell(credSheet, credStrings, "L76") === "260006344" &&
+  getCell(credSheet, credStrings, "M76") === "Minirosket natalia";
 
 console.log(credOk ? "PASS credito separador" : "FAIL credito separador");
 if (!credOk) {
   for (let r = 71; r <= 77; r++) {
-    console.log(`  R${r} M=${getCell(credSheet, `M${r}`) || "-"} L=${getCell(credSheet, `L${r}`) || "-"}`);
+    console.log(`  R${r} M=${getCell(credSheet, credStrings, `M${r}`) || "-"} L=${getCell(credSheet, credStrings, `L${r}`) || "-"}`);
   }
 }
 
@@ -82,29 +96,40 @@ const chqPayload = buildRendicionPayload({
   extraction: chqExtraction,
 });
 
-const chqSheet = new TextDecoder().decode(
-  unzipSync(renderRendicionExcel(template, chqPayload))[
-    "xl/worksheets/sheet1.xml"
-  ]
-);
+const chqFiles = unzipSync(renderRendicionExcel(template, chqPayload));
+const chqStrings = [];
+for (const m of new TextDecoder()
+  .decode(chqFiles["xl/sharedStrings.xml"])
+  .matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
+  chqStrings.push(m[1].replace(/<[^>]+>/g, ""));
+}
+const chqSheet = new TextDecoder().decode(chqFiles["xl/worksheets/sheet1.xml"]);
 
-const m37 = getCell(chqSheet, "M37");
-const m38 = getCell(chqSheet, "M38");
-const m40 = getCell(chqSheet, "M40");
+const r37 = fechaCol(chqSheet, chqStrings, 37);
+const r38 = fechaCol(chqSheet, chqStrings, 38);
+let aFechaVal = "";
+for (let row = 39; row <= 42; row++) {
+  const { v } = fechaCol(chqSheet, chqStrings, row);
+  if (v.includes("15")) {
+    aFechaVal = v;
+    break;
+  }
+}
+
 const chqOk =
   chqPayload.lists.cheques_al_dia.length === 2 &&
   chqPayload.lists.cheques_a_fecha.length === 1 &&
-  (m37.includes("30") || m37.includes("28")) &&
-  (m38.includes("30") || m38.includes("28")) &&
-  m37 !== m38 &&
-  m40.includes("15");
+  (r37.v.includes("30") || r37.v.includes("28")) &&
+  (r38.v.includes("30") || r38.v.includes("28")) &&
+  r37.v !== r38.v &&
+  aFechaVal.includes("15");
 
 console.log(chqOk ? "PASS cheques al dia" : "FAIL cheques al dia", {
   alDia: chqPayload.lists.cheques_al_dia.length,
   aFecha: chqPayload.lists.cheques_a_fecha.length,
-  r37: m37,
-  r38: m38,
-  r40: m40,
+  r37: r37.v,
+  r38: r38.v,
+  aFechaVal,
 });
 
 process.exit(credOk && chqOk ? 0 : 1);

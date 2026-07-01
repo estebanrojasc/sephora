@@ -9,7 +9,6 @@ import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
 import { transferBankDisplayLabel } from "@/features/records/transfer-bank";
 import { parseNumber } from "@/lib/parse-number";
 import type { BitacoraExcelFields } from "@/features/bitacora/meta";
-import { FORMULA_SCALAR_PLACEHOLDERS } from "./excel-formulas";
 
 function appendResumenBitacoraScalars(
   scalars: globalThis.Record<string, ScalarValue>,
@@ -307,7 +306,6 @@ export function mergeRendicionPayloads(
 
   const scalars: globalThis.Record<string, ScalarValue> = {};
   for (const key of keys) {
-    if (FORMULA_SCALAR_PLACEHOLDERS.has(key)) continue;
     const values = payloads
       .map((p) => p.scalars[key])
       .filter((v): v is ScalarValue => v !== undefined);

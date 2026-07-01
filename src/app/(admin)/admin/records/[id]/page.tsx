@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ScanLine } from "lucide-react";
@@ -19,6 +19,7 @@ import { ExcelExportButton } from "@/components/admin/ExcelExportButton";
 import { useRecord } from "@/features/records/queries";
 import {
   useOpenRecord,
+  useProcessAI,
   useReleaseRecord,
 } from "@/features/records/mutations";
 import { useIsDesktop } from "@/hooks/use-media-query";
@@ -47,6 +48,12 @@ export default function RecordDetailPage() {
   const { data: record, isLoading, error } = useRecord(id);
   const openRecord = useOpenRecord();
   const releaseRecord = useReleaseRecord();
+  const processAI = useProcessAI();
+  const aiPendingRef = useRef(false);
+
+  useEffect(() => {
+    aiPendingRef.current = processAI.isPending;
+  }, [processAI.isPending]);
 
   const [liveExtraction, setLiveExtraction] = useState<Extraction | null>(null);
 
@@ -120,7 +127,7 @@ export default function RecordDetailPage() {
   useEffect(() => {
     if (id) openRecord.mutate(id);
     return () => {
-      if (id) releaseRecord.mutate(id);
+      if (id && !aiPendingRef.current) releaseRecord.mutate(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -251,6 +258,7 @@ export default function RecordDetailPage() {
   const extraction = (
     <ExtractionPanel
       record={record}
+      processAI={processAI}
       onHoverBbox={handleHoverBbox}
       onLiveExtractionChange={setLiveExtraction}
     />

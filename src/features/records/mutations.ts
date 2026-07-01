@@ -9,6 +9,7 @@ import {
   updateRecordStatus,
   uploadRecordImages,
 } from "./api";
+import { patchRecordInListCaches } from "./cache";
 import { recordKeys } from "./queries";
 import type {
   ProcessAIPayload,
@@ -23,7 +24,7 @@ export function useUploadImages() {
   return useMutation({
     mutationFn: (payload: UploadPayload) => uploadRecordImages(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: recordKeys.all });
+      void qc.invalidateQueries({ queryKey: recordKeys.all });
     },
   });
 }
@@ -33,6 +34,10 @@ export function useOpenRecord() {
   return useMutation({
     mutationFn: (id: string) => openRecord(id),
     onSuccess: (data) => {
+      patchRecordInListCaches(qc, data.id, {
+        status: data.status,
+        previousStatus: data.previousStatus,
+      });
       qc.setQueryData(recordKeys.detail(data.id), (old: Record | undefined) =>
         old
           ? {
@@ -42,7 +47,6 @@ export function useOpenRecord() {
             }
           : old
       );
-      qc.invalidateQueries({ queryKey: recordKeys.all });
     },
   });
 }
@@ -52,10 +56,13 @@ export function useReleaseRecord() {
   return useMutation({
     mutationFn: (id: string) => releaseRecord(id),
     onSuccess: (data) => {
+      patchRecordInListCaches(qc, data.id, {
+        status: data.status,
+        previousStatus: undefined,
+      });
       qc.setQueryData(recordKeys.detail(data.id), (old: Record | undefined) =>
         old ? { ...old, status: data.status, previousStatus: undefined } : old
       );
-      qc.invalidateQueries({ queryKey: recordKeys.all });
     },
   });
 }
@@ -72,7 +79,14 @@ export function useProcessAI() {
     }) => processRecordAI(id, payload),
     onSuccess: ({ record }) => {
       qc.setQueryData(recordKeys.detail(record.id), record);
-      qc.invalidateQueries({ queryKey: recordKeys.all });
+      patchRecordInListCaches(qc, record.id, {
+        status: record.status,
+        previousStatus: record.previousStatus,
+        attemptCount: record.attemptCount,
+        extraction: record.extraction,
+        driverName: record.driverName,
+        currentAttemptId: record.currentAttemptId,
+      });
     },
   });
 }
@@ -89,7 +103,11 @@ export function useUpdateExtraction() {
     }) => updateRecordExtraction(id, payload),
     onSuccess: (data) => {
       qc.setQueryData(recordKeys.detail(data.id), data);
-      qc.invalidateQueries({ queryKey: recordKeys.all });
+      patchRecordInListCaches(qc, data.id, {
+        status: data.status,
+        extraction: data.extraction,
+        driverName: data.driverName,
+      });
     },
   });
 }
@@ -106,7 +124,10 @@ export function useUpdateStatus() {
     }) => updateRecordStatus(id, payload),
     onSuccess: (data) => {
       qc.setQueryData(recordKeys.detail(data.id), data);
-      qc.invalidateQueries({ queryKey: recordKeys.all });
+      patchRecordInListCaches(qc, data.id, {
+        status: data.status,
+        errorComment: data.errorComment,
+      });
     },
   });
 }

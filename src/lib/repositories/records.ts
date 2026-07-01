@@ -41,6 +41,20 @@ function stripMongoId<T extends { _id?: unknown }>(doc: T | null): T | null {
   return rest as T;
 }
 
+/** Registro con al menos una corrida de IA (aunque el estado quedó desincronizado). */
+export function recordHasAiWork(
+  record: Pick<Record, "attemptCount" | "extraction" | "currentAttemptId">
+): boolean {
+  if ((record.attemptCount ?? 0) > 0) return true;
+  if (record.currentAttemptId) return true;
+  const meta = record.extraction?._meta;
+  if (!meta) return false;
+  if (meta.processedAt) return true;
+  if ((meta.processedImageIds?.length ?? 0) > 0) return true;
+  if (meta.lastProvider || meta.source) return true;
+  return false;
+}
+
 export async function listRecords(filters?: {
   status?: RecordStatus | "all";
   deviceId?: string;
@@ -220,10 +234,7 @@ export async function releaseFromReview(id: string): Promise<Record | null> {
   if (!record) return null;
   if (record.status !== "in_review") return record;
 
-  const hasAiExtraction =
-    (record.attemptCount ?? 0) > 0 ||
-    Boolean(record.extraction?._meta?.processedAt);
-  if (hasAiExtraction) return record;
+  if (recordHasAiWork(record)) return record;
 
   const newStatus: RecordStatus = record.previousStatus ?? "uploaded";
   return patchRecord(id, {
@@ -237,6 +248,9 @@ export async function saveExtraction(
   extraction: Extraction,
   attemptId?: string
 ): Promise<Record | null> {
+  const record = await findRecordById(id);
+  if (!record) return null;
+
   const patch: Partial<Record> = { extraction };
   if (attemptId) {
     patch.currentAttemptId = attemptId;
@@ -245,6 +259,20 @@ export async function saveExtraction(
   if (conductor) {
     patch.driverName = conductor;
   }
+
+  const mergedForCheck: Record = {
+    ...record,
+    extraction,
+    currentAttemptId: attemptId ?? record.currentAttemptId,
+  };
+  if (
+    recordHasAiWork(mergedForCheck) &&
+    (record.status === "uploaded" || record.status === "errors")
+  ) {
+    patch.previousStatus = record.previousStatus ?? record.status;
+    patch.status = "in_review";
+  }
+
   return patchRecord(id, patch);
 }
 

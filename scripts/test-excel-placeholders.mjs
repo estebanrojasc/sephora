@@ -32,6 +32,20 @@ function scanPlaceholders(bytes) {
   return leftover;
 }
 
+function getCell(sheet, strings, ref) {
+  const m = sheet.match(
+    new RegExp(`<c r="${ref}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`)
+  );
+  if (!m) return "";
+  const inner = m[2] ?? "";
+  const vm = inner.match(/<v>(\d+)<\/v>/);
+  if (vm && m[1].includes('t="s"')) return strings[parseInt(vm[1], 10)] ?? "";
+  const isT = inner.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
+  if (isT) return isT[1];
+  const vn = inner.match(/<v>([^<]+)<\/v>/);
+  return vn ? vn[1] : "";
+}
+
 const e = createEmptyExtraction();
 e.fecha.valor = "30/06/2026";
 e.conductor.valor = "Juan Pérez";
@@ -89,48 +103,43 @@ const payload = buildRendicionPayload({
   extraction: e,
 });
 
-function getFormula(sheet, ref) {
-  const m = sheet.match(
-    new RegExp(`<c r="${ref}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`)
-  );
-  if (!m) return "";
-  return m[2]?.match(/<f>([^<]*)<\/f>/)?.[1] ?? "";
-}
-
-function findFormulaCell(sheet, column, pattern) {
-  for (const m of sheet.matchAll(
-    new RegExp(`<c r="${column}(\\d+)"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`, "g")
-  )) {
-    const f = m[3]?.match(/<f>([^<]*)<\/f>/)?.[1] ?? "";
-    if (pattern.test(f)) return `${column}${m[1]}`;
-  }
-  return null;
-}
-
 const out = renderRendicionExcel(template, payload);
 const leftover = scanPlaceholders(out);
 
-const sheet = new TextDecoder().decode(
-  unzipSync(out)["xl/worksheets/sheet1.xml"]
-);
+const files = unzipSync(out);
+const strings = [];
+for (const m of new TextDecoder()
+  .decode(files["xl/sharedStrings.xml"])
+  .matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
+  strings.push(m[1].replace(/<[^>]+>/g, ""));
+}
+const sheet = new TextDecoder().decode(files["xl/worksheets/sheet1.xml"]);
 
-const o38Formula =
-  getFormula(sheet, "O38") ||
-  getFormula(sheet, findFormulaCell(sheet, "O", /SUMA\(O37:O\d+\)/) ?? "");
+function getFormula(ref) {
+  const m = sheet.match(
+    new RegExp(`<c r="${ref}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`)
+  );
+  return m?.[2]?.match(/<f>([^<]*)<\/f>/)?.[1] ?? "";
+}
 
-const formulaChecks = [
-  ["O total SUMA cheques al dia", /SUMA\(O37:O\d+\)/, o38Formula],
-  ["Q65 SUMA rech total", /SUMA\(Q37:Q\d+\)/, getFormula(sheet, "Q65")],
-  ["S65 SUMA rech parcial", /SUMA\(S37:S\d+\)/, getFormula(sheet, "S65")],
-  ["U65 SUMA negocio", /SUMA\(U37:U\d+\)/, getFormula(sheet, "U65")],
+const scalarChecks = [
+  ["B11 cheques al dia", "200000", getCell(sheet, strings, "B11")],
+  ["N38 cheques al dia (detalle)", "200000", getCell(sheet, strings, "N38") || getCell(sheet, strings, "O38")],
+  ["Q65 NC rech total", "5000", getCell(sheet, strings, "Q65")],
+  ["S65 NC rech parcial", "3000", getCell(sheet, strings, "S65")],
+  ["U65 NC negocio", "2000", getCell(sheet, strings, "U65")],
 ];
 
-let formulasOk = true;
-for (const [label, expected, actual] of formulaChecks) {
-  const pass = expected.test(actual);
-  if (!pass) formulasOk = false;
-  console.log(pass ? "OK" : "FAIL", label, actual || "(sin fórmula)");
+let scalarsOk = true;
+for (const [label, expected, actual] of scalarChecks) {
+  const pass = String(expected) === String(actual);
+  if (!pass) scalarsOk = false;
+  console.log(pass ? "OK" : "FAIL", label, "expected", expected, "got", actual || "(vacío)");
 }
+
+const noFormulas =
+  !getFormula("N38") && !getFormula("Q65") && !getFormula("O38");
+console.log(noFormulas ? "OK" : "FAIL", "sin fórmulas SUMA en totales");
 
 if (leftover.length === 0) {
   console.log("PASS: ningún {{}} sin reemplazar en la hoja");
@@ -140,4 +149,4 @@ if (leftover.length === 0) {
   process.exit(1);
 }
 
-if (!formulasOk) process.exit(1);
+if (!scalarsOk || !noFormulas) process.exit(1);

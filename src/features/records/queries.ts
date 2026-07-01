@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchRecord, fetchRecords } from "./api";
 import type { RecordStatus } from "./types";
 
@@ -30,7 +30,8 @@ export function useRecords(params?: {
     queryFn: () => fetchRecords(params),
     enabled: params?.requireDeviceId ? Boolean(params.deviceId) : true,
     staleTime: params?.requireDeviceId ? 15_000 : 30_000,
-    refetchOnMount: "always",
+    placeholderData: keepPreviousData,
+    refetchOnMount: true,
     refetchIntervalInBackground: false,
     refetchInterval: !pollEnabled
       ? false

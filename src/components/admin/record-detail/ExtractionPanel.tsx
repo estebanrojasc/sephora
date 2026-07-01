@@ -57,6 +57,7 @@ import { buildBitacoraMetaBlock } from "@/features/bitacora/meta";
 
 interface ExtractionPanelProps {
   record: Record;
+  processAI: ReturnType<typeof useProcessAI>;
   onHoverBbox?: (bbox: Bbox | null) => void;
   /** Sincroniza cabecera/listados con ediciones locales del formulario. */
   onLiveExtractionChange?: (extraction: Extraction | null) => void;
@@ -64,10 +65,10 @@ interface ExtractionPanelProps {
 
 export function ExtractionPanel({
   record,
+  processAI,
   onHoverBbox,
   onLiveExtractionChange,
 }: ExtractionPanelProps) {
-  const processAI = useProcessAI();
   const updateExtraction = useUpdateExtraction();
   const updateStatus = useUpdateStatus();
 
