@@ -9,7 +9,6 @@ import type {
 } from "./build-rendicion";
 import { buildRendicionPayload, mergeRendicionPayloads } from "./build-rendicion";
 import {
-  CONSOLIDATED_LOWER_SECTION_START_ROW,
   TEMPLATE_RESUMEN_ROWS,
   scalarForPlaceholder,
   summaryColumnForRecord,
@@ -297,24 +296,32 @@ function shiftRowsInWorksheet(
 ): string {
   if (delta <= 0) return xml;
 
+  const shiftRowNum = (row: number) =>
+    row >= fromRow ? row + delta : row;
+
   const shiftCellRefs = (s: string) =>
     s.replace(/([A-Z]+)(\d+)/g, (_, col, rowStr) => {
       const row = parseInt(rowStr, 10);
-      return row >= fromRow ? `${col}${row + delta}` : `${col}${row}`;
+      return `${col}${shiftRowNum(row)}`;
     });
 
-  xml = xml.replace(/<row\b([^>]*?)\br="(\d+)"/g, (_, attrs, rowStr) => {
-    const row = parseInt(rowStr, 10);
-    const newRow = row >= fromRow ? row + delta : row;
-    return `<row${attrs}r="${newRow}"`;
+  xml = xml.replace(/<row\b([^>]*)>/g, (full, attrs) => {
+    const m = attrs.match(/\br="(\d+)"/);
+    if (!m) return full;
+    const row = parseInt(m[1]!, 10);
+    const newRow = shiftRowNum(row);
+    if (newRow === row) return full;
+    const newAttrs = attrs.replace(/\br="\d+"/, `r="${newRow}"`);
+    return `<row${newAttrs}>`;
   });
 
   xml = xml.replace(
-    /<c\b([^>]*?)\br="([A-Z]+)(\d+)"/g,
-    (_, attrs, col, rowStr) => {
+    /<c\b([^>]*)\br="([A-Z]+)(\d+)"([^>]*)(\/>|>)/g,
+    (full, before, col, rowStr, after, end) => {
       const row = parseInt(rowStr, 10);
-      const newRow = row >= fromRow ? row + delta : row;
-      return `<c${attrs}r="${col}${newRow}"`;
+      const newRow = shiftRowNum(row);
+      if (newRow === row) return full;
+      return `<c${before}r="${col}${newRow}"${after}${end}`;
     }
   );
 
@@ -671,23 +678,39 @@ function fillListRowByRef(
   );
 }
 
-/** Quita celdas cuyo r="Xnn" no coincide con la fila padre (XML inválido para Excel). */
-function normalizeWorksheetCellRefs(xml: string): string {
+/** Elimina celdas cuyo r="Xnn" no coincide con la fila padre (red de seguridad). */
+function pruneMismatchedRowCells(xml: string): string {
   return xml.replace(
     /<row\b([^>]*)\br="(\d+)"([^>]*)>([\s\S]*?)<\/row>/g,
     (full, before, rowNum, after, body) => {
       const kept: string[] = [];
       const seen = new Set<string>();
-      for (const m of body.matchAll(
-        /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g
-      )) {
-        const col = m[1]!;
-        const cellRow = m[2]!;
-        if (cellRow !== rowNum) continue;
-        const ref = `${col}${rowNum}`;
-        if (seen.has(ref)) continue;
-        seen.add(ref);
-        kept.push(m[0]);
+      let i = 0;
+      while (i < body.length) {
+        const start = body.indexOf("<c", i);
+        if (start === -1) break;
+        const selfClose = body.indexOf("/>", start);
+        const closeTag = body.indexOf("</c>", start);
+        let end: number;
+        let cellXml: string;
+        if (selfClose !== -1 && (closeTag === -1 || selfClose < closeTag)) {
+          end = selfClose + 2;
+          cellXml = body.slice(start, end);
+        } else if (closeTag !== -1) {
+          end = closeTag + 4;
+          cellXml = body.slice(start, end);
+        } else {
+          break;
+        }
+        const refMatch = cellXml.match(/\br="([A-Z]+)(\d+)"/);
+        if (refMatch) {
+          const ref = `${refMatch[1]}${refMatch[2]}`;
+          if (refMatch[2] === rowNum && !seen.has(ref)) {
+            seen.add(ref);
+            kept.push(cellXml);
+          }
+        }
+        i = end;
       }
       return `<row${before}r="${rowNum}"${after}>${kept.join("")}</row>`;
     }
@@ -892,7 +915,7 @@ function processWorksheet(
 
   xml = scrubUnfilledListPlaceholders(xml, strings, ALL_LIST_LAYOUTS);
 
-  xml = normalizeWorksheetCellRefs(xml);
+  xml = pruneMismatchedRowCells(xml);
 
   return clearStalePlaceholderCaches(xml);
 }
@@ -959,42 +982,26 @@ function fillUpperSummarySection(
 }
 
 /**
- * Hoja Resumen consolidada — dos zonas independientes:
+ * Consolidado en dos pasos (orden importa):
  *
- * 1. Filas 1–21 (resumen): una columna por registro (B, C, D…). Solo
- *    fillUpperSummarySection; no se fusionan listas ni escalares aquí.
- *
- * 2. Fila 22+ (detalle): idéntico al individual con listas fusionadas de
- *    todos los registros y totales sumados (processWorksheet).
+ * 1. Detalle (fila 22+): `renderRendicionWorksheet` con payload fusionado —
+ *    exactamente el mismo pipeline que un Excel individual.
+ * 2. Resumen (filas 1–17): una columna por registro (B, C, D…) sobrescribe
+ *    la zona superior sin tocar el detalle ya renderizado.
  */
 export function renderConsolidatedResumenWorksheet(
   template: Uint8Array,
   records: AppRecord[]
 ): string {
-  const files = unzipSync(template);
-  const sharedStringsBytes = files["xl/sharedStrings.xml"];
-  if (!sharedStringsBytes) {
-    throw new Error("La plantilla no contiene xl/sharedStrings.xml");
-  }
-  const sharedStringsXml = decoder.decode(sharedStringsBytes);
-  const strings = parseSharedStrings(sharedStringsXml);
-  const worksheetBytes = files["xl/worksheets/sheet1.xml"];
-  if (!worksheetBytes) {
-    throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
+  if (records.length === 0) {
+    throw new Error("Se requiere al menos un registro");
   }
 
   const payloads = records.map((r) => buildRendicionPayload(r));
   const merged = mergeRendicionPayloads(payloads);
 
-  let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
-
-  // Zona 1: resumen superior por registro (columnas B+)
+  let xml = renderRendicionWorksheet(template, merged);
   xml = fillUpperSummarySection(xml, records, payloads);
-
-  // Zona 2: detalle inferior = mismo pipeline que rendición individual
-  xml = processWorksheet(xml, merged, strings, {
-    scalarMinRow: CONSOLIDATED_LOWER_SECTION_START_ROW,
-  });
 
   return clearStalePlaceholderCaches(xml);
 }
@@ -1021,31 +1028,25 @@ export function renderRendicionExcel(
   template: Uint8Array,
   payload: RendicionPayload
 ): Uint8Array {
+  const sheetXml = renderRendicionWorksheet(template, payload);
+  return packageRendicionWorkbook(template, sheetXml);
+}
+
+/** Empaqueta una hoja ya renderizada en el .xlsx (individual o consolidado). */
+export function packageRendicionWorkbook(
+  template: Uint8Array,
+  sheetXml: string
+): Uint8Array {
+  if (!sheetXml.trim()) {
+    throw new Error("La hoja renderizada está vacía");
+  }
+
   const files = unzipSync(template);
+  files["xl/worksheets/sheet1.xml"] = encoder.encode(sheetXml);
 
-  const sharedStringsBytes = files["xl/sharedStrings.xml"];
-  if (!sharedStringsBytes) {
-    throw new Error("La plantilla no contiene xl/sharedStrings.xml");
-  }
-  const sharedStringsXml = decoder.decode(sharedStringsBytes);
-  const strings = parseSharedStrings(sharedStringsXml);
-
-  const worksheetPath = "xl/worksheets/sheet1.xml";
-  const worksheetBytes = files[worksheetPath];
-  if (!worksheetBytes) {
-    throw new Error("La plantilla no contiene xl/worksheets/sheet1.xml");
-  }
-  const processed = processWorksheet(
-    decoder.decode(worksheetBytes),
-    payload,
-    strings
-  );
-  files[worksheetPath] = encoder.encode(processed);
-
-  const workbookPath = "xl/workbook.xml";
-  const workbookBytes = files[workbookPath];
+  const workbookBytes = files["xl/workbook.xml"];
   if (workbookBytes) {
-    files[workbookPath] = encoder.encode(
+    files["xl/workbook.xml"] = encoder.encode(
       forceFullRecalc(decoder.decode(workbookBytes))
     );
   }

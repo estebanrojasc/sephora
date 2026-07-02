@@ -84,11 +84,10 @@ export const RESUMEN_UPPER_SCALAR_PLACEHOLDERS = new Set(
 );
 
 /**
- * En consolidado, el resumen superior (filas 1–17) se rellena por registro en
- * fillUpperSummarySection. Los escalares fusionados solo deben aplicarse desde
- * esta fila hacia abajo (detalle + totales inferiores).
+ * Fila 22 en adelante: detalle (mismo layout que rendición individual).
+ * Filas 1–17: resumen por registro en columnas B, C, D…
  */
-export const CONSOLIDATED_LOWER_SECTION_START_ROW = 22;
+export const CONSOLIDATED_DETAIL_START_ROW = 22;
 
 const RESUMEN_SCALAR_FALLBACKS: Record<string, string[]> = {
   "{{extraction._meta.bitacora.excel.conductor}}": [

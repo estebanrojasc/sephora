@@ -1,10 +1,15 @@
 import { unzipSync, zipSync } from "fflate";
 import type { Record as AppRecord } from "@/features/records/types";
 import { formatChileanDate, parseToIso } from "@/lib/date-utils";
-import { stripCalcChainFromPackage, renderConsolidatedResumenWorksheet } from "./render";
+import {
+  renderConsolidatedResumenWorksheet,
+  stripCalcChainFromPackage,
+} from "./render";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+const MIN_SHEET_XML_LENGTH = 5_000;
 
 /** Libro consolidado: una sola hoja Resumen (columnas B+ por registro + detalle fusionado). */
 export function buildConsolidatedWorkbook(
@@ -15,13 +20,18 @@ export function buildConsolidatedWorkbook(
     throw new Error("Se requiere al menos un registro");
   }
 
+  const sheetXml = renderConsolidatedResumenWorksheet(template, records);
+  if (sheetXml.length < MIN_SHEET_XML_LENGTH) {
+    throw new Error(
+      `La hoja consolidada está vacía o incompleta (${sheetXml.length} bytes de XML)`
+    );
+  }
+
   const baseFiles = unzipSync(template);
   const files: Record<string, Uint8Array> = { ...baseFiles };
   const sheetRelsTemplate = baseFiles["xl/worksheets/_rels/sheet1.xml.rels"];
 
-  files["xl/worksheets/sheet1.xml"] = encoder.encode(
-    renderConsolidatedResumenWorksheet(template, records)
-  );
+  files["xl/worksheets/sheet1.xml"] = encoder.encode(sheetXml);
   if (sheetRelsTemplate) {
     files["xl/worksheets/_rels/sheet1.xml.rels"] = sheetRelsTemplate;
   }
@@ -67,7 +77,13 @@ export function buildConsolidatedWorkbook(
 
   stripCalcChainFromPackage(files);
 
-  return zipSync(files, { level: 6 });
+  const out = zipSync(files, { level: 6 });
+  if (out.byteLength < 10_000) {
+    throw new Error(
+      `El libro consolidado es demasiado pequeño (${out.byteLength} bytes)`
+    );
+  }
+  return out;
 }
 
 function consolidatedDateLabel(records: AppRecord[]): string {
