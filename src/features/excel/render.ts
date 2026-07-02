@@ -410,8 +410,9 @@ function buildExtraListRowXml(
 }
 
 function cellAttrsFromXml(cellXml: string): string {
-  const m = cellXml.match(/^<c([^>/]+)(?:\/>|>)/);
-  return m?.[1] ?? "";
+  const m = cellXml.match(/^<c([^>/]*)(?:\/>|>)/);
+  // ✅ Elimina espacios en blanco alrededor de los atributos
+  return m ? m[1].replace(/\s+/g, " ").trim() : "";
 }
 
 /** Itera elementos `<c>` de una fila sin asumir orden de atributos. */
@@ -442,6 +443,11 @@ function parseRowCellElements(body: string): string[] {
 function cellColFromXml(cellXml: string): string | null {
   const m = cellXml.match(/\br="([A-Z]+)\d+"/);
   return m?.[1] ?? null;
+}
+
+function getColumnFromCellXml(cellXml: string): string | null {
+  const m = cellXml.match(/\br="([A-Z]+)\d+"/);
+  return m ? m[1] : null;
 }
 
 function cellRefFromXml(cellXml: string): string | null {
@@ -705,7 +711,9 @@ function fillListRowByRef(
   );
   const rowMatch = xml.match(rowRe);
 
-  const layoutCells = layout.map((cell) => {
+  // 1. Generar celdas del layout
+  const layoutCellsMap = new Map<string, string>();
+  for (const cell of layout) {
     const scalar: ScalarValue = {
       value: listValueAt(lists, cell, dataIndex) ?? "",
       numeric: cell.type === "number",
@@ -713,42 +721,46 @@ function fillListRowByRef(
     const style = rowMatch
       ? styleForCellInRow(xml, rowNum, cell.col, cell.extraStyle)
       : cell.extraStyle;
-    return buildCellXml(
-      `${cell.col}${rowNum}`,
-      style,
-      scalar.value,
-      cell.type
+    layoutCellsMap.set(
+      cell.col,
+      buildCellXml(`${cell.col}${rowNum}`, style, scalar.value, cell.type)
     );
-  });
+  }
 
+  // Añadir etiqueta de fila (ej. CREDITO) si aplica
   if (rowLabel) {
-    const rStyle = rowMatch
-      ? styleForCellInRow(xml, rowNum, "R", 177)
-      : 177;
-    layoutCells.push(buildCellXml(`R${rowNum}`, rStyle, rowLabel, "text"));
+    const rStyle = rowMatch ? styleForCellInRow(xml, rowNum, "R", 177) : 177;
+    layoutCellsMap.set("R", buildCellXml(`R${rowNum}`, rStyle, rowLabel, "text"));
   }
 
   if (!rowMatch) {
-    const rowXml = `<row r="${rowNum}" spans="1:23">${layoutCells.join("")}</row>`;
+    // Si la fila no existe, crearla ordenada
+    const sortedCells = [...layoutCellsMap.values()]; 
+    const rowXml = `<row r="${rowNum}" spans="1:23">${sortedCells.join("")}</row>`;
     return insertRowIntoSheet(xml, rowNum, rowXml);
   }
 
-  const preserved: string[] = [];
+  // 2. Extraer celdas preservadas válidas
+  const preservedCellsMap = new Map<string, string>();
   for (const cellXml of parseRowCellElements(rowMatch[2]!)) {
     const col = cellColFromXml(cellXml);
     const ref = cellRefFromXml(cellXml);
-    
-    // ✅ CORRECCIÓN: Validar coincidencia exacta de número de fila
     const refRowStr = ref ? ref.replace(/^[A-Z]+/, "") : null;
-    if (!col || !ref || refRowStr !== rowStr) continue;
     
-    if (layoutByCol.has(col)) continue;
+    if (!col || !ref || refRowStr !== rowStr) continue;
+    if (layoutByCol.has(col)) continue; // El layout sobrescribe esto
     if (rowLabel && col === "R") continue;
-    preserved.push(cellXml);
+    
+    preservedCellsMap.set(col, cellXml);
   }
 
+  // 3. Fusionar y ORDENAR alfabéticamente por columna
+  const allCellsMap = new Map([...preservedCellsMap, ...layoutCellsMap]);
+  const sortedCols = [...allCellsMap.keys()].sort();
+  const finalCells = sortedCols.map((col) => allCellsMap.get(col)!);
+
   return xml.replace(rowRe, (_full, open, _body, close) =>
-    `${open}${layoutCells.join("")}${preserved.join("")}${close}`
+    `${open}${finalCells.join("")}${close}`
   );
 }
 
@@ -1000,19 +1012,46 @@ function writeCellAt(
   const built = buildCellXml(ref, style, scalar.value, type);
 
   if (found) {
+    // Reemplazo simple si ya existe
     return xml.slice(0, found.start) + built + xml.slice(found.end);
   }
+
+  const colMatch = ref.match(/^([A-Z]+)/);
+  if (!colMatch) return xml;
+  const targetCol = colMatch[1];
 
   const rowRe = new RegExp(
     `(<row\\b[^>]*\\br="${rowNum}"[^>]*>)([\\s\\S]*?)(</row>)`
   );
-  if (rowRe.test(xml)) {
-    rowRe.lastIndex = 0;
-    return xml.replace(rowRe, (_full, open, body, close) =>
-      `${open}${built}${body}${close}`
+  const rowMatchFull = xml.match(rowRe);
+  
+  if (rowMatchFull) {
+    // La fila existe, pero la celda no. Debemos insertarla en la posición correcta.
+    const existingCells = parseRowCellElements(rowMatchFull[2]!);
+    const newCells: string[] = [];
+    let inserted = false;
+
+    for (const cellXml of existingCells) {
+      const col = getColumnFromCellXml(cellXml);
+      // Insertar antes de la primera columna que sea alfabéticamente mayor
+      if (!inserted && col && col > targetCol) {
+        newCells.push(built);
+        inserted = true;
+      }
+      newCells.push(cellXml);
+    }
+
+    // Si es la última columna, añadirla al final
+    if (!inserted) {
+      newCells.push(built);
+    }
+
+    return xml.replace(rowRe, (_full, open, _body, close) =>
+      `${open}${newCells.join("")}${close}`
     );
   }
 
+  // La fila no existe, crearla nueva
   const newRow = `<row r="${rowNum}" spans="1:23">${built}</row>`;
   return insertRowIntoSheet(xml, rowNum, newRow);
 }
