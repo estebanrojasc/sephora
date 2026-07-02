@@ -409,6 +409,70 @@ function buildExtraListRowXml(
   return `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${cells.join("")}</row>`;
 }
 
+function cellAttrsFromXml(cellXml: string): string {
+  const m = cellXml.match(/^<c([^>/]+)(?:\/>|>)/);
+  return m?.[1] ?? "";
+}
+
+/** Itera elementos `<c>` de una fila sin asumir orden de atributos. */
+function parseRowCellElements(body: string): string[] {
+  const cells: string[] = [];
+  let i = 0;
+  while (i < body.length) {
+    const start = body.indexOf("<c", i);
+    if (start === -1) break;
+    const next = body[start + 2];
+    if (next !== " " && next !== ">") {
+      i = start + 2;
+      continue;
+    }
+    const gt = body.indexOf(">", start);
+    if (gt === -1) break;
+    const end =
+      gt > 0 && body[gt - 1] === "/"
+        ? gt + 1
+        : body.indexOf("</c>", gt) + 4;
+    if (end <= gt) break;
+    cells.push(body.slice(start, end));
+    i = end;
+  }
+  return cells;
+}
+
+function cellColFromXml(cellXml: string): string | null {
+  const m = cellXml.match(/\br="([A-Z]+)\d+"/);
+  return m?.[1] ?? null;
+}
+
+function cellRefFromXml(cellXml: string): string | null {
+  const m = cellXml.match(/\br="([A-Z]+)(\d+)"/);
+  return m ? `${m[1]}${m[2]}` : null;
+}
+
+function setCellRefXml(cellXml: string, ref: string): string {
+  return cellXml.replace(/\br="[A-Z]+\d+"/, `r="${ref}"`);
+}
+
+/**
+ * Quita celdas cuyo r="Xnn" no coincide con la fila padre y deduplica por
+ * columna. Excel elimina estas celdas al abrir el archivo.
+ */
+function normalizeWorksheetRows(xml: string): string {
+  return xml.replace(
+    /<row\b([^>]*)\br="(\d+)"([^>]*)>([\s\S]*?)<\/row>/g,
+    (_full, before, rowNum, after, body) => {
+      const byCol = new Map<string, string>();
+      for (const cellXml of parseRowCellElements(body)) {
+        const ref = cellRefFromXml(cellXml);
+        if (!ref || !ref.endsWith(rowNum)) continue;
+        const col = cellColFromXml(cellXml);
+        if (col) byCol.set(col, cellXml);
+      }
+      return `<row${before}r="${rowNum}"${after}>${[...byCol.values()].join("")}</row>`;
+    }
+  );
+}
+
 function extractRowXml(xml: string, rowNum: number): string | null {
   const re = new RegExp(`<row\\b[^>]*\\br="${rowNum}"[^>]*>[\\s\\S]*?<\\/row>`);
   return xml.match(re)?.[0] ?? null;
@@ -418,10 +482,10 @@ function extractColumnStyles(xml: string, rowNum: number): Map<string, number> {
   const map = new Map<string, number>();
   const rowXml = extractRowXml(xml, rowNum);
   if (!rowXml) return map;
-  for (const m of rowXml.matchAll(
-    /<c r="([A-Z]+)\d+"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g
-  )) {
-    map.set(m[1]!, cellStyleFromAttrs(m[2]!));
+  const body = rowXml.match(/<row\b[^>]*>([\s\S]*)<\/row>/)?.[1] ?? "";
+  for (const cellXml of parseRowCellElements(body)) {
+    const col = cellColFromXml(cellXml);
+    if (col) map.set(col, cellStyleFromAttrs(cellAttrsFromXml(cellXml)));
   }
   return map;
 }
@@ -508,12 +572,14 @@ function cloneListRowFromAnchor(
   );
 
   const cells: string[] = [];
-  for (const cellMatch of anchorXml.matchAll(
-    /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g
-  )) {
-    const col = cellMatch[1]!;
-    const attrs = cellMatch[3]!;
-    const inner = cellMatch[4] ?? "";
+  const anchorBody = anchorXml.match(/<row\b[^>]*>([\s\S]*)<\/row>/)?.[1] ?? "";
+  for (const cellMatchXml of parseRowCellElements(anchorBody)) {
+    const col = cellColFromXml(cellMatchXml);
+    if (!col) continue;
+    const attrs = cellAttrsFromXml(cellMatchXml);
+    const inner = cellMatchXml.includes("</c>")
+      ? cellMatchXml.replace(/^<c[^>]*>/, "").replace(/<\/c>$/, "")
+      : "";
     const ref = `${col}${targetRow}`;
     const layoutCell = layoutByCol.get(col);
 
@@ -538,7 +604,7 @@ function cloneListRowFromAnchor(
     }
 
     // Celda fuera del layout (contenido estático como "F/.", "CREDITO", bordes, etc.)
-    if (cellMatch[0].endsWith("/>")) {
+    if (cellMatchXml.endsWith("/>")) {
       cells.push(`<c r="${ref}" s="${resolvedStyle}"/>`);
       continue;
     }
@@ -558,10 +624,8 @@ function cloneListRowFromAnchor(
     }
 
     // Celdas no-layout con contenido estático (ej. "F/.", shared strings, inlineStr).
-    // Copiar el XML original verbatim, solo actualizando el ref y el estilo.
-    // NO convertir a inlineStr para preservar el tipo de celda original.
     let cloneXml = shiftCellRefInFragment(
-      cellMatch[0].replace(new RegExp(`<c r="${col}\\d+"`), `<c r="${ref}"`),
+      setCellRefXml(cellMatchXml, ref),
       anchorRow,
       targetRow
     );
@@ -606,10 +670,15 @@ function styleForCellInRow(
   col: string,
   fallback: number
 ): number {
-  const m = xml.match(
-    new RegExp(`<c r="${col}${rowNum}"([^>/]*)(?:/>|>[\\s\\S]*?<\\/c>)`)
-  );
-  return m ? cellStyleFromAttrs(m[1]!) : fallback;
+  const rowXml = extractRowXml(xml, rowNum);
+  if (!rowXml) return fallback;
+  const body = rowXml.match(/<row\b[^>]*>([\s\S]*)<\/row>/)?.[1] ?? "";
+  for (const cellXml of parseRowCellElements(body)) {
+    if (cellColFromXml(cellXml) === col) {
+      return cellStyleFromAttrs(cellAttrsFromXml(cellXml));
+    }
+  }
+  return fallback;
 }
 
 /**
@@ -661,15 +730,13 @@ function fillListRowByRef(
   }
 
   const preserved: string[] = [];
-  for (const cellMatch of rowMatch[2]!.matchAll(
-    /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g
-  )) {
-    const col = cellMatch[1]!;
-    const cellRow = cellMatch[2]!;
-    if (cellRow !== rowStr) continue;
+  for (const cellXml of parseRowCellElements(rowMatch[2]!)) {
+    const col = cellColFromXml(cellXml);
+    const ref = cellRefFromXml(cellXml);
+    if (!col || !ref || !ref.endsWith(rowStr)) continue;
     if (layoutByCol.has(col)) continue;
     if (rowLabel && col === "R") continue;
-    preserved.push(cellMatch[0]);
+    preserved.push(cellXml);
   }
 
   return xml.replace(rowRe, (_full, open, _body, close) =>
@@ -875,12 +942,36 @@ function processWorksheet(
 
   xml = scrubUnfilledListPlaceholders(xml, strings, ALL_LIST_LAYOUTS);
 
+  xml = normalizeWorksheetRows(xml);
+
   return clearStalePlaceholderCaches(xml);
 }
 
 function cellStyleFromAttrs(attrs: string): number {
   const m = attrs.match(/\bs="(\d+)"/);
   return m ? parseInt(m[1], 10) : 0;
+}
+
+function findCellXmlInRow(
+  xml: string,
+  rowNum: number,
+  ref: string
+): { cellXml: string; start: number; end: number } | null {
+  const rowXml = extractRowXml(xml, rowNum);
+  if (!rowXml) return null;
+  const rowStart = xml.indexOf(rowXml);
+  if (rowStart === -1) return null;
+  const bodyStart = rowXml.indexOf(">") + 1;
+  const body = rowXml.slice(bodyStart, rowXml.lastIndexOf("</row>"));
+  let offset = 0;
+  for (const cellXml of parseRowCellElements(body)) {
+    if (cellRefFromXml(cellXml) === ref) {
+      const start = rowStart + bodyStart + offset;
+      return { cellXml, start, end: start + cellXml.length };
+    }
+    offset += cellXml.length;
+  }
+  return null;
 }
 
 function writeCellAt(
@@ -890,19 +981,20 @@ function writeCellAt(
   fallbackStyle?: number
 ): string {
   const type = scalar.numeric ? ("number" as const) : ("text" as const);
-  const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const cellRe = new RegExp(
-    `<c r="${escapedRef}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`
-  );
-  const match = xml.match(cellRe);
-  const style = match ? cellStyleFromAttrs(match[1]) : (fallbackStyle ?? 0);
-  const built = buildCellXml(ref, style, scalar.value, type);
-  if (match) {
-    return xml.replace(cellRe, built);
-  }
   const rowMatch = ref.match(/(\d+)$/);
   if (!rowMatch) return xml;
-  const rowNum = rowMatch[1]!;
+  const rowNum = parseInt(rowMatch[1]!, 10);
+
+  const found = findCellXmlInRow(xml, rowNum, ref);
+  const style = found
+    ? cellStyleFromAttrs(cellAttrsFromXml(found.cellXml))
+    : (fallbackStyle ?? 0);
+  const built = buildCellXml(ref, style, scalar.value, type);
+
+  if (found) {
+    return xml.slice(0, found.start) + built + xml.slice(found.end);
+  }
+
   const rowRe = new RegExp(
     `(<row\\b[^>]*\\br="${rowNum}"[^>]*>)([\\s\\S]*?)(</row>)`
   );
@@ -913,9 +1005,8 @@ function writeCellAt(
     );
   }
 
-  const row = parseInt(rowNum, 10);
-  const newRow = `<row r="${row}" spans="1:23" x14ac:dyDescent="0.3">${built}</row>`;
-  return insertRowIntoSheet(xml, row, newRow);
+  const newRow = `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${built}</row>`;
+  return insertRowIntoSheet(xml, rowNum, newRow);
 }
 
 /** Resumen superior (filas 1–17): un registro por columna B, C, D… */
@@ -962,6 +1053,7 @@ export function renderConsolidatedResumenWorksheet(
 
   let xml = renderRendicionWorksheet(template, merged);
   xml = fillUpperSummarySection(xml, records, payloads);
+  xml = normalizeWorksheetRows(xml);
 
   return clearStalePlaceholderCaches(xml);
 }
