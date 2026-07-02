@@ -593,6 +593,23 @@ function worksheetHasRow(xml: string, rowNum: number): boolean {
   return new RegExp(`<row\\b[^>]*\\br="${rowNum}"`).test(xml);
 }
 
+function styleForCellInRow(
+  xml: string,
+  rowNum: number,
+  col: string,
+  fallback: number
+): number {
+  const m = xml.match(
+    new RegExp(`<c r="${col}${rowNum}"([^>/]*)(?:/>|>[\\s\\S]*?<\\/c>)`)
+  );
+  return m ? cellStyleFromAttrs(m[1]!) : fallback;
+}
+
+/**
+ * Rellena una fila de lista reemplazando columnas del layout y conservando el
+ * resto de celdas válidas (fórmulas, bordes). Evita el patrón de writeCellAt
+ * que antepone celdas y deja refs huérfanas (p. ej. J105 dentro de row 72).
+ */
 function fillListRowByRef(
   xml: string,
   rowNum: number,
@@ -601,23 +618,80 @@ function fillListRowByRef(
   dataIndex: number,
   rowLabel?: string
 ): string {
-  for (const cell of layout) {
-    const ref = `${cell.col}${rowNum}`;
+  const layoutByCol = new Map(layout.map((l) => [l.col, l]));
+  const rowStr = String(rowNum);
+  const rowRe = new RegExp(
+    `(<row\\b[^>]*\\br="${rowStr}"[^>]*>)([\\s\\S]*?)(<\\/row>)`
+  );
+  const rowMatch = xml.match(rowRe);
+
+  const layoutCells = layout.map((cell) => {
     const scalar: ScalarValue = {
       value: listValueAt(lists, cell, dataIndex) ?? "",
       numeric: cell.type === "number",
     };
-    xml = writeCellAt(xml, ref, scalar, cell.extraStyle);
-  }
-  if (rowLabel) {
-    xml = writeCellAt(
-      xml,
-      `R${rowNum}`,
-      { value: rowLabel, numeric: false },
-      177
+    const style = rowMatch
+      ? styleForCellInRow(xml, rowNum, cell.col, cell.extraStyle)
+      : cell.extraStyle;
+    return buildCellXml(
+      `${cell.col}${rowNum}`,
+      style,
+      scalar.value,
+      cell.type
     );
+  });
+
+  if (rowLabel) {
+    const rStyle = rowMatch
+      ? styleForCellInRow(xml, rowNum, "R", 177)
+      : 177;
+    layoutCells.push(buildCellXml(`R${rowNum}`, rStyle, rowLabel, "text"));
   }
-  return xml;
+
+  if (!rowMatch) {
+    const rowXml = `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${layoutCells.join("")}</row>`;
+    return insertRowIntoSheet(xml, rowNum, rowXml);
+  }
+
+  const preserved: string[] = [];
+  for (const cellMatch of rowMatch[2]!.matchAll(
+    /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g
+  )) {
+    const col = cellMatch[1]!;
+    const cellRow = cellMatch[2]!;
+    if (cellRow !== rowStr) continue;
+    if (layoutByCol.has(col)) continue;
+    if (rowLabel && col === "R") continue;
+    preserved.push(cellMatch[0]);
+  }
+
+  return xml.replace(
+    rowRe,
+    `$1${layoutCells.join("")}${preserved.join("")}$3`
+  );
+}
+
+/** Quita celdas cuyo r="Xnn" no coincide con la fila padre (XML inválido para Excel). */
+function normalizeWorksheetCellRefs(xml: string): string {
+  return xml.replace(
+    /<row\b([^>]*)\br="(\d+)"([^>]*)>([\s\S]*?)<\/row>/g,
+    (full, before, rowNum, after, body) => {
+      const kept: string[] = [];
+      const seen = new Set<string>();
+      for (const m of body.matchAll(
+        /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g
+      )) {
+        const col = m[1]!;
+        const cellRow = m[2]!;
+        if (cellRow !== rowNum) continue;
+        const ref = `${col}${rowNum}`;
+        if (seen.has(ref)) continue;
+        seen.add(ref);
+        kept.push(m[0]);
+      }
+      return `<row${before}r="${rowNum}"${after}>${kept.join("")}</row>`;
+    }
+  );
 }
 
 function expandListBlock(
@@ -818,6 +892,8 @@ function processWorksheet(
 
   xml = scrubUnfilledListPlaceholders(xml, strings, ALL_LIST_LAYOUTS);
 
+  xml = normalizeWorksheetCellRefs(xml);
+
   return clearStalePlaceholderCaches(xml);
 }
 
@@ -883,9 +959,13 @@ function fillUpperSummarySection(
 }
 
 /**
- * Hoja Resumen híbrida:
- * - Filas 1–21: un registro por columna (B, C, D…) como antes.
- * - Fila 22+: mismo motor que el individual con listas fusionadas (todas las líneas).
+ * Hoja Resumen consolidada — dos zonas independientes:
+ *
+ * 1. Filas 1–21 (resumen): una columna por registro (B, C, D…). Solo
+ *    fillUpperSummarySection; no se fusionan listas ni escalares aquí.
+ *
+ * 2. Fila 22+ (detalle): idéntico al individual con listas fusionadas de
+ *    todos los registros y totales sumados (processWorksheet).
  */
 export function renderConsolidatedResumenWorksheet(
   template: Uint8Array,
@@ -907,7 +987,11 @@ export function renderConsolidatedResumenWorksheet(
   const merged = mergeRendicionPayloads(payloads);
 
   let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
+
+  // Zona 1: resumen superior por registro (columnas B+)
   xml = fillUpperSummarySection(xml, records, payloads);
+
+  // Zona 2: detalle inferior = mismo pipeline que rendición individual
   xml = processWorksheet(xml, merged, strings, {
     scalarMinRow: CONSOLIDATED_LOWER_SECTION_START_ROW,
   });
