@@ -406,7 +406,7 @@ function buildExtraListRowXml(
       cell.type
     )
   );
-  return `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${cells.join("")}</row>`;
+  return `<row r="${rowNum}" spans="1:23">${cells.join("")}</row>`;
 }
 
 function cellAttrsFromXml(cellXml: string): string {
@@ -464,7 +464,11 @@ function normalizeWorksheetRows(xml: string): string {
       const byCol = new Map<string, string>();
       for (const cellXml of parseRowCellElements(body)) {
         const ref = cellRefFromXml(cellXml);
-        if (!ref || !ref.endsWith(rowNum)) continue;
+        // ✅ CORRECCIÓN: Extraer solo los dígitos de la referencia (ej. "A15" -> "15")
+        const refRowNum = ref ? ref.replace(/^[A-Z]+/, "") : null;
+        
+        if (!ref || refRowNum !== rowNum) continue;
+        
         const col = cellColFromXml(cellXml);
         if (col) byCol.set(col, cellXml);
       }
@@ -638,7 +642,7 @@ function cloneListRowFromAnchor(
     cells.push(cloneXml);
   }
 
-  return `<row r="${targetRow}"${rowAttrs}${spans} x14ac:dyDescent="0.3">${cells.join("")}</row>`;
+  return `<row r="${targetRow}"${rowAttrs}${spans}>${cells.join("")}</row>`;
 }
 
 function appendMergeCells(xml: string, refs: string[]): string {
@@ -725,7 +729,7 @@ function fillListRowByRef(
   }
 
   if (!rowMatch) {
-    const rowXml = `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${layoutCells.join("")}</row>`;
+    const rowXml = `<row r="${rowNum}" spans="1:23">${layoutCells.join("")}</row>`;
     return insertRowIntoSheet(xml, rowNum, rowXml);
   }
 
@@ -733,7 +737,11 @@ function fillListRowByRef(
   for (const cellXml of parseRowCellElements(rowMatch[2]!)) {
     const col = cellColFromXml(cellXml);
     const ref = cellRefFromXml(cellXml);
-    if (!col || !ref || !ref.endsWith(rowStr)) continue;
+    
+    // ✅ CORRECCIÓN: Validar coincidencia exacta de número de fila
+    const refRowStr = ref ? ref.replace(/^[A-Z]+/, "") : null;
+    if (!col || !ref || refRowStr !== rowStr) continue;
+    
     if (layoutByCol.has(col)) continue;
     if (rowLabel && col === "R") continue;
     preserved.push(cellXml);
@@ -1005,7 +1013,7 @@ function writeCellAt(
     );
   }
 
-  const newRow = `<row r="${rowNum}" spans="1:23" x14ac:dyDescent="0.3">${built}</row>`;
+  const newRow = `<row r="${rowNum}" spans="1:23">${built}</row>`;
   return insertRowIntoSheet(xml, rowNum, newRow);
 }
 
