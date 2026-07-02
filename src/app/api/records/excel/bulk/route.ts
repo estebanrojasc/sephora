@@ -15,6 +15,8 @@ const TEMPLATE_PATH = path.join(
   "RUTA CFT-ABL -2026.xlsx"
 );
 
+const RENDICION_RENDER_VERSION = "2026-07-02";
+
 const MAX_RECORDS = 50;
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest) {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`,
       "Cache-Control": "no-store",
+      "X-Rendicion-Render": RENDICION_RENDER_VERSION,
     },
   });
 }

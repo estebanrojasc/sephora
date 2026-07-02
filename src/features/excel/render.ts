@@ -677,7 +677,13 @@ function normalizeRowCellRefs(xml: string): string {
     (full, before, rowNum, after, inner) => {
       const fixed = inner.replace(
         /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g,
-        (cell, col, _cellRow, attrs, content) => {
+        (
+          _cell: string,
+          col: string,
+          _cellRow: string,
+          attrs: string,
+          content: string | undefined
+        ) => {
           const ref = `${col}${rowNum}`;
           if (content === undefined) return `<c r="${ref}"${attrs}/>`;
           const body = content.replace(

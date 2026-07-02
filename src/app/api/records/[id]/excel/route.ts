@@ -16,6 +16,9 @@ const TEMPLATE_PATH = path.join(
   "RUTA CFT-ABL -2026.xlsx"
 );
 
+/** Cambia al tocar render.ts; sirve para confirmar que el deploy usa código nuevo. */
+const RENDICION_RENDER_VERSION = "2026-07-02";
+
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
@@ -55,6 +58,7 @@ export async function GET(
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`,
       "Cache-Control": "no-store",
+      "X-Rendicion-Render": RENDICION_RENDER_VERSION,
     },
   });
 }
