@@ -429,7 +429,8 @@ function normalizeRowAttrs(attrs: string): string {
     .replace(/\bthickBot="1"/g, "")
     .replace(/\bthickTop="1"/g, "")
     .replace(/\bht="[^"]*"/g, "")
-    .replace(/\bcustomHeight="1"/g, "");
+    .replace(/\bcustomHeight="1"/g, "")
+    .replace(/\bx14ac:dyDescent="[^"]*"/g, "");
 }
 
 function shiftCellRefInFragment(fragment: string, anchorRow: number, targetRow: number): string {
