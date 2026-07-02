@@ -515,18 +515,35 @@ function cloneListRowFromAnchor(
       continue;
     }
 
+    // Celdas con fórmulas (incluyendo shared formula followers <f t="shared" si="N"/>):
+    // NO clonarlas para no romper la cadena de fórmulas compartidas.
+    // Reemplazar con celda vacía que conserva el estilo correcto.
+    if (inner.includes("<f")) {
+      cells.push(`<c r="${ref}" s="${resolvedStyle}"/>`);
+      continue;
+    }
+
     const text = cellDisplayText(attrs, inner, strings).trim();
     if (dataIndex > 0 && isPlaceholderText(text)) {
       cells.push(`<c r="${ref}" s="${resolvedStyle}"/>`);
       continue;
     }
 
-    // Preservar contenido estático con el estilo correcto (de preCloneStyles o ancla).
-    if (text) {
-      cells.push(buildCellXml(ref, resolvedStyle, text, "text"));
-    } else {
-      cells.push(`<c r="${ref}" s="${resolvedStyle}"/>`);
+    // Celdas no-layout con contenido estático (ej. "F/.", shared strings, inlineStr).
+    // Copiar el XML original verbatim, solo actualizando el ref y el estilo.
+    // NO convertir a inlineStr para preservar el tipo de celda original.
+    let cloneXml = shiftCellRefInFragment(
+      cellMatch[0].replace(new RegExp(`<c r="${col}\\d+"`), `<c r="${ref}"`),
+      anchorRow,
+      targetRow
+    );
+    if (preCloneStyles?.has(col)) {
+      const cs = preCloneStyles.get(col)!;
+      cloneXml = /\bs="\d+"/.test(cloneXml)
+        ? cloneXml.replace(/\bs="\d+"/, `s="${cs}"`)
+        : cloneXml.replace(/<c /, `<c s="${cs}" `);
     }
+    cells.push(cloneXml);
   }
 
   return `<row r="${targetRow}"${rowAttrs}${spans} x14ac:dyDescent="0.3">${cells.join("")}</row>`;

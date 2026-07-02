@@ -9,7 +9,7 @@ import { findRecordsByIdsForExcel } from "@/lib/repositories/records";
 export const runtime = "nodejs";
 
 /** Cambia al tocar render.ts; sirve para confirmar que el deploy usa código nuevo. */
-const RENDICION_RENDER_VERSION = "2026-07-02-embedded";
+const RENDICION_RENDER_VERSION = "2026-07-02-formula-clone";
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(bytes.byteLength);
@@ -54,7 +54,8 @@ export async function GET(
   }
 
   const payload = buildRendicionPayload(record);
-  const rendered = renderRendicionExcel(template, payload);  const filename = buildRendicionExcelFilename(record);
+  const rendered = renderRendicionExcel(template, payload);
+  const filename = buildRendicionExcelFilename(record);
   const encodedFilename = encodeURIComponent(filename);
 
   if (rendered.byteLength < 10_000) {
