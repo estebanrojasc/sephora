@@ -265,7 +265,7 @@ export function stripCalcChainFromPackage(files: Record<string, Uint8Array>): vo
 function clearStalePlaceholderCaches(xml: string): string {
   return xml.replace(
     /(<f\b[^>]*>[\s\S]*?<\/f>)\s*<v>[^<]*\{\{[^<]*\}\}[^<]*<\/v>/g,
-    "$1"
+    (_full, formulaXml) => formulaXml
   );
 }
 
@@ -283,7 +283,7 @@ function trimSparseTailRows(xml: string, maxRealisticRow = 1000): string {
   if (lastRow > 0) {
     xml = xml.replace(
       /(<dimension\s+ref=")[^"]+("\s*\/>)/,
-      `$1A1:W${lastRow}$2`
+      (_full, open, close) => `${open}A1:W${lastRow}${close}`
     );
   }
   return xml;
@@ -672,48 +672,8 @@ function fillListRowByRef(
     preserved.push(cellMatch[0]);
   }
 
-  return xml.replace(
-    rowRe,
-    `$1${layoutCells.join("")}${preserved.join("")}$3`
-  );
-}
-
-/** Elimina celdas cuyo r="Xnn" no coincide con la fila padre (red de seguridad). */
-function pruneMismatchedRowCells(xml: string): string {
-  return xml.replace(
-    /<row\b([^>]*)\br="(\d+)"([^>]*)>([\s\S]*?)<\/row>/g,
-    (full, before, rowNum, after, body) => {
-      const kept: string[] = [];
-      const seen = new Set<string>();
-      let i = 0;
-      while (i < body.length) {
-        const start = body.indexOf("<c", i);
-        if (start === -1) break;
-        const selfClose = body.indexOf("/>", start);
-        const closeTag = body.indexOf("</c>", start);
-        let end: number;
-        let cellXml: string;
-        if (selfClose !== -1 && (closeTag === -1 || selfClose < closeTag)) {
-          end = selfClose + 2;
-          cellXml = body.slice(start, end);
-        } else if (closeTag !== -1) {
-          end = closeTag + 4;
-          cellXml = body.slice(start, end);
-        } else {
-          break;
-        }
-        const refMatch = cellXml.match(/\br="([A-Z]+)(\d+)"/);
-        if (refMatch) {
-          const ref = `${refMatch[1]}${refMatch[2]}`;
-          if (refMatch[2] === rowNum && !seen.has(ref)) {
-            seen.add(ref);
-            kept.push(cellXml);
-          }
-        }
-        i = end;
-      }
-      return `<row${before}r="${rowNum}"${after}>${kept.join("")}</row>`;
-    }
+  return xml.replace(rowRe, (_full, open, _body, close) =>
+    `${open}${layoutCells.join("")}${preserved.join("")}${close}`
   );
 }
 
@@ -915,8 +875,6 @@ function processWorksheet(
 
   xml = scrubUnfilledListPlaceholders(xml, strings, ALL_LIST_LAYOUTS);
 
-  xml = pruneMismatchedRowCells(xml);
-
   return clearStalePlaceholderCaches(xml);
 }
 
@@ -950,7 +908,9 @@ function writeCellAt(
   );
   if (rowRe.test(xml)) {
     rowRe.lastIndex = 0;
-    return xml.replace(rowRe, `$1${built}$2$3`);
+    return xml.replace(rowRe, (_full, open, body, close) =>
+      `${open}${built}${body}${close}`
+    );
   }
 
   const row = parseInt(rowNum, 10);
