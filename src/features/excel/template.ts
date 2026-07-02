@@ -1,33 +1,34 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
-
-const TEMPLATE_FILENAME = "RUTA CFT-ABL -2026.xlsx";
-const MIN_TEMPLATE_BYTES = 10_000;
+import { createHash } from "node:crypto";
+import {
+  RENDICION_TEMPLATE_BASE64,
+  RENDICION_TEMPLATE_BYTE_LENGTH,
+  RENDICION_TEMPLATE_SHA256,
+} from "./template-bytes";
 
 let cachedTemplate: Uint8Array | null = null;
 
-export function rendicionTemplatePath(): string {
-  return path.join(process.cwd(), "templates", TEMPLATE_FILENAME);
+/** SHA256 de la plantilla embebida (verificación en headers de export). */
+export function rendicionTemplateSha256(): string {
+  return RENDICION_TEMPLATE_SHA256;
 }
 
-/** Carga la plantilla .xlsx (cache en memoria). Falla con mensaje claro si falta en el servidor. */
+/**
+ * Carga la plantilla RUTA CFT-ABL -2026.xlsx embebida en el bundle.
+ * No depende del filesystem — funciona en Railway/Vercel/Docker.
+ */
 export function loadRendicionTemplate(): Uint8Array {
   if (cachedTemplate) return cachedTemplate;
 
-  const templatePath = rendicionTemplatePath();
-  let bytes: Buffer;
-  try {
-    bytes = readFileSync(templatePath);
-  } catch {
+  const bytes = Buffer.from(RENDICION_TEMPLATE_BASE64, "base64");
+  if (bytes.byteLength !== RENDICION_TEMPLATE_BYTE_LENGTH) {
     throw new Error(
-      `No se encontró la plantilla Excel en ${templatePath}. Verifique el deploy (carpeta templates/).`
+      `Plantilla embebida corrupta (${bytes.byteLength} bytes, esperados ${RENDICION_TEMPLATE_BYTE_LENGTH})`
     );
   }
 
-  if (bytes.byteLength < MIN_TEMPLATE_BYTES) {
-    throw new Error(
-      `Plantilla Excel inválida (${bytes.byteLength} bytes) en ${templatePath}`
-    );
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  if (sha !== RENDICION_TEMPLATE_SHA256) {
+    throw new Error("Plantilla embebida: checksum SHA256 no coincide");
   }
 
   cachedTemplate = new Uint8Array(bytes);

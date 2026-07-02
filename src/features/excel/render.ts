@@ -671,34 +671,6 @@ function expandListBlock(
   };
 }
 
-function normalizeRowCellRefs(xml: string): string {
-  return xml.replace(
-    /<row\b([^>]*)\br="(\d+)"([^>]*)>([\s\S]*?)<\/row>/g,
-    (full, before, rowNum, after, inner) => {
-      const fixed = inner.replace(
-        /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g,
-        (
-          cell: string,
-          col: string,
-          cellRow: string,
-          attrs: string,
-          content: string | undefined
-        ) => {
-          if (cellRow === rowNum) return cell;
-          const ref = `${col}${rowNum}`;
-          if (content === undefined) return `<c r="${ref}"${attrs}/>`;
-          return cell.replace(
-            new RegExp(`\\br="${col}${cellRow}"`),
-            `r="${ref}"`
-          );
-        }
-      );
-      if (fixed === inner) return full;
-      return `<row${before}r="${rowNum}"${after}>${fixed}</row>`;
-    }
-  );
-}
-
 function scrubUnfilledListPlaceholders(
   xml: string,
   strings: string[],
@@ -759,7 +731,6 @@ function processWorksheet(
   }
 
   xml = scrubUnfilledListPlaceholders(xml, strings, ALL_LIST_LAYOUTS);
-  xml = normalizeRowCellRefs(xml);
 
   return clearStalePlaceholderCaches(xml);
 }

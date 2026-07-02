@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/embed-rendicion-template.mjs",
+    "prebuild": "node scripts/embed-rendicion-template.mjs",
     "dev": "cross-env NODE_OPTIONS=--use-system-ca NODE_TLS_REJECT_UNAUTHORIZED=1 next dev",
     "build": "cross-env NODE_OPTIONS=--use-system-ca NODE_TLS_REJECT_UNAUTHORIZED=1 next build",
     "start": "cross-env NODE_OPTIONS=--use-system-ca NODE_TLS_REJECT_UNAUTHORIZED=1 next start",

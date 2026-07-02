@@ -3,13 +3,13 @@ import { NextRequest, NextResponse } from "next/server";import {
   buildRendicionPayload,
 } from "@/features/excel/build-rendicion";
 import { renderRendicionExcel } from "@/features/excel/render";
-import { loadRendicionTemplate } from "@/features/excel/template";
+import { loadRendicionTemplate, rendicionTemplateSha256 } from "@/features/excel/template";
 import { findRecordsByIdsForExcel } from "@/lib/repositories/records";
 
 export const runtime = "nodejs";
 
 /** Cambia al tocar render.ts; sirve para confirmar que el deploy usa código nuevo. */
-const RENDICION_RENDER_VERSION = "2026-07-02-bulk";
+const RENDICION_RENDER_VERSION = "2026-07-02-embedded";
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(bytes.byteLength);
@@ -72,6 +72,7 @@ export async function GET(
       "Cache-Control": "no-store",
       "X-Rendicion-Render": RENDICION_RENDER_VERSION,
       "X-Excel-Bytes": String(rendered.byteLength),
+      "X-Template-Sha256": rendicionTemplateSha256().slice(0, 16),
     },
   });
 }

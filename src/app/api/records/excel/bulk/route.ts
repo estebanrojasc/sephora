@@ -3,12 +3,12 @@ import {
   buildConsolidatedFilename,
   buildConsolidatedWorkbook,
 } from "@/features/excel/build-consolidated";
-import { loadRendicionTemplate } from "@/features/excel/template";
+import { loadRendicionTemplate, rendicionTemplateSha256 } from "@/features/excel/template";
 import { findRecordsByIdsForExcel } from "@/lib/repositories/records";
 
 export const runtime = "nodejs";
 
-const RENDICION_RENDER_VERSION = "2026-07-02-bulk";
+const RENDICION_RENDER_VERSION = "2026-07-02-embedded";
 
 const MAX_RECORDS = 50;
 
@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
       "Cache-Control": "no-store",
       "X-Rendicion-Render": RENDICION_RENDER_VERSION,
       "X-Excel-Bytes": String(rendered.byteLength),
+      "X-Template-Sha256": rendicionTemplateSha256().slice(0, 16),
     },
   });
 }
