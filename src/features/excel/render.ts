@@ -459,6 +459,85 @@ function setCellRefXml(cellXml: string, ref: string): string {
   return cellXml.replace(/\br="[A-Z]+\d+"/, `r="${ref}"`);
 }
 
+const SAFE_CELL_TYPES = new Set(["s", "str", "inlineStr", "b", "e", "n"]);
+
+/** Quita atributos de apertura problemáticos sin tocar el contenido de la celda. */
+function stripUnsafeCellOpeningAttrs(cellXml: string): string {
+  if (!cellXml.startsWith("<c")) return cellXml;
+
+  const isSelfClose = !cellXml.includes("</c>");
+  const attrs = cellAttrsFromXml(cellXml);
+  const cleaned = attrs
+    .replace(/\s*(?:cm|ph|vm)="[^"]*"/g, "")
+    .replace(/\s*(?:x14ac|xr2?|mc):[^=]+="[^"]*"/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (isSelfClose) {
+    return cleaned ? `<c ${cleaned}/>` : "<c/>";
+  }
+
+  const inner = cellXml.replace(/^<c[^>]*>/, "").replace(/<\/c>$/, "");
+  return cleaned ? `<c ${cleaned}>${inner}</c>` : `<c>${inner}</c>`;
+}
+
+/**
+ * Sanitización completa para celdas clonadas/preservadas en filas de lista.
+ * Solo r/s/t y sin fórmulas compartidas (rompen la cadena si="N" al clonar).
+ */
+function sanitizeCellXml(cellXml: string): string {
+  const attrs = cellAttrsFromXml(cellXml);
+  const safeAttrs: string[] = [];
+
+  const rMatch = attrs.match(/\br="([^"]+)"/);
+  if (rMatch) safeAttrs.push(`r="${rMatch[1]}"`);
+
+  const sMatch = attrs.match(/\bs="(\d+)"/);
+  if (sMatch) safeAttrs.push(`s="${sMatch[1]}"`);
+
+  const tMatch = attrs.match(/\bt="([^"]+)"/);
+  if (tMatch && SAFE_CELL_TYPES.has(tMatch[1]!)) {
+    safeAttrs.push(`t="${tMatch[1]}"`);
+  }
+
+  const safeAttrsStr = safeAttrs.length > 0 ? ` ${safeAttrs.join(" ")}` : "";
+
+  if (!cellXml.includes("</c>")) {
+    return `<c${safeAttrsStr}/>`;
+  }
+
+  const inner = cellXml.replace(/^<c[^>]*>/, "").replace(/<\/c>$/, "");
+
+  // Fórmulas compartidas no se pueden clonar sin romper la cadena si="N"
+  if (/<f[^>]*\bt="shared"/.test(inner)) {
+    return `<c${safeAttrsStr}/>`;
+  }
+
+  return `<c${safeAttrsStr}>${inner}</c>`;
+}
+
+/** Diagnóstico opcional (RENDICION_EXCEL_DIAGNOSE=1). No usar en producción rutinaria. */
+export function diagnoseCellIssues(xml: string): void {
+  const problematic = [
+    ...xml.matchAll(/<c\b[^>]*(cm|ph|vm)=["'][^"']*["'][^>]*>/g),
+  ];
+  const nsAttrs = [
+    ...xml.matchAll(/<c\b[^>]*\b(?:x14ac|xr2?|mc):[^>]*>/g),
+  ];
+  const sharedFormulas = [
+    ...xml.matchAll(/<f[^>]*\bt="shared"[^>]*>/g),
+  ];
+
+  console.log("=== DIAGNÓSTICO CELDAS EXCEL ===");
+  console.log(`cm/ph/vm: ${problematic.length}`);
+  console.log(`namespace extendido: ${nsAttrs.length}`);
+  console.log(`fórmulas compartidas: ${sharedFormulas.length}`);
+  if (problematic.length > 0) {
+    problematic.slice(0, 5).forEach((m, i) => console.log(`  ${i + 1}. ${m[0]}`));
+  }
+  console.log("=== FIN DIAGNÓSTICO ===");
+}
+
 /**
  * Quita celdas cuyo r="Xnn" no coincide con la fila padre y deduplica por
  * columna. Excel elimina estas celdas al abrir el archivo.
@@ -476,7 +555,7 @@ function normalizeWorksheetRows(xml: string): string {
         if (!ref || refRowNum !== rowNum) continue;
         
         const col = cellColFromXml(cellXml);
-        if (col) byCol.set(col, cellXml);
+        if (col) byCol.set(col, stripUnsafeCellOpeningAttrs(cellXml));
       }
       return `<row${before}r="${rowNum}"${after}>${[...byCol.values()].join("")}</row>`;
     }
@@ -645,7 +724,7 @@ function cloneListRowFromAnchor(
         ? cloneXml.replace(/\bs="\d+"/, `s="${cs}"`)
         : cloneXml.replace(/<c /, `<c s="${cs}" `);
     }
-    cells.push(cloneXml);
+    cells.push(sanitizeCellXml(cloneXml));
   }
 
   return `<row r="${targetRow}"${rowAttrs}${spans}>${cells.join("")}</row>`;
@@ -751,7 +830,7 @@ function fillListRowByRef(
     if (layoutByCol.has(col)) continue; // El layout sobrescribe esto
     if (rowLabel && col === "R") continue;
     
-    preservedCellsMap.set(col, cellXml);
+    preservedCellsMap.set(col, sanitizeCellXml(cellXml));
   }
 
   // 3. Fusionar y ORDENAR alfabéticamente por columna
@@ -1136,6 +1215,10 @@ export function packageRendicionWorkbook(
   template: Uint8Array,
   sheetXml: string
 ): Uint8Array {
+  if (process.env.RENDICION_EXCEL_DIAGNOSE === "1") {
+    diagnoseCellIssues(sheetXml);
+  }
+
   if (!sheetXml.trim()) {
     throw new Error("La hoja renderizada está vacía");
   }
