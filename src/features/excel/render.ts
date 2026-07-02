@@ -236,7 +236,7 @@ function forceFullRecalc(workbookXml: string): string {
   return workbookXml.replace("</workbook>", `${replacement}</workbook>`);
 }
 
-function stripCalcChainFromPackage(files: Record<string, Uint8Array>): void {
+export function stripCalcChainFromPackage(files: Record<string, Uint8Array>): void {
   delete files["xl/calcChain.xml"];
 
   const relsPath = "xl/_rels/workbook.xml.rels";
@@ -678,28 +678,22 @@ function normalizeRowCellRefs(xml: string): string {
       const fixed = inner.replace(
         /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g,
         (
-          _cell: string,
+          cell: string,
           col: string,
-          _cellRow: string,
+          cellRow: string,
           attrs: string,
           content: string | undefined
         ) => {
+          if (cellRow === rowNum) return cell;
           const ref = `${col}${rowNum}`;
           if (content === undefined) return `<c r="${ref}"${attrs}/>`;
-          const body = content.replace(
-            /(\bref=")([A-Z]+\d+)(:([A-Z]+\d+))(")/g,
-            (_, p1, start, range, end, p4) => {
-              const fixRef = (r: string) => {
-                const m = r.match(/^([A-Z]+)(\d+)$/);
-                if (!m) return r;
-                return `${m[1]}${rowNum}`;
-              };
-              return `${p1}${fixRef(start)}${range ? `:${fixRef(end)}` : ""}${p4}`;
-            }
+          return cell.replace(
+            new RegExp(`\\br="${col}${cellRow}"`),
+            `r="${ref}"`
           );
-          return `<c r="${ref}"${attrs}>${body}</c>`;
         }
       );
+      if (fixed === inner) return full;
       return `<row${before}r="${rowNum}"${after}>${fixed}</row>`;
     }
   );

@@ -1,7 +1,7 @@
 import { unzipSync, zipSync } from "fflate";
 import type { Record as AppRecord } from "@/features/records/types";
 import { formatChileanDate, parseToIso } from "@/lib/date-utils";
-import { renderConsolidatedResumenWorksheet } from "./render";
+import { stripCalcChainFromPackage, renderConsolidatedResumenWorksheet } from "./render";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -65,7 +65,7 @@ export function buildConsolidatedWorkbook(
   }
   files["[Content_Types].xml"] = encoder.encode(ctXml);
 
-  delete files["xl/calcChain.xml"];
+  stripCalcChainFromPackage(files);
 
   return zipSync(files, { level: 6 });
 }

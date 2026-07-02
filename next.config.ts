@@ -66,6 +66,7 @@ const nextConfig: NextConfig = {
   ],
   outputFileTracingIncludes: {
     "/api/records/[id]/excel": ["./templates/RUTA CFT-ABL -2026.xlsx"],
+    "/api/records/excel/bulk": ["./templates/RUTA CFT-ABL -2026.xlsx"],
   },
 };
 

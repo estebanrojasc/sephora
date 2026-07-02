@@ -1,21 +1,14 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import {
   buildConsolidatedFilename,
   buildConsolidatedWorkbook,
 } from "@/features/excel/build-consolidated";
+import { loadRendicionTemplate } from "@/features/excel/template";
 import { findRecordsByIdsForExcel } from "@/lib/repositories/records";
 
 export const runtime = "nodejs";
 
-const TEMPLATE_PATH = path.join(
-  process.cwd(),
-  "templates",
-  "RUTA CFT-ABL -2026.xlsx"
-);
-
-const RENDICION_RENDER_VERSION = "2026-07-02";
+const RENDICION_RENDER_VERSION = "2026-07-02-bulk";
 
 const MAX_RECORDS = 50;
 
@@ -68,10 +61,31 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const template = await readFile(TEMPLATE_PATH);
+  let template: Uint8Array;
+  try {
+    template = loadRendicionTemplate();
+  } catch (error) {
+    return NextResponse.json(
+      {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Plantilla Excel no disponible",
+      },
+      { status: 500 }
+    );
+  }
+
   const rendered = buildConsolidatedWorkbook(template, records);
   const filename = buildConsolidatedFilename(records);
   const encodedFilename = encodeURIComponent(filename);
+
+  if (rendered.byteLength < 10_000) {
+    return NextResponse.json(
+      { message: "El Excel generado está incompleto (archivo demasiado pequeño)" },
+      { status: 500 }
+    );
+  }
 
   return new Response(toArrayBuffer(rendered), {
     headers: {
@@ -80,6 +94,7 @@ export async function POST(request: NextRequest) {
       "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`,
       "Cache-Control": "no-store",
       "X-Rendicion-Render": RENDICION_RENDER_VERSION,
+      "X-Excel-Bytes": String(rendered.byteLength),
     },
   });
 }
