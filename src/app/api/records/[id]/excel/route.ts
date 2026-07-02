@@ -8,8 +8,7 @@ import { findRecordsByIdsForExcel } from "@/lib/repositories/records";
 
 export const runtime = "nodejs";
 
-/** Cambia al tocar render.ts; sirve para confirmar que el deploy usa código nuevo. */
-const RENDICION_RENDER_VERSION = "2026-07-02-formula-clone";
+import { RENDICION_RENDER_VERSION } from "@/features/excel/version";
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(bytes.byteLength);

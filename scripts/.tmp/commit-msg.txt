@@ -1,0 +1,4 @@
+fix(excel): preservar fórmulas compartidas al clonar filas de listas
+
+Evita que Excel elimine celdas como "Registros quitados" al convertir
+followers de fórmulas compartidas a inlineStr durante la expansión de filas.

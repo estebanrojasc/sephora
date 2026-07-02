@@ -9,6 +9,7 @@ import type {
 } from "./build-rendicion";
 import { buildRendicionPayload, mergeRendicionPayloads } from "./build-rendicion";
 import {
+  CONSOLIDATED_LOWER_SECTION_START_ROW,
   TEMPLATE_RESUMEN_ROWS,
   scalarForPlaceholder,
   summaryColumnForRecord,
@@ -204,10 +205,12 @@ function replacePlaceholderEverywhere(
   xml: string,
   placeholder: string,
   scalar: ScalarValue,
-  strings: string[]
+  strings: string[],
+  minRow?: number
 ): string {
   const cellRe = /<c r="([A-Z]+)(\d+)"([^>/]*)(?:\/>|>([\s\S]*?)<\/c>)/g;
   return xml.replace(cellRe, (full, col, row, attrs, inner = "") => {
+    if (minRow !== undefined && parseInt(row, 10) < minRow) return full;
     if (/<f\b/.test(inner)) return full;
     const text = cellDisplayText(attrs, inner, strings).trim();
     if (text !== placeholder) return full;
@@ -430,6 +433,24 @@ function insertRowsAfter(xml: string, afterRow: number, rows: string[]): string 
   return xml.slice(0, pos) + rows.join("") + xml.slice(pos);
 }
 
+/** Inserta una fila en orden numérico cuando no existe en el XML. */
+function insertRowIntoSheet(xml: string, rowNum: number, rowXml: string): string {
+  const rowRe = /<row\b[^>]*\br="(\d+)"/g;
+  let insertAt: number | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = rowRe.exec(xml)) !== null) {
+    const r = parseInt(m[1]!, 10);
+    if (r > rowNum) {
+      insertAt = m.index;
+      break;
+    }
+  }
+  if (insertAt !== null) {
+    return xml.slice(0, insertAt) + rowXml + xml.slice(insertAt);
+  }
+  return xml.replace("</sheetData>", `${rowXml}</sheetData>`);
+}
+
 function normalizeRowAttrs(attrs: string): string {
   return attrs
     .replace(/\bthickBot="1"/g, "")
@@ -641,8 +662,21 @@ function expandListBlock(
     row <= maxReuseRow && nextDataIndex < count;
     row++
   ) {
-    if (!worksheetHasRow(xml, row)) break;
-    xml = fillListRowByRef(xml, row, layout, lists, nextDataIndex, rowLabel);
+    if (!worksheetHasRow(xml, row)) {
+      xml = insertRowIntoSheet(
+        xml,
+        row,
+        buildExtraListRowXml(
+          row,
+          layout,
+          lists,
+          nextDataIndex,
+          preCloneStyles
+        )
+      );
+    } else {
+      xml = fillListRowByRef(xml, row, layout, lists, nextDataIndex, rowLabel);
+    }
     lastFilledRow = row;
     nextDataIndex++;
   }
@@ -727,7 +761,12 @@ function processWorksheet(
   xml: string,
   payload: RendicionPayload,
   strings: string[],
-  options?: { expandLists?: boolean; skipScalarPlaceholders?: Set<string> }
+  options?: {
+    expandLists?: boolean;
+    skipScalarPlaceholders?: Set<string>;
+    /** Solo reemplazar escalares en filas >= minRow (consolidado: proteger resumen superior). */
+    scalarMinRow?: number;
+  }
 ): string {
   xml = trimSparseTailRows(xml);
 
@@ -768,7 +807,13 @@ function processWorksheet(
 
   for (const [placeholder, scalar] of Object.entries(payload.scalars)) {
     if (options?.skipScalarPlaceholders?.has(placeholder)) continue;
-    xml = replacePlaceholderEverywhere(xml, placeholder, scalar, strings);
+    xml = replacePlaceholderEverywhere(
+      xml,
+      placeholder,
+      scalar,
+      strings,
+      options?.scalarMinRow
+    );
   }
 
   xml = scrubUnfilledListPlaceholders(xml, strings, ALL_LIST_LAYOUTS);
@@ -804,7 +849,14 @@ function writeCellAt(
   const rowRe = new RegExp(
     `(<row\\b[^>]*\\br="${rowNum}"[^>]*>)([\\s\\S]*?)(</row>)`
   );
-  return xml.replace(rowRe, `$1${built}$2$3`);
+  if (rowRe.test(xml)) {
+    rowRe.lastIndex = 0;
+    return xml.replace(rowRe, `$1${built}$2$3`);
+  }
+
+  const row = parseInt(rowNum, 10);
+  const newRow = `<row r="${row}" spans="1:23" x14ac:dyDescent="0.3">${built}</row>`;
+  return insertRowIntoSheet(xml, row, newRow);
 }
 
 /** Resumen superior (filas 1–17): un registro por columna B, C, D… */
@@ -856,7 +908,9 @@ export function renderConsolidatedResumenWorksheet(
 
   let xml = trimSparseTailRows(decoder.decode(worksheetBytes));
   xml = fillUpperSummarySection(xml, records, payloads);
-  xml = processWorksheet(xml, merged, strings);
+  xml = processWorksheet(xml, merged, strings, {
+    scalarMinRow: CONSOLIDATED_LOWER_SECTION_START_ROW,
+  });
 
   return clearStalePlaceholderCaches(xml);
 }

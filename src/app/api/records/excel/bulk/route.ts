@@ -8,7 +8,7 @@ import { findRecordsByIdsForExcel } from "@/lib/repositories/records";
 
 export const runtime = "nodejs";
 
-const RENDICION_RENDER_VERSION = "2026-07-02-embedded";
+import { RENDICION_RENDER_VERSION } from "@/features/excel/version";
 
 const MAX_RECORDS = 50;
 

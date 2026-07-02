@@ -1,32 +1,21 @@
 import { readFileSync } from "node:fs";
 import { unzipSync } from "fflate";
 
-const template = readFileSync("templates/RUTA CFT-ABL -2026.xlsx");
-const f = unzipSync(template);
-const strings = [];
-for (const m of new TextDecoder()
-  .decode(f["xl/sharedStrings.xml"])
-  .matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
-  strings.push(m[1].replace(/<[^>]+>/g, ""));
-}
-const sheet = new TextDecoder().decode(f["xl/worksheets/sheet1.xml"]);
+const tpl = unzipSync(readFileSync("templates/RUTA CFT-ABL -2026.xlsx"));
+const sheet = new TextDecoder().decode(tpl["xl/worksheets/sheet1.xml"]);
 
-function get(ref) {
+for (const r of [37, 38, 39, 40]) {
+  const re = new RegExp(`<row\\b[^>]*\\br="${r}"[^>]*>[\\s\\S]*?<\\/row>`);
+  const xml = sheet.match(re)?.[0] ?? "(not found)";
+  console.log(`\n=== TEMPLATE ROW ${r} ===`);
+  console.log(xml.slice(0, 700));
+}
+
+// Specific cells M, N, O in rows 37-40
+console.log("\n=== CÉLULAS M39, N39, O39 ===");
+for (const ref of ["M39", "N39", "O39"]) {
   const re = new RegExp(`<c r="${ref}"([^>/]*)(?:/>|>([\\s\\S]*?)<\\/c>)`);
   const m = sheet.match(re);
-  if (!m) return "(no cell)";
-  const attrs = m[1];
-  const inner = m[2] ?? "";
-  const vm = inner.match(/<v>(\d+)<\/v>/);
-  if (vm && attrs.includes('t="s"')) return strings[parseInt(vm[1], 10)] ?? "";
-  if (vm) return vm[1];
-  const isT = inner.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
-  return isT ? isT[1] : "(empty)";
-}
-
-for (const row of [71, 72, 73, 74, 75, 76]) {
-  console.log(`\nRow ${row}:`);
-  for (const col of ["L", "M", "P", "T", "U", "R"]) {
-    console.log(`  ${col}${row}: ${get(`${col}${row}`)}`);
-  }
+  if (!m) { console.log(`${ref}: NOT FOUND`); continue; }
+  console.log(`${ref}: attrs="${m[1]}" inner="${m[2] ?? ""}"`);
 }
