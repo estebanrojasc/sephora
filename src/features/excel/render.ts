@@ -111,6 +111,7 @@ const LIST_BLOCKS: ListBlock[] = [
       ),
     /** Solo fila 37; fila 38 = total cheques al día en plantilla. */
     templateDataRows: 1,
+    /** Fila 40 tiene estilos más livianos que la 37 (que tiene THICKBOT). */
     cloneStyleRow: 40,
   },
   {
@@ -118,7 +119,11 @@ const LIST_BLOCKS: ListBlock[] = [
     anchorRow: CHEQUES_A_FECHA_ROW,
     layout: CHEQUES_A_FECHA_LAYOUT,
     count: (l) => Math.max(l.cheques_a_fecha?.length ?? 0, 1),
-    templateDataRows: 1,
+    /**
+     * La plantilla tiene filas spare 39-50 (12 filas) con estilos correctos.
+     * Usarlas directamente evita insertar filas y elimina las filas blancas vacías.
+     */
+    templateDataRows: 12,
     cloneStyleRow: 40,
   },
   {
@@ -130,7 +135,7 @@ const LIST_BLOCKS: ListBlock[] = [
     templateDataRows: 1,
     duplicateLabelMerge: true,
     rowLabel: "CREDITO",
-    cloneStyleRow: 72,
+    /** Sin cloneStyleRow: usar la fila ancla (71) como referencia de estilos. */
   },
   {
     id: "transferencia",
@@ -140,7 +145,8 @@ const LIST_BLOCKS: ListBlock[] = [
     templateDataRows: 2,
     duplicateLabelMerge: true,
     rowLabel: "TRANSFERENCIA",
-    cloneStyleRow: 75,
+    /** Fila 74 = segunda fila template de transferencia (mismos estilos). */
+    cloneStyleRow: 74,
   },
 ];
 
@@ -451,7 +457,8 @@ function cloneListRowFromAnchor(
   lists: RendicionLists,
   dataIndex: number,
   strings: string[],
-  cloneStyleRow?: number
+  /** Estilos por columna pre-extraídos ANTES del shift (evita que la fila se haya movido). */
+  preCloneStyles?: Map<string, number>
 ): string {
   const anchorXml = extractRowXml(xml, anchorRow);
   if (!anchorXml) {
@@ -460,16 +467,12 @@ function cloneListRowFromAnchor(
       layout,
       lists,
       dataIndex,
-      extractColumnStyles(xml, cloneStyleRow ?? anchorRow)
+      preCloneStyles ?? new Map()
     );
   }
 
-  const styleRowXml = extractRowXml(xml, cloneStyleRow ?? anchorRow);
   const layoutByCol = new Map(layout.map((l) => [l.col, l]));
-  const rowAttrsRaw =
-    styleRowXml?.match(/<row\b([^>]*)>/)?.[1] ??
-    anchorXml.match(/<row\b([^>]*)>/)?.[1] ??
-    "";
+  const rowAttrsRaw = anchorXml.match(/<row\b([^>]*)>/)?.[1] ?? "";
   const spansMatch = rowAttrsRaw.match(/\bspans="([^"]+)"/);
   const spans = spansMatch ? ` spans="${spansMatch[1]}"` : ' spans="1:23"';
   const rowAttrs = normalizeRowAttrs(
@@ -486,11 +489,19 @@ function cloneListRowFromAnchor(
     const ref = `${col}${targetRow}`;
     const layoutCell = layoutByCol.get(col);
 
+    /**
+     * Estilo preferido: preCloneStyles (fila spare de referencia), luego el estilo
+     * real de la celda ancla. NO caemos a extraStyle porque 0 es un estilo válido.
+     * extraStyle solo se usa en buildExtraListRowXml cuando no hay fila ancla.
+     */
+    const anchorStyle = cellStyleFromAttrs(attrs);
+    const resolvedStyle = preCloneStyles?.get(col) ?? anchorStyle;
+
     if (layoutCell) {
       cells.push(
         buildCellXml(
           ref,
-          layoutCell.extraStyle,
+          resolvedStyle,
           listValueAt(lists, layoutCell, dataIndex),
           layoutCell.type
         )
@@ -498,26 +509,24 @@ function cloneListRowFromAnchor(
       continue;
     }
 
+    // Celda fuera del layout (contenido estático como "F/.", "CREDITO", bordes, etc.)
     if (cellMatch[0].endsWith("/>")) {
-      cells.push(`<c r="${ref}"${attrs}/>`);
+      cells.push(`<c r="${ref}" s="${resolvedStyle}"/>`);
       continue;
     }
 
     const text = cellDisplayText(attrs, inner, strings).trim();
     if (dataIndex > 0 && isPlaceholderText(text)) {
-      cells.push(`<c r="${ref}"${attrs.replace(/\s+t="s"/g, "")}/>`);
+      cells.push(`<c r="${ref}" s="${resolvedStyle}"/>`);
       continue;
     }
 
-    cells.push(
-      shiftCellRefInFragment(
-        cellMatch[0]
-          .replace(`${col}${anchorRow}`, ref)
-          .replace(new RegExp(`<c r="${col}\\d+"`), `<c r="${ref}"`),
-        anchorRow,
-        targetRow
-      )
-    );
+    // Preservar contenido estático con el estilo correcto (de preCloneStyles o ancla).
+    if (text) {
+      cells.push(buildCellXml(ref, resolvedStyle, text, "text"));
+    } else {
+      cells.push(`<c r="${ref}" s="${resolvedStyle}"/>`);
+    }
   }
 
   return `<row r="${targetRow}"${rowAttrs}${spans} x14ac:dyDescent="0.3">${cells.join("")}</row>`;
@@ -582,7 +591,8 @@ function expandListBlock(
   n: number,
   templateDataRows?: number,
   duplicateLabelMerge?: boolean,
-  cloneStyleRow?: number,
+  /** Estilos por columna ya ajustados para el rowShift actual (pre-extraídos en processWorksheet). */
+  preCloneStyles?: Map<string, number>,
   rowLabel?: string
 ): {
   xml: string;
@@ -652,7 +662,7 @@ function expandListBlock(
         lists,
         nextDataIndex + j,
         strings,
-        cloneStyleRow
+        preCloneStyles
       )
     );
   }
@@ -709,6 +719,19 @@ function processWorksheet(
     for (const block of LIST_BLOCKS) {
       const anchorRow = block.anchorRow + rowShift;
       const n = block.count(payload.lists);
+
+      /**
+       * Pre-extraer estilos de la fila de referencia para clones ANTES de cualquier
+       * shift. `block.cloneStyleRow` es el número de fila en la plantilla original;
+       * sumamos rowShift para encontrarla en el XML ya desplazado.
+       * Si no hay cloneStyleRow usamos el anchorRow (mismos estilos).
+       */
+      const styleRefRow =
+        block.cloneStyleRow !== undefined
+          ? block.cloneStyleRow + rowShift
+          : anchorRow;
+      const preCloneStyles = extractColumnStyles(xml, styleRefRow);
+
       const { xml: nextXml, insertedRows } = expandListBlock(
         xml,
         anchorRow,
@@ -718,7 +741,7 @@ function processWorksheet(
         n,
         block.templateDataRows,
         block.duplicateLabelMerge,
-        block.cloneStyleRow,
+        preCloneStyles,
         block.rowLabel
       );
       xml = nextXml;
