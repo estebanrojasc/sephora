@@ -21,16 +21,16 @@ export function PageHeader({
       )}
     >
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
           {title}
         </h1>
         {description && (
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             {description}
           </p>
         )}
       </div>
-      {action}
+      {action && <div className="animate-slide-in-right">{action}</div>}
     </div>
   );
 }

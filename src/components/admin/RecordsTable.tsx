@@ -25,6 +25,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { RecordSummaryCard } from "@/components/common/RecordSummaryCard";
 import { PdfExportButton } from "@/components/admin/PdfExportButton";
 import { BulkExcelExportDialog } from "@/components/admin/BulkExcelExportDialog";
+import { SkeletonTable } from "@/components/common/Skeleton";
 import type { Record } from "@/features/records/types";
 import type { Bitacora } from "@/features/bitacora/types";
 import { getRecordConductorLabel } from "@/features/records/display";
@@ -76,7 +77,7 @@ export function RecordsTable({
         header: ({ table }) => (
           <input
             type="checkbox"
-            className="size-4 rounded border"
+            className="size-4 rounded border accent-primary cursor-pointer"
             checked={table.getIsAllPageRowsSelected()}
             ref={(el) => {
               if (el) {
@@ -92,7 +93,7 @@ export function RecordsTable({
         cell: ({ row }) => (
           <input
             type="checkbox"
-            className="size-4 rounded border"
+            className="size-4 rounded border accent-primary cursor-pointer"
             checked={row.getIsSelected()}
             onChange={row.getToggleSelectedHandler()}
             aria-label={`Seleccionar ${row.original.id}`}
@@ -107,7 +108,7 @@ export function RecordsTable({
         accessorKey: "id",
         header: "ID",
         cell: ({ row }) => (
-          <span className="font-mono text-xs">
+          <span className="font-mono text-xs text-muted-foreground">
             {row.original.id.slice(0, 8)}…
           </span>
         ),
@@ -116,6 +117,11 @@ export function RecordsTable({
         id: "conductor",
         header: "Conductor",
         accessorFn: (row) => getRecordConductorLabel(row),
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {getRecordConductorLabel(row.original)}
+          </span>
+        ),
       },
       {
         accessorKey: "createdAt",
@@ -123,16 +129,18 @@ export function RecordsTable({
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-3"
+            className="-ml-3 h-8 gap-1 font-medium"
             onClick={() =>
               column.toggleSorting(column.getIsSorted() === "asc")
             }
           >
             Fecha
-            <ArrowUpDown className="size-3.5" />
+            <ArrowUpDown className="size-3 text-muted-foreground" />
           </Button>
         ),
-        cell: ({ row }) => formatDate(row.original.createdAt),
+        cell: ({ row }) => (
+          <span className="text-sm">{formatDate(row.original.createdAt)}</span>
+        ),
       },
       {
         id: "recorrido",
@@ -145,8 +153,10 @@ export function RecordsTable({
           return (
             <span
               className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5",
-                isDupe && "animate-recorrido-blink ring-2 ring-red-500"
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium",
+                isDupe
+                  ? "animate-recorrido-blink ring-2 ring-red-500"
+                  : "bg-muted/60"
               )}
               title={isDupe ? "Recorrido duplicado en esta lista" : undefined}
             >
@@ -160,25 +170,31 @@ export function RecordsTable({
         header: "Fecha recorrido",
         cell: ({ row }) => {
           const raw = row.original.extraction?.fecha?.valor;
-          if (!raw?.trim()) return "—";
-          return formatExtractedDateChilean(raw);
+          if (!raw?.trim()) return <span className="text-muted-foreground">—</span>;
+          return (
+            <span className="text-sm">{formatExtractedDateChilean(raw)}</span>
+          );
         },
       },
       {
         id: "patente",
         header: "Patente",
-        cell: ({ row }) => row.original.extraction?.patente?.valor || "—",
+        cell: ({ row }) => (
+          <span className="font-mono text-sm">
+            {row.original.extraction?.patente?.valor || "—"}
+          </span>
+        ),
       },
       {
         id: "bitacora",
         header: "Bitácora",
         cell: ({ row }) => {
           const score = matchScoreForRecord(row.original, activeBitacora);
-          if (!activeBitacora) return "—";
+          if (!activeBitacora) return <span className="text-muted-foreground">—</span>;
           return (
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs",
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
                 score >= 60
                   ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200"
                   : score >= 40
@@ -200,7 +216,11 @@ export function RecordsTable({
       {
         id: "images",
         header: "Imgs.",
-        cell: ({ row }) => row.original.images.length,
+        cell: ({ row }) => (
+          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+            {row.original.images.length}
+          </span>
+        ),
       },
       {
         accessorKey: "status",
@@ -211,12 +231,12 @@ export function RecordsTable({
         id: "actions",
         header: "Acciones",
         cell: ({ row }) => (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <Link
               href={`/admin/records/${row.original.id}`}
-              className="inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-[0.8rem] hover:bg-muted"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent bg-primary/10 px-3 text-xs font-medium text-primary transition-all hover:bg-primary/20 hover:border-primary/20"
             >
-              <Eye className="size-4" />
+              <Eye className="size-3.5" />
               Revisar
             </Link>
             <PdfExportButton record={row.original} size="sm" />
@@ -241,22 +261,23 @@ export function RecordsTable({
   });
 
   if (isLoading) {
-    return (
-      <div className="flex h-40 items-center justify-center text-muted-foreground">
-        Cargando registros…
-      </div>
-    );
+    return <SkeletonTable rows={5} cols={enableBulkExcel ? 8 : 7} />;
   }
 
   if (!isDesktop) {
     return (
-      <div className="space-y-3">
-        {records.map((record) => (
-          <RecordSummaryCard
+      <div className="animate-fade-in space-y-3">
+        {records.map((record, i) => (
+          <div
             key={record.id}
-            record={record}
-            href={`/admin/records/${record.id}`}
-          />
+            className="animate-fade-in-up"
+            style={{ animationDelay: `${i * 0.04}s` }}
+          >
+            <RecordSummaryCard
+              record={record}
+              href={`/admin/records/${record.id}`}
+            />
+          </div>
         ))}
       </div>
     );
@@ -265,16 +286,21 @@ export function RecordsTable({
   return (
     <div className="space-y-3">
       {enableBulkExcel && isDesktop && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="animate-slide-in-right flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant="outline"
             disabled={selectedRecords.length === 0}
             onClick={() => setBulkOpen(true)}
+            className="gap-2 shadow-sm transition-all hover:shadow-md"
           >
             <FileSpreadsheet className="size-4" />
             Excel unificado
-            {selectedRecords.length > 0 && ` (${selectedRecords.length})`}
+            {selectedRecords.length > 0 && (
+              <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-bold text-primary">
+                {selectedRecords.length}
+              </span>
+            )}
           </Button>
           <BulkExcelExportDialog
             open={bulkOpen}
@@ -285,45 +311,57 @@ export function RecordsTable({
         </div>
       )}
 
-      <div className="rounded-lg border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((hg) => (
-            <TableRow key={hg.id}>
-              {hg.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((hg) => (
+              <TableRow key={hg.id} className="bg-muted/30 hover:bg-muted/30">
+                {hg.headers.map((header) => (
+                  <TableHead key={header.id} className="h-10 text-xs font-semibold text-muted-foreground">
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
                 ))}
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No hay registros en esta categoría.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </div>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className="transition-colors hover:bg-muted/30"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="py-2.5">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-32 text-center"
+                >
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <BookOpen className="size-8 opacity-30" />
+                    <p className="text-sm">No hay registros en esta categoría.</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

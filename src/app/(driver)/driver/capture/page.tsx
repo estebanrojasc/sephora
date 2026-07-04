@@ -108,18 +108,18 @@ export default function CapturePage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4 sm:p-6">
+    <div className="animate-fade-in mx-auto flex max-w-2xl flex-col gap-4 p-4 sm:p-6">
       <Link
         href="/driver"
-        className="inline-flex h-7 w-fit items-center gap-1 rounded-lg px-2.5 text-sm hover:bg-muted"
+        className="inline-flex h-8 w-fit items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors hover:bg-muted"
       >
         <ArrowLeft className="size-4" />
         Volver
       </Link>
 
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold sm:text-2xl">Nuevo registro</h1>
-        <p className="text-sm text-muted-foreground">
+      <div className="space-y-1.5">
+        <h1 className="text-xl font-bold sm:text-2xl">Nuevo registro</h1>
+        <p className="text-sm leading-relaxed text-muted-foreground">
           Toma fotos de los documentos. Podrás ajustar el recorte antes de
           guardarlas.
         </p>
@@ -136,8 +136,8 @@ export default function CapturePage() {
       )}
 
       {stage === "preview" && previewOriginal && (
-        <div className="space-y-3">
-          <div className="overflow-hidden rounded-xl border">
+        <div className="animate-scale-in space-y-3">
+          <div className="overflow-hidden rounded-xl border bg-muted/20 shadow-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={previewOriginal}
@@ -145,7 +145,7 @@ export default function CapturePage() {
               className="max-h-[50vh] w-full object-contain"
             />
           </div>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
             Se guardan dos versiones: una nítida para revisión y una liviana
             que se envía al modelo de IA.
           </p>
@@ -158,10 +158,15 @@ export default function CapturePage() {
                 setStage("cropping");
               }}
               disabled={isProcessing}
+              className="h-11"
             >
               Ajustar recorte
             </Button>
-            <Button onClick={confirmImage} disabled={isProcessing}>
+            <Button
+              onClick={confirmImage}
+              disabled={isProcessing}
+              className="h-11 shadow-sm"
+            >
               {COPY.driver.confirm}
             </Button>
           </div>
@@ -169,7 +174,7 @@ export default function CapturePage() {
       )}
 
       {stage === "idle" && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <CameraInput
             onCapture={handleCapture}
             disabled={isProcessing}
@@ -177,10 +182,10 @@ export default function CapturePage() {
               images.length === 0 ? "Tomar foto" : COPY.driver.addMore
             }
           />
-          <label className="flex items-center justify-between gap-2 rounded-md border bg-card px-3 py-2 text-xs">
+          <label className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 text-xs shadow-sm transition-all hover:border-primary/20 hover:shadow-md">
             <span>
               <span className="font-medium">Realzar contraste (avanzado)</span>
-              <span className="block text-[10px] text-muted-foreground">
+              <span className="mt-0.5 block text-[10px] leading-relaxed text-muted-foreground">
                 Útil solo si la foto tiene mucha sombra. Por defecto está
                 apagado: tiende a engrosar los trazos manuscritos.
               </span>
@@ -203,7 +208,7 @@ export default function CapturePage() {
       {images.length > 0 && stage === "idle" && (
         <Button
           size="lg"
-          className="h-14 w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md hover:from-indigo-500 hover:to-violet-500"
+          className="animate-fade-in-up h-14 w-full gap-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25 transition-all hover:from-indigo-500 hover:to-violet-500 hover:shadow-xl hover:shadow-indigo-500/30 active:scale-[0.98]"
           onClick={handleSend}
           disabled={upload.isPending || isProcessing}
         >

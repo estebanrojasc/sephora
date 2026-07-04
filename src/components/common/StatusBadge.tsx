@@ -1,3 +1,5 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { getStatusConfig } from "@/features/records/status";
 import type { RecordStatus } from "@/features/records/types";
@@ -16,10 +18,10 @@ const toneClasses = {
 };
 
 const dotClasses = {
-  info: "bg-blue-500",
-  warning: "bg-amber-500",
-  danger: "bg-red-500",
-  success: "bg-emerald-500",
+  info: "bg-blue-500 shadow-[0_0_6px_rgb(59_130_246/0.5)]",
+  warning: "bg-amber-500 shadow-[0_0_6px_rgb(245_158_11/0.5)]",
+  danger: "bg-red-500 shadow-[0_0_6px_rgb(239_68_68/0.5)]",
+  success: "bg-emerald-500 shadow-[0_0_6px_rgb(16_185_129/0.5)]",
   neutral: "bg-slate-400",
 };
 
@@ -44,14 +46,17 @@ export function StatusBadge({
     <Badge
       variant="outline"
       className={cn(
-        "gap-1.5 rounded-full border px-2.5 py-0.5 font-medium",
+        "gap-1.5 rounded-full border px-2.5 py-0.5 font-medium transition-colors",
         toneClasses[config.tone],
         className
       )}
     >
       {showDot && (
         <span
-          className={cn("size-1.5 rounded-full", dotClasses[config.tone])}
+          className={cn(
+            "size-1.5 rounded-full animate-pulse-soft",
+            dotClasses[config.tone]
+          )}
         />
       )}
       {showIcon && !showDot && <Icon className="size-3" />}

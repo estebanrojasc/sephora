@@ -1,4 +1,5 @@
 import { Progress } from "@/components/ui/progress";
+import { Sparkles } from "lucide-react";
 import { COPY } from "@/lib/constants";
 import type { PipelineStep } from "@/features/image-pipeline/pipeline";
 
@@ -19,12 +20,26 @@ export function OptimizationProgress({
   progress,
 }: OptimizationProgressProps) {
   return (
-    <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
-      <p className="text-sm font-medium">{COPY.driver.optimizing}</p>
-      {step && (
-        <p className="text-xs text-muted-foreground">{stepLabels[step]}</p>
-      )}
-      <Progress value={progress} className="h-2" />
+    <div className="animate-scale-in space-y-3 rounded-xl border-2 border-indigo-200/60 bg-indigo-50/60 p-4 shadow-sm dark:border-indigo-800/40 dark:bg-indigo-950/30">
+      <div className="flex items-center gap-2.5">
+        <div className="flex size-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
+          <Sparkles className="size-4 text-indigo-600 dark:text-indigo-400" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+            {COPY.driver.optimizing}
+          </p>
+          {step && (
+            <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70">
+              {stepLabels[step]}
+            </p>
+          )}
+        </div>
+      </div>
+      <Progress
+        value={progress}
+        className="h-2 bg-indigo-200/60 dark:bg-indigo-800/40 [&>div]:bg-indigo-500"
+      />
     </div>
   );
 }

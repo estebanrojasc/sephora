@@ -1,167 +1,122 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import {
-  ClipboardList,
-  Database,
-  BookOpen,
-  LogOut,
-  Menu,
-  PanelLeft,
-  PanelLeftClose,
-  type LucideIcon,
-} from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ClipboardList, BookOpen, Database, Menu, ChevronLeft, LogOut, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { AdminSystemStatus } from "@/components/admin/AdminSystemStatus";
-import { APP_NAME, COPY } from "@/lib/constants";
 import { useSessionStore } from "@/features/auth/session-store";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-const navItems: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: "/admin", label: "Cola de trabajo", icon: ClipboardList },
-  { href: "/admin/bitacora", label: "Bitácora", icon: BookOpen },
+const NAV_ITEMS = [
+  { href: "/admin", label: "Cola de revisión", icon: ClipboardList, exact: true },
+  { href: "/admin/bitacora", label: "Bitácora diaria", icon: BookOpen },
   { href: "/admin/catalogs", label: "Catálogos", icon: Database },
-];
+] as const;
 
-interface NavContentProps {
-  pathname: string;
-  showLabels: boolean;
-}
-
-function NavContent({ pathname, showLabels }: NavContentProps) {
-  return (
-    <nav className="flex flex-col gap-1 p-3">
-      {navItems.map((item) => {
-        const Icon = item.icon;
-        const active =
-          pathname === item.href ||
-          (item.href !== "/admin" && pathname.startsWith(item.href));
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            prefetch={false}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              active
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-          >
-            <Icon className="size-4 shrink-0" />
-            {showLabels && item.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
-
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const router = useRouter();
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { admin, hydrateAdminFromServer, clearSession } = useSessionStore();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const router = useRouter();
+  const clearSession = useSessionStore((s) => s.clearSession);
+  const admin = useSessionStore((s) => s.admin);
+  const hydrateAdminFromServer = useSessionStore((s) => s.hydrateAdminFromServer);
+  const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => {
-    void hydrateAdminFromServer().then(() => setHydrated(true));
-  }, [hydrateAdminFromServer]);
+  useEffect(() => { void hydrateAdminFromServer().finally(() => setHydrated(true)); }, [hydrateAdminFromServer]);
 
+  // Redirect effect must be before any conditional returns (Rules of Hooks)
   useEffect(() => {
-    if (hydrated && !admin) router.replace("/login");
+    if (!hydrated) return;
+    if (!admin) router.replace("/login");
   }, [hydrated, admin, router]);
 
-  if (!hydrated || !admin) {
+  const handleLogout = useCallback(() => { clearSession(); router.push("/login"); }, [clearSession, router]);
+
+  if (!hydrated) {
     return (
-      <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
-        Verificando sesión…
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="size-8 animate-shimmer rounded-xl bg-muted" />
+          <div className="h-5 w-32 animate-shimmer rounded-md bg-muted" />
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="flex min-h-full">
-      <aside
-        className={cn(
-          "hidden border-r bg-sidebar transition-all lg:flex lg:flex-col",
-          sidebarOpen ? "w-56" : "w-16"
-        )}
-      >
-        <div className="flex h-14 items-center justify-between border-b px-3">
-          {sidebarOpen && (
-            <span className="truncate bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text font-semibold text-transparent">
-              {APP_NAME}
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setSidebarOpen((o) => !o)}
-            className="shrink-0"
-          >
-            {sidebarOpen ? (
-              <PanelLeftClose className="size-4" />
-            ) : (
-              <PanelLeft className="size-4" />
-            )}
-          </Button>
-        </div>
-        <NavContent pathname={pathname} showLabels={sidebarOpen} />
-        <div className="mt-auto border-t p-3">
-          {sidebarOpen && (
-            <div className="mb-2 truncate px-1 text-xs text-muted-foreground">
-              {admin.name}
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2"
-            onClick={() => {
-              clearSession();
-              router.replace("/login");
-            }}
-          >
-            <LogOut className="size-4" />
-            {sidebarOpen && "Salir"}
-          </Button>
-        </div>
-      </aside>
+  const isActive = (href: string, exact?: boolean) => exact ? pathname === href : pathname.startsWith(href);
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b px-4">
-          <div className="flex items-center gap-2 lg:hidden">
-            <Sheet>
-              <SheetTrigger
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "icon-sm" })
-                )}
-              >
-                <Menu className="size-4" />
-              </SheetTrigger>
-              <SheetContent side="left" className="w-64 p-0">
-                <div className="border-b p-4 font-semibold">{APP_NAME}</div>
-                <NavContent pathname={pathname} showLabels />
-              </SheetContent>
-            </Sheet>
-            <span className="font-medium">{COPY.admin.title}</span>
-          </div>
-          <p className="hidden font-medium lg:block">{COPY.admin.title}</p>
-          <ThemeToggle />
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">
-          <AdminSystemStatus />
-          {children}
-        </main>
+  const sidebar = (
+    <nav className="flex h-full flex-col gap-1 p-3">
+      <Link href="/admin" className="mb-4 flex items-center gap-2.5 px-2 py-1.5">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-md shadow-indigo-500/20">
+          <Sparkles className="size-4 text-white" />
+        </div>
+        {!collapsed && <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-violet-400 text-lg font-bold">{APP_NAME}</span>}
+      </Link>
+      {NAV_ITEMS.map((item) => {
+        const active = isActive(item.href, "exact" in item ? item.exact : false);
+        return (
+          <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
+            className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+              collapsed && "justify-center px-2",
+              active ? "bg-primary/10 text-primary shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
+            title={collapsed ? item.label : undefined}>
+            <item.icon className={cn("size-5 shrink-0", active && "text-primary")} />
+            {!collapsed && <span>{item.label}</span>}
+          </Link>
+        );
+      })}
+      <div className="mt-auto flex flex-col gap-1 border-t pt-3">
+        <ThemeToggle />
+        <button onClick={handleLogout}
+          className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive",
+            collapsed && "justify-center px-2")}
+          title={collapsed ? "Cerrar sesión" : undefined}>
+          <LogOut className="size-5 shrink-0" />{!collapsed && <span>Cerrar sesión</span>}
+        </button>
       </div>
-    </div>
+    </nav>
+  );
+
+  return (
+    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+      <div className="flex h-screen overflow-hidden bg-background">
+        {/* Desktop sidebar */}
+        <aside className={cn("relative hidden lg:flex flex-col border-r bg-sidebar transition-all duration-300", collapsed ? "w-[68px]" : "w-[240px]")}>
+          <button onClick={() => setCollapsed(!collapsed)}
+            className="absolute -right-3 top-6 z-10 flex size-6 items-center justify-center rounded-full border bg-card shadow-sm hover:bg-muted transition-colors">
+            <ChevronLeft className={cn("size-3.5 text-muted-foreground transition-transform duration-300", collapsed && "rotate-180")} />
+          </button>
+          {sidebar}
+        </aside>
+
+        {/* Mobile drawer content */}
+        <SheetContent side="left" className="w-[260px] p-0">
+          {sidebar}
+        </SheetContent>
+
+        {/* Main content */}
+        <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+          {/* Mobile top bar */}
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4 lg:hidden">
+            <SheetTrigger render={<Button variant="ghost" size="icon-sm"><Menu className="size-5" /></Button>} />
+            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-violet-400 text-lg font-bold">{APP_NAME}</span>
+            <div className="ml-auto"><ThemeToggle /></div>
+          </header>
+
+          <AdminSystemStatus />
+
+          <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+            {children}
+          </main>
+        </div>
+      </div>
+    </Sheet>
   );
 }
