@@ -294,6 +294,21 @@ export function ExtractionPanel({
     updateExtraction.isPending ||
     updateStatus.isPending;
 
+  const totalsMessage = totalsStatus
+    ? totalsStatus.missing.length > 0
+      ? { ok: false, message: `Faltan ${totalsStatus.missing.length} totales por completar` }
+      : totalsStatus.mismatches.length > 0
+        ? { ok: false, message: `${totalsStatus.mismatches.length} descuadre(s) detectado(s)` }
+        : { ok: true, message: "Totales verificados — listo para guardar" }
+    : null;
+
+  // Ctrl+S save shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleSave(); } };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleSave]);
+
   return (
     <div className="flex h-full flex-col gap-4">
       {!hasExtraction ? (
@@ -492,6 +507,8 @@ export function ExtractionPanel({
 
       <ActionBar
         onSave={handleSave}
+        totalsStatus={totalsMessage}
+        hasUnsavedChanges={liveExtraction !== record.extraction}
         onMarkErrors={() => setErrorsOpen(true)}
         onReject={handleReject}
         loading={loading}
