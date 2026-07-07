@@ -17,13 +17,13 @@
   --brand-black: #000000;
   --brand-white: #ffffff;
 
-  /* --- PRIMARY (Verde neón) --- */
-  --primary-token: #39ff14;
-  --primary-light: #b8ffaa;
-  --primary-lighter: #e8ffe0;
-  --primary-dark: #1fad0b;
-  --primary-darker: #0f5705;
-  --primary-glow: rgba(57, 255, 20, 0.15);
+  /* --- PRIMARY (Rosa — color de acción principal) --- */
+  --primary-token: #ff0066;
+  --primary-light: #ff66a3;
+  --primary-lighter: #ffe0ec;
+  --primary-dark: #cc0052;
+  --primary-darker: #660029;
+  --primary-glow: rgba(255, 0, 102, 0.15);
 
   /* --- SECONDARY (Naranja) --- */
   --secondary-token: #ff7000;
@@ -33,13 +33,13 @@
   --secondary-darker: #662d00;
   --secondary-glow: rgba(255, 112, 0, 0.15);
 
-  /* --- ACCENT (Rosa) --- */
-  --accent-token: #ff0066;
-  --accent-light: #ff66a3;
-  --accent-lighter: #ffe0ec;
-  --accent-dark: #cc0052;
-  --accent-darker: #660029;
-  --accent-glow: rgba(255, 0, 102, 0.15);
+  /* --- ACCENT (Naranja — contraste con el rosa primario) --- */
+  --accent-token: #ff7000;
+  --accent-light: #ffb380;
+  --accent-lighter: #ffe8d6;
+  --accent-dark: #cc5900;
+  --accent-darker: #662d00;
+  --accent-glow: rgba(255, 112, 0, 0.15);
 
   /* --- SURFACES --- */
   --surface: #ffffff;
@@ -59,26 +59,26 @@
   --border-strong: #cccccc;
 
   /* --- SEMANTIC --- */
-  --success-token: #39ff14;
-  --success-bg: #e8ffe0;
+  --success-token: #10b981;
+  --success-bg: #d1fae5;
   --warning-token: #ff7000;
   --warning-bg: #ffe8d6;
-  --error-token: #ff0066;
+  --error-token: #be123c;
   --error-bg: #ffe0ec;
   --info-token: #0088ff;
   --info-bg: #e0f0ff;
 
   /* --- GRADIENTS --- */
-  --gradient-neon: linear-gradient(135deg, #39ff14 0%, #00ff88 100%);
+  --gradient-neon: linear-gradient(135deg, #ff0066 0%, #ff66a3 100%);
   --gradient-sunset: linear-gradient(135deg, #ff7000 0%, #ff0066 100%);
-  --gradient-cyber: linear-gradient(135deg, #39ff14 0%, #ff0066 100%);
+  --gradient-cyber: linear-gradient(135deg, #ff0066 0%, #ff7000 100%);
   --gradient-dark: linear-gradient(180deg, #0a0a0a 0%, #1f1f1f 100%);
 
   /* --- SHADOWS --- */
   --shadow-brand-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-brand-md: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-brand-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-  --shadow-neon: 0 0 20px rgba(57, 255, 20, 0.3);
+  --shadow-neon: 0 0 20px rgba(255, 0, 102, 0.3);
   --shadow-orange: 0 0 20px rgba(255, 112, 0, 0.3);
   --shadow-pink: 0 0 20px rgba(255, 0, 102, 0.3);
 
@@ -96,8 +96,8 @@
   --secondary-foreground: var(--secondary-darker);
   --muted: var(--surface-muted);
   --muted-foreground: var(--text-muted);
-  --accent: var(--accent-lighter);
-  --accent-foreground: var(--accent-dark);
+  --accent: var(--secondary-lighter);
+  --accent-foreground: var(--secondary-dark);
   --destructive: var(--error-token);
   --destructive-foreground: var(--brand-white);
   --success: var(--success-token);
@@ -140,8 +140,8 @@
   --secondary-foreground: #ffffff;
   --muted: var(--surface-dark-muted);
   --muted-foreground: #b0b0b0;
-  --accent: color-mix(in srgb, var(--accent-token) 18%, var(--surface-dark-alt));
-  --accent-foreground: var(--accent-light);
+  --accent: color-mix(in srgb, var(--secondary-token) 14%, var(--surface-dark-alt));
+  --accent-foreground: var(--secondary-light);
   --destructive: var(--error-token);
   --destructive-foreground: #ffffff;
   --success: var(--success-token);
@@ -242,7 +242,7 @@
   --shadow-sm: var(--shadow-brand-sm);
   --shadow-md: var(--shadow-brand-md);
   --shadow-lg: var(--shadow-brand-lg);
-  --shadow-glow: var(--shadow-neon);
+  --shadow-glow: var(--shadow-pink);
   --shadow-glow-sm: 0 0 12px -2px var(--primary-glow);
   --animate-fade-in: fade-in 0.4s ease-out both;
   --animate-fade-in-up: fade-in-up 0.5s ease-out both;
@@ -333,7 +333,7 @@
 }
 .btn-neon:hover {
   background: var(--primary-dark);
-  box-shadow: 0 0 20px rgba(57, 255, 20, 0.4);
+  box-shadow: 0 0 20px rgba(255, 0, 102, 0.4);
   transform: translateY(-1px);
 }
 
@@ -345,7 +345,7 @@
 }
 .card-brand:hover {
   border-color: var(--primary);
-  box-shadow: var(--shadow-neon);
+  box-shadow: var(--shadow-pink);
 }
 
 .badge-accent {
@@ -401,7 +401,7 @@
 }
 
 .glow-ring {
-  box-shadow: 0 0 0 1px var(--primary-glow), var(--shadow-neon);
+  box-shadow: 0 0 0 1px var(--primary-glow), var(--shadow-pink);
 }
 
 .animate-fade-in { animation: fade-in 0.4s ease-out both; }
