@@ -51,7 +51,7 @@ export function applyCatalogsToExtraction(
     catalogs.filter((c) => c.active).map((c) => [c.fieldKey, c])
   );
 
-  let next: Extraction = ensureExtractionShape(extraction);
+  const next: Extraction = ensureExtractionShape(extraction);
 
   for (const key of ["conductor", "auxiliar", "patente", "n_recorrido"] as const) {
     const cat = byKey.get(key);
