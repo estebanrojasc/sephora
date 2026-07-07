@@ -20,17 +20,17 @@ export function OptimizationProgress({
   progress,
 }: OptimizationProgressProps) {
   return (
-    <div className="animate-scale-in space-y-3 rounded-xl border-2 border-indigo-200/60 bg-indigo-50/60 p-4 shadow-sm dark:border-indigo-800/40 dark:bg-indigo-950/30">
+    <div className="animate-scale-in space-y-3 rounded-xl border-2 border-primary/30 bg-primary-lighter/50 p-4 shadow-sm dark:border-primary/20 dark:bg-primary-darker/20">
       <div className="flex items-center gap-2.5">
-        <div className="flex size-8 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
-          <Sparkles className="size-4 text-indigo-600 dark:text-indigo-400" />
+        <div className="flex size-8 items-center justify-center rounded-full bg-primary/20">
+          <Sparkles className="size-4 text-primary-dark dark:text-primary" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+          <p className="text-sm font-semibold text-primary-dark dark:text-primary">
             {COPY.driver.optimizing}
           </p>
           {step && (
-            <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70">
+            <p className="text-xs text-primary-dark/70 dark:text-primary/70">
               {stepLabels[step]}
             </p>
           )}
@@ -38,7 +38,7 @@ export function OptimizationProgress({
       </div>
       <Progress
         value={progress}
-        className="h-2 bg-indigo-200/60 dark:bg-indigo-800/40 [&>div]:bg-indigo-500"
+        className="h-2 bg-primary/20 dark:bg-primary/10 [&>div]:bg-primary"
       />
     </div>
   );

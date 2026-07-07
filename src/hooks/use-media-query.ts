@@ -33,6 +33,14 @@ export function useMediaQuery(query: string): boolean {
   );
 }
 
+/** Alineado con el breakpoint Tailwind `lg:` y el shell admin (`hidden lg:flex`). */
+export const DESKTOP_MIN_WIDTH_PX = 1024;
+
 export function useIsDesktop(): boolean {
-  return useMediaQuery("(min-width: 768px)");
+  return useMediaQuery(`(min-width: ${DESKTOP_MIN_WIDTH_PX}px)`);
+}
+
+/** Dispositivos táctiles sin hover preciso (móvil/tablet). */
+export function useIsCoarsePointer(): boolean {
+  return useMediaQuery("(hover: none) and (pointer: coarse)");
 }

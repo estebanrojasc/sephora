@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/common/PageHeader";
 import {
   BitacoraEditor,
@@ -14,9 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { writeStoredBitacoraDate } from "@/lib/admin-session-storage";
 import { cn } from "@/lib/utils";
 
-export function BitacoraDatePageClient() {
-  const params = useParams();
-  const date = decodeURIComponent(String(params.date ?? ""));
+export function BitacoraDatePageClient({ date }: { date: string }) {
   const {
     data: versions = [],
     isLoading,

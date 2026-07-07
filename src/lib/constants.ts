@@ -1,4 +1,11 @@
-export const APP_NAME = "Qwen Visor";
+export const BRAND_LOGO_SRC = "/404lab.svg";
+/** Marca corta (UI compacta: sidebar, header). */
+export const BRAND_NAME = "Sephora";
+/** Nombre completo del sistema. */
+export const APP_NAME = "Sephora Viewer";
+export const APP_TITLE = APP_NAME;
+/** Empresa / identidad del logo. */
+export const BRAND_LAB_NAME = "404LAB";
 
 /**
  * Resolución máxima para la versión ORIGINAL (la que ve el admin con zoom).

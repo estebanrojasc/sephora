@@ -12,6 +12,7 @@ import {
   type BboxOverlay,
 } from "@/features/records/overlays";
 import { cn } from "@/lib/utils";
+import { useIsCoarsePointer } from "@/hooks/use-media-query";
 
 interface ImageWithZoomProps {
   src: string;
@@ -69,6 +70,10 @@ export function ImageWithZoom({
   onBboxDrawn,
   onCancelDraw,
 }: ImageWithZoomProps) {
+  const isCoarsePointer = useIsCoarsePointer();
+  const drawHint = isCoarsePointer
+    ? "Toca y arrastra para marcar la caja"
+    : "Click y arrastra para marcar la caja";
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -253,7 +258,7 @@ export function ImageWithZoom({
         {drawBboxMode && (
           <div className="ml-auto flex items-center gap-2 rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             <PencilRuler className="size-3" />
-            Click y arrastra para marcar la caja
+            {drawHint}
             {onCancelDraw && (
               <button
                 type="button"

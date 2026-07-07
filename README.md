@@ -1,4 +1,4 @@
-# Qwen Visor
+# Sephora Viewer · 404LAB
 
 Aplicación de captura y revisión de hojas de rendición de ruta manuscritas, con dos roles:
 

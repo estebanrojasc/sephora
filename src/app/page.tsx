@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ClipboardList, Smartphone, LogIn, Sparkles, ChevronRight, Shield } from "lucide-react";
+import { ClipboardList, Smartphone, LogIn, ChevronRight, Shield } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { APP_NAME, COPY } from "@/lib/constants";
+import { BrandLogo } from "@/components/common/BrandLogo";
+import { APP_NAME, BRAND_LAB_NAME, COPY } from "@/lib/constants";
 import { useSessionHydrated } from "@/features/auth/use-session-hydrated";
 import { useSessionStore } from "@/features/auth/session-store";
 
@@ -53,9 +54,9 @@ export default function HomePage() {
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-12">
       {/* Animated background blobs */}
       <div className="pointer-events-none fixed inset-0 -z-10">
-        <FloatingBlob className="-top-32 left-1/4 size-[500px] bg-indigo-200/40 dark:bg-indigo-800/15" />
-        <FloatingBlob className="top-1/2 -right-32 size-[400px] bg-violet-200/40 dark:bg-violet-800/15" />
-        <FloatingBlob className="-bottom-40 left-1/3 size-[450px] bg-fuchsia-200/30 dark:bg-fuchsia-800/10" />
+        <FloatingBlob className="-top-32 left-1/4 size-[500px] bg-primary/20 dark:bg-primary/10" />
+        <FloatingBlob className="top-1/2 -right-32 size-[400px] bg-brand-orange/20 dark:bg-brand-orange/10" />
+        <FloatingBlob className="-bottom-40 left-1/3 size-[450px] bg-brand-pink/15 dark:bg-brand-pink/10" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
       </div>
 
@@ -80,21 +81,16 @@ export default function HomePage() {
           >
             {/* Hero */}
             <motion.div variants={item} className="flex flex-col items-center gap-4 text-center">
-              <motion.div
-                whileHover={{ scale: 1.05, rotate: 5 }}
-                className="flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 shadow-xl shadow-indigo-500/30"
-              >
-                <Sparkles className="size-9 text-white" />
-              </motion.div>
-              <div>
-                <h1 className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-violet-400 text-4xl font-extrabold tracking-tight sm:text-5xl">
+              <motion.div whileHover={{ scale: 1.02 }} className="flex flex-col items-center gap-3">
+                <BrandLogo size="lg" showName={false} />
+                <h1 className="font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                   {APP_NAME}
                 </h1>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  Digitalización inteligente de hojas de ruta manuscritas.
-                  Captura, extrae y valida con IA en segundos.
-                </p>
-              </div>
+              </motion.div>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Digitalización inteligente de hojas de ruta manuscritas.
+                Captura, extrae y valida con IA en segundos.
+              </p>
             </motion.div>
 
             {/* Role cards */}
@@ -121,9 +117,9 @@ export default function HomePage() {
               </Card>
 
               {/* Admin card */}
-              <Card className="group glass hover-lift tap-active cursor-pointer overflow-hidden border-2 border-transparent transition-all duration-300 hover:border-indigo-400/30">
+              <Card className="group glass hover-lift tap-active cursor-pointer overflow-hidden border-2 border-transparent transition-all duration-300 hover:border-brand-orange/30">
                 <CardHeader className="pb-3">
-                  <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600 shadow-md shadow-indigo-500/15 transition-transform duration-300 group-hover:scale-110 dark:bg-indigo-950 dark:text-indigo-300">
+                  <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-secondary text-brand-orange shadow-md shadow-brand-orange/15 transition-transform duration-300 group-hover:scale-110">
                     <Shield className="size-6" />
                   </div>
                   <CardTitle>{COPY.role.admin}</CardTitle>
@@ -134,7 +130,7 @@ export default function HomePage() {
                     <Button
                       size="lg"
                       variant="outline"
-                      className="w-full gap-2 border-2 border-indigo-200 shadow-sm hover:bg-indigo-50 hover:shadow-md dark:border-indigo-800 dark:hover:bg-indigo-950/30"
+                      className="w-full gap-2 border-2 border-primary/30 shadow-sm hover:bg-primary/5 hover:shadow-md"
                     >
                       <LogIn className="size-4" />
                       Entrar como administrador
@@ -149,7 +145,7 @@ export default function HomePage() {
               variants={item}
               className="text-center text-xs text-muted-foreground/50"
             >
-              v0.2 · Procesamiento Qwen-VL · Diseño 2026
+              v0.2 · Modelo Qwen-VL · {BRAND_LAB_NAME}
             </motion.p>
           </motion.div>
         )}

@@ -28,10 +28,7 @@ function isPendingRowEditableInReadOnly(row: BitacoraRow): boolean {
   return row.rowType === "entrega_pendiente";
 }
 
-function isCellEditable(
-  row: BitacoraRow,
-  readOnly: boolean
-): boolean {
+function isCellEditable(row: BitacoraRow, readOnly: boolean): boolean {
   if (!readOnly) return true;
   return isPendingRowEditableInReadOnly(row);
 }
@@ -74,6 +71,293 @@ interface BitacoraPreviewTableProps {
   ) => void;
 }
 
+interface RowContext {
+  row: BitacoraRow;
+  idx: number;
+  readOnly: boolean;
+  updateRow: (idx: number, patch: Partial<BitacoraRow>) => void;
+  updateCell: (idx: number, key: keyof BitacoraRow, value: string) => void;
+}
+
+function BitacoraRowTypeField({
+  row,
+  idx,
+  readOnly,
+  updateRow,
+}: RowContext) {
+  if (readOnly) {
+    return (
+      <BitacoraRowBadge
+        rowType={row.rowType}
+        manualSubtype={row.manualSubtype}
+      />
+    );
+  }
+
+  return (
+    <Select
+      value={row.rowType}
+      onValueChange={(v) =>
+        updateRow(idx, {
+          rowType: v as BitacoraRowType,
+        })
+      }
+    >
+      <SelectTrigger className="h-8 w-full text-xs lg:h-7 lg:w-[130px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {ROW_TYPES.map((t) => (
+          <SelectItem key={t} value={t}>
+            {t}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function BitacoraCellEditor({
+  row,
+  col,
+  idx,
+  readOnly,
+  updateCell,
+}: RowContext & { col: (typeof COLUMNS)[number] }) {
+  if (!isCellEditable(row, readOnly)) {
+    return (
+      <span className="text-xs">
+        {col.key === "recorrido"
+          ? (bitacoraRecorridoCanonical(row) ?? "—")
+          : col.key === "scheduledDate"
+            ? (row.scheduledDate ?? "—")
+            : ((row[col.key] as string | undefined) ?? "—")}
+      </span>
+    );
+  }
+
+  if (col.key === "scheduledDate") {
+    return (
+      <Input
+        type="date"
+        className={cn(
+          "h-8 w-full text-xs lg:h-7 lg:min-w-[120px]",
+          row.rowType === "entrega_pendiente" &&
+            !row.scheduledDate &&
+            "border-amber-500 ring-1 ring-amber-500/40"
+        )}
+        value={row.scheduledDate ?? ""}
+        onChange={(e) => updateCell(idx, "scheduledDate", e.target.value)}
+      />
+    );
+  }
+
+  return (
+    <Input
+      className="h-8 w-full text-xs lg:h-7 lg:min-w-[72px]"
+      value={
+        col.key === "recorrido"
+          ? (row.recorrido ?? row.recorridoSuffix ?? "")
+          : ((row[col.key] as string | undefined) ?? "")
+      }
+      onChange={(e) =>
+        updateCell(
+          idx,
+          col.key === "recorrido" ? "recorrido" : col.key,
+          e.target.value
+        )
+      }
+    />
+  );
+}
+
+function BitacoraRowLinks({ links }: { links: BitacoraRowRecordLink[] }) {
+  if (links.length === 0) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  return (
+    <ul className="space-y-1">
+      {links.map((link) => (
+        <li key={link.recordId}>
+          <Link
+            href={`/admin/records/${link.recordId}`}
+            className="inline-flex flex-wrap items-center gap-1 text-xs text-indigo-600 hover:underline"
+          >
+            <span>{link.label}</span>
+            <StatusBadge status={link.status} />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function BitacoraRowActions({
+  row,
+  idx,
+  readOnly,
+  links,
+  allowsMultiple,
+  canCreate,
+  creatingRowId,
+  onCreateRecord,
+  onToggleMultipleReviews,
+  updateRow,
+}: RowContext & {
+  links: BitacoraRowRecordLink[];
+  allowsMultiple: boolean;
+  canCreate: boolean;
+  creatingRowId?: string | null;
+  onCreateRecord?: (row: BitacoraRow) => void;
+  onToggleMultipleReviews?: (
+    rowId: string,
+    allowsMultipleReviews: boolean
+  ) => void;
+}) {
+  if (
+    row.rowType !== "manual" &&
+    row.rowType !== "ruta" &&
+    row.rowType !== "entrega_pendiente"
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <input
+          type="checkbox"
+          className="size-3.5 rounded border"
+          checked={allowsMultiple}
+          disabled={readOnly && !onToggleMultipleReviews}
+          onChange={(e) => {
+            const next = e.target.checked;
+            if (onToggleMultipleReviews) {
+              onToggleMultipleReviews(row.id, next);
+              return;
+            }
+            updateRow(idx, { allowsMultipleReviews: next });
+          }}
+        />
+        Varias revisiones
+      </label>
+      {canCreate && onCreateRecord && (
+        <button
+          type="button"
+          disabled={
+            creatingRowId === row.id ||
+            (row.rowType === "entrega_pendiente" &&
+              !row.scheduledDate?.trim())
+          }
+          className="block text-xs text-indigo-600 hover:underline disabled:opacity-50 disabled:no-underline"
+          title={
+            row.rowType === "entrega_pendiente" &&
+            !row.scheduledDate?.trim()
+              ? "Indica la fecha programada primero"
+              : undefined
+          }
+          onClick={() => onCreateRecord(row)}
+        >
+          {creatingRowId === row.id
+            ? "Creando…"
+            : links.length > 0
+              ? "Otra revisión"
+              : "Crear registro"}
+        </button>
+      )}
+      {!canCreate && links.length > 0 && (
+        <span className="block text-[10px] text-muted-foreground">
+          Vinculada
+        </span>
+      )}
+    </div>
+  );
+}
+
+function BitacoraPreviewRowCard({
+  ctx,
+  links,
+  showLinksColumn,
+  showRowSettingsColumn,
+  onToggleMultipleReviews,
+  onCreateRecord,
+  creatingRowId,
+}: {
+  ctx: RowContext;
+  links: BitacoraRowRecordLink[];
+  showLinksColumn: boolean;
+  showRowSettingsColumn: boolean;
+  onToggleMultipleReviews?: (
+    rowId: string,
+    allowsMultipleReviews: boolean
+  ) => void;
+  onCreateRecord?: (row: BitacoraRow) => void;
+  creatingRowId?: string | null;
+}) {
+  const { row } = ctx;
+  const recorrido = bitacoraRecorridoCanonical(row);
+  const allowsMultiple = rowAllowsMultipleReviews(row);
+  const canCreate = Boolean(
+    onCreateRecord && canCreateRecordForBitacoraRow(row, links)
+  );
+
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-sm">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          <BitacoraRowTypeField {...ctx} />
+          {recorrido && (
+            <p className="truncate text-sm font-semibold">{recorrido}</p>
+          )}
+        </div>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+        {COLUMNS.map((col) => (
+          <div
+            key={col.key}
+            className={cn(
+              "min-w-0",
+              col.key === "observacion" && "col-span-2"
+            )}
+          >
+            <dt className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {col.label}
+            </dt>
+            <dd className="mt-0.5">
+              <BitacoraCellEditor {...ctx} col={col} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {showLinksColumn && links.length > 0 && (
+        <div className="mt-3 border-t pt-3">
+          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Revisiones
+          </p>
+          <BitacoraRowLinks links={links} />
+        </div>
+      )}
+
+      {showRowSettingsColumn && (
+        <div className="mt-3 border-t pt-3">
+          <BitacoraRowActions
+            {...ctx}
+            links={links}
+            allowsMultiple={allowsMultiple}
+            canCreate={canCreate}
+            creatingRowId={creatingRowId}
+            onCreateRecord={onCreateRecord}
+            onToggleMultipleReviews={onToggleMultipleReviews}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BitacoraPreviewTable({
   rows,
   onChange,
@@ -101,8 +385,7 @@ export function BitacoraPreviewTable({
   const pendientes = rows.filter((r) => r.rowType === "entrega_pendiente");
   const manuales = rows.filter((r) => r.rowType === "manual");
   const otros = rows.filter(
-    (r) =>
-      !["ruta", "entrega_pendiente", "manual"].includes(r.rowType)
+    (r) => !["ruta", "entrega_pendiente", "manual"].includes(r.rowType)
   );
 
   const addRow = (rowType: BitacoraRowType) => {
@@ -231,11 +514,40 @@ export function BitacoraPreviewTable({
           </h3>
           {section.title.startsWith("Entregas pendientes") && readOnly && (
             <p className="text-xs text-amber-700 dark:text-amber-300">
-              Completa la columna «Fecha prog.» (y otros datos si faltan) antes de
-              crear el registro.
+              Completa la columna «Fecha prog.» (y otros datos si faltan) antes
+              de crear el registro.
             </p>
           )}
-          <div className="overflow-x-auto rounded-md border">
+
+          {/* Vista móvil / tablet: cards apiladas (< lg) */}
+          <div className="space-y-3 lg:hidden">
+            {section.items.map((row) => {
+              const idx = rows.findIndex((r) => r.id === row.id);
+              const links = rowRecordLinks?.get(row.id) ?? [];
+              const ctx: RowContext = {
+                row,
+                idx,
+                readOnly,
+                updateRow,
+                updateCell,
+              };
+              return (
+                <BitacoraPreviewRowCard
+                  key={row.id}
+                  ctx={ctx}
+                  links={links}
+                  showLinksColumn={showLinksColumn}
+                  showRowSettingsColumn={showRowSettingsColumn}
+                  onToggleMultipleReviews={onToggleMultipleReviews}
+                  onCreateRecord={onCreateRecord}
+                  creatingRowId={creatingRowId}
+                />
+              );
+            })}
+          </div>
+
+          {/* Vista desktop: tabla ancha (≥ lg) */}
+          <div className="hidden overflow-x-auto rounded-md border lg:block">
             <table className="w-full min-w-[960px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/40">
@@ -245,7 +557,7 @@ export function BitacoraPreviewTable({
                   {COLUMNS.map((col) => (
                     <th
                       key={col.key}
-                      className="px-2 py-1.5 text-left text-xs font-medium whitespace-nowrap"
+                      className="whitespace-nowrap px-2 py-1.5 text-left text-xs font-medium"
                     >
                       {col.label}
                     </th>
@@ -264,170 +576,45 @@ export function BitacoraPreviewTable({
                 {section.items.map((row) => {
                   const idx = rows.findIndex((r) => r.id === row.id);
                   const links = rowRecordLinks?.get(row.id) ?? [];
-                  const canCreate =
+                  const canCreate = Boolean(
                     onCreateRecord &&
-                    canCreateRecordForBitacoraRow(row, links);
+                      canCreateRecordForBitacoraRow(row, links)
+                  );
                   const allowsMultiple = rowAllowsMultipleReviews(row);
+                  const ctx: RowContext = {
+                    row,
+                    idx,
+                    readOnly,
+                    updateRow,
+                    updateCell,
+                  };
+
                   return (
                     <tr key={row.id} className="border-b last:border-0">
                       <td className="px-2 py-1 align-top">
-                        {readOnly ? (
-                          <BitacoraRowBadge
-                            rowType={row.rowType}
-                            manualSubtype={row.manualSubtype}
-                          />
-                        ) : (
-                          <Select
-                            value={row.rowType}
-                            onValueChange={(v) =>
-                              updateRow(idx, {
-                                rowType: v as BitacoraRowType,
-                              })
-                            }
-                          >
-                            <SelectTrigger className="h-7 w-[130px] text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ROW_TYPES.map((t) => (
-                                <SelectItem key={t} value={t}>
-                                  {t}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
+                        <BitacoraRowTypeField {...ctx} />
                       </td>
                       {COLUMNS.map((col) => (
                         <td key={col.key} className="px-1 py-1">
-                          {!isCellEditable(row, readOnly) ? (
-                            <span className="text-xs">
-                              {col.key === "recorrido"
-                                ? (bitacoraRecorridoCanonical(row) ?? "—")
-                                : col.key === "scheduledDate"
-                                  ? (row.scheduledDate ?? "—")
-                                  : ((row[col.key] as string | undefined) ??
-                                    "—")}
-                            </span>
-                          ) : col.key === "scheduledDate" ? (
-                            <Input
-                              type="date"
-                              className={cn(
-                                "h-7 min-w-[120px] text-xs",
-                                row.rowType === "entrega_pendiente" &&
-                                  !row.scheduledDate &&
-                                  "border-amber-500 ring-1 ring-amber-500/40"
-                              )}
-                              value={row.scheduledDate ?? ""}
-                              onChange={(e) =>
-                                updateCell(idx, "scheduledDate", e.target.value)
-                              }
-                            />
-                          ) : (
-                            <Input
-                              className="h-7 min-w-[72px] text-xs"
-                              value={
-                                col.key === "recorrido"
-                                  ? (row.recorrido ??
-                                    row.recorridoSuffix ??
-                                    "")
-                                  : ((row[col.key] as string | undefined) ??
-                                    "")
-                              }
-                              onChange={(e) =>
-                                updateCell(
-                                  idx,
-                                  col.key === "recorrido"
-                                    ? "recorrido"
-                                    : col.key,
-                                  e.target.value
-                                )
-                              }
-                            />
-                          )}
+                          <BitacoraCellEditor {...ctx} col={col} />
                         </td>
                       ))}
                       {showLinksColumn && (
                         <td className="px-2 py-1 align-top">
-                          {links.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">
-                              —
-                            </span>
-                          ) : (
-                            <ul className="space-y-1">
-                              {links.map((link) => (
-                                <li key={link.recordId}>
-                                  <Link
-                                    href={`/admin/records/${link.recordId}`}
-                                    className="inline-flex flex-wrap items-center gap-1 text-xs text-indigo-600 hover:underline"
-                                  >
-                                    <span>{link.label}</span>
-                                    <StatusBadge status={link.status} />
-                                  </Link>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                          <BitacoraRowLinks links={links} />
                         </td>
                       )}
                       {(showRowSettingsColumn || onToggleMultipleReviews) && (
-                        <td className="px-2 py-1 align-top space-y-2">
-                          {(row.rowType === "manual" ||
-                            row.rowType === "ruta" ||
-                            row.rowType === "entrega_pendiente") && (
-                            <>
-                              <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                                <input
-                                  type="checkbox"
-                                  className="size-3.5 rounded border"
-                                  checked={allowsMultiple}
-                                  disabled={
-                                    readOnly && !onToggleMultipleReviews
-                                  }
-                                  onChange={(e) => {
-                                    const next = e.target.checked;
-                                    if (onToggleMultipleReviews) {
-                                      onToggleMultipleReviews(row.id, next);
-                                      return;
-                                    }
-                                    updateRow(idx, {
-                                      allowsMultipleReviews: next,
-                                    });
-                                  }}
-                                />
-                                Varias revisiones
-                              </label>
-                              {canCreate && (
-                                <button
-                                  type="button"
-                                  disabled={
-                                    creatingRowId === row.id ||
-                                    (row.rowType === "entrega_pendiente" &&
-                                      !row.scheduledDate?.trim())
-                                  }
-                                  className="block text-xs text-indigo-600 hover:underline disabled:opacity-50 disabled:no-underline"
-                                  title={
-                                    row.rowType === "entrega_pendiente" &&
-                                    !row.scheduledDate?.trim()
-                                      ? "Indica la fecha programada primero"
-                                      : undefined
-                                  }
-                                  onClick={() => onCreateRecord!(row)}
-                                >
-                                  {creatingRowId === row.id
-                                    ? "Creando…"
-                                    : links.length > 0
-                                      ? "Otra revisión"
-                                      : "Crear registro"}
-                                </button>
-                              )}
-                              {!canCreate && links.length > 0 && (
-                                <span className="block text-[10px] text-muted-foreground">
-                                  Vinculada
-                                </span>
-                              )}
-                            </>
-                          )}
+                        <td className="space-y-2 px-2 py-1 align-top">
+                          <BitacoraRowActions
+                            {...ctx}
+                            links={links}
+                            allowsMultiple={allowsMultiple}
+                            canCreate={canCreate}
+                            creatingRowId={creatingRowId}
+                            onCreateRecord={onCreateRecord}
+                            onToggleMultipleReviews={onToggleMultipleReviews}
+                          />
                         </td>
                       )}
                     </tr>

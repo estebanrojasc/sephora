@@ -6,7 +6,12 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 export const runtime = "nodejs";
 
-export default async function BitacoraDatePage() {
+export default async function BitacoraDatePage({
+  params,
+}: {
+  params: Promise<{ date: string }>;
+}) {
   await ensureAdminDynamicRender();
-  return <BitacoraDatePageClient />;
+  const { date } = await params;
+  return <BitacoraDatePageClient date={decodeURIComponent(date)} />;
 }

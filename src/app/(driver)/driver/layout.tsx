@@ -3,12 +3,12 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Inbox, Camera, LogOut, Sparkles } from "lucide-react";
+import { Inbox, Camera, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { BrandLogo } from "@/components/common/BrandLogo";
 import { useSessionStore } from "@/features/auth/session-store";
 import { useSessionHydrated } from "@/features/auth/use-session-hydrated";
-import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -46,12 +46,7 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-30 glass-strong border-b">
         <div className="flex h-14 items-center justify-between px-4">
-          <Link href="/driver" className="flex items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-md">
-              <Sparkles className="size-4 text-white" />
-            </div>
-            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-violet-400 text-lg font-bold">{APP_NAME}</span>
-          </Link>
+          <BrandLogo href="/driver" size="sm" />
           <div className="flex items-center gap-1">
             <ThemeToggle />
             <Button variant="ghost" size="icon-sm" onClick={() => { clearSession(); router.push("/"); }} title="Salir">

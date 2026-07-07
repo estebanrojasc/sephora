@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardList, BookOpen, Database, Menu, ChevronLeft, LogOut, Sparkles } from "lucide-react";
+import { ClipboardList, BookOpen, Database, Menu, ChevronLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { BrandLogo } from "@/components/common/BrandLogo";
 import { AdminSystemStatus } from "@/components/admin/AdminSystemStatus";
 import { useSessionStore } from "@/features/auth/session-store";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -40,7 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!hydrated) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <div className="flex items-center gap-3">
           <div className="size-8 animate-shimmer rounded-xl bg-muted" />
           <div className="h-5 w-32 animate-shimmer rounded-md bg-muted" />
@@ -53,12 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const sidebar = (
     <nav className="flex h-full flex-col gap-1 p-3">
-      <Link href="/admin" className="mb-4 flex items-center gap-2.5 px-2 py-1.5">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-md shadow-indigo-500/20">
-          <Sparkles className="size-4 text-white" />
-        </div>
-        {!collapsed && <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-violet-400 text-lg font-bold">{APP_NAME}</span>}
-      </Link>
+      <BrandLogo href="/admin" showName={!collapsed} size={collapsed ? "sm" : "md"} className={cn("mb-4 px-2 py-1.5", collapsed && "justify-center")} />
       {NAV_ITEMS.map((item) => {
         const active = isActive(item.href, "exact" in item ? item.exact : false);
         return (
@@ -86,7 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-dvh overflow-hidden bg-background">
         {/* Desktop sidebar */}
         <aside className={cn("relative hidden lg:flex flex-col border-r bg-sidebar transition-all duration-300", collapsed ? "w-[68px]" : "w-[240px]")}>
           <button onClick={() => setCollapsed(!collapsed)}
@@ -106,13 +101,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Mobile top bar */}
           <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4 lg:hidden">
             <SheetTrigger render={<Button variant="ghost" size="icon-sm"><Menu className="size-5" /></Button>} />
-            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-violet-400 text-lg font-bold">{APP_NAME}</span>
+            <BrandLogo href="/admin" size="sm" className="min-w-0 flex-1" />
             <div className="ml-auto"><ThemeToggle /></div>
           </header>
 
-          <AdminSystemStatus />
-
-          <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          <main className="flex min-h-0 flex-1 flex-col overflow-auto p-4 md:p-6 lg:p-8">
+            <AdminSystemStatus />
             {children}
           </main>
         </div>

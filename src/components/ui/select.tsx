@@ -77,7 +77,7 @@ function SelectItem({
       )}
       {...props}
     >
-      <SelectPrimitive.ItemIndicator className="size-4 text-indigo-600 dark:text-indigo-300">
+      <SelectPrimitive.ItemIndicator className="size-4 text-primary">
         <Check className="size-4" />
       </SelectPrimitive.ItemIndicator>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

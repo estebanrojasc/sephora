@@ -32,7 +32,8 @@ export function ProcessAIButton({
   return (
     <Button
       size="lg"
-      className="w-full gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md transition-all hover:from-indigo-500 hover:to-violet-500"
+      variant="glow"
+      className="w-full gap-2"
       onClick={onClick}
       disabled={disabled || loading}
     >

@@ -3,14 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, UserPlus, ArrowLeft, Shield, Mail, Lock, Key } from "lucide-react";
+import { Loader2, UserPlus, ArrowLeft, Mail, Lock, Key } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { APP_NAME } from "@/lib/constants";
+import { BrandLogo } from "@/components/common/BrandLogo";
 import { useSessionStore } from "@/features/auth/session-store";
 
 export default function RegisterPage() {
@@ -48,9 +48,9 @@ export default function RegisterPage() {
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
       <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-violet-50 dark:from-indigo-950/30 dark:via-background dark:to-violet-950/20" />
-        <div className="absolute -top-32 right-1/4 size-80 rounded-full bg-indigo-200/50 blur-3xl dark:bg-indigo-800/15" />
-        <div className="absolute -bottom-32 left-1/4 size-80 rounded-full bg-violet-200/50 blur-3xl dark:bg-violet-800/15" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-lighter/40 via-background to-secondary-lighter/40 dark:from-primary-darker/20 dark:via-background dark:to-secondary-darker/20" />
+        <div className="absolute -top-32 right-1/4 size-80 rounded-full bg-primary/20 blur-3xl dark:bg-primary/10" />
+        <div className="absolute -bottom-32 left-1/4 size-80 rounded-full bg-brand-pink/15 blur-3xl dark:bg-brand-pink/10" />
       </div>
 
       <motion.div
@@ -60,13 +60,10 @@ export default function RegisterPage() {
       >
         <Card glass className="w-full max-w-sm border-2 shadow-xl">
           <CardHeader className="space-y-1 text-center pb-4">
-            <motion.div
-              whileHover={{ scale: 1.05, rotate: 5 }}
-              className="mx-auto mb-2 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg shadow-indigo-500/25"
-            >
-              <Shield className="size-7 text-white" />
-            </motion.div>
-            <CardTitle className="text-2xl font-extrabold">{APP_NAME}</CardTitle>
+            <div className="mx-auto mb-2 flex justify-center">
+              <BrandLogo size="md" showName={false} />
+            </div>
+            <CardTitle className="text-xl font-semibold">Crear cuenta</CardTitle>
             <CardDescription className="text-sm leading-relaxed">
               Crear cuenta de administrador. Necesitas la clave de registro.
             </CardDescription>

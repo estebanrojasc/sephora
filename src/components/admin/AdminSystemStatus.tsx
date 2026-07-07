@@ -28,44 +28,63 @@ interface SystemHealthReport {
   error?: string;
 }
 
+async function fetchHealthReport(): Promise<{
+  report: SystemHealthReport | null;
+  fetchError: string | null;
+}> {
+  try {
+    const data = await fetchJsonNoStore<SystemHealthReport>(
+      "/api/health?light=1"
+    );
+    return { report: data, fetchError: null };
+  } catch (e) {
+    if (e instanceof ApiFetchError) {
+      const body = e.body as SystemHealthReport | null;
+      if (body && typeof body === "object" && "checks" in body) {
+        return { report: body, fetchError: e.message };
+      }
+      return { report: null, fetchError: e.message };
+    }
+    return {
+      report: null,
+      fetchError: e instanceof Error ? e.message : "Error desconocido",
+    };
+  }
+}
+
 export function AdminSystemStatus() {
   const [report, setReport] = useState<SystemHealthReport | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setFetchError(null);
-    try {
-      const data = await fetchJsonNoStore<SystemHealthReport>(
-        "/api/health?light=1"
-      );
-      setReport(data);
-    } catch (e) {
-      setReport(null);
-      if (e instanceof ApiFetchError) {
-        const body = e.body as SystemHealthReport | null;
-        if (body && typeof body === "object" && "checks" in body) {
-          setReport(body);
-        }
-        setFetchError(e.message);
-      } else {
-        setFetchError(e instanceof Error ? e.message : "Error desconocido");
-      }
-    } finally {
+  const applyResult = useCallback(
+    (result: { report: SystemHealthReport | null; fetchError: string | null }) => {
+      setReport(result.report);
+      setFetchError(result.fetchError);
       setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void fetchHealthReport().then((result) => {
+      if (!cancelled) applyResult(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyResult]);
+
+  const handleRetry = useCallback(() => {
+    setLoading(true);
+    void fetchHealthReport().then(applyResult);
+  }, [applyResult]);
 
   if (loading) return null;
   if (report?.ok) return null;
 
-  const failedChecks =
-    report?.checks.filter((c) => !c.ok) ?? [];
+  const failedChecks = report?.checks.filter((c) => !c.ok) ?? [];
 
   return (
     <div
@@ -119,7 +138,7 @@ export function AdminSystemStatus() {
           variant="outline"
           size="sm"
           className="shrink-0 border-red-300 bg-white/80 dark:border-red-700 dark:bg-red-950"
-          onClick={() => void load()}
+          onClick={handleRetry}
         >
           <RefreshCw className="size-3.5" />
           Reintentar

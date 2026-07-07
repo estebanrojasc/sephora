@@ -208,7 +208,8 @@ export default function CapturePage() {
       {images.length > 0 && stage === "idle" && (
         <Button
           size="lg"
-          className="animate-fade-in-up h-14 w-full gap-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25 transition-all hover:from-indigo-500 hover:to-violet-500 hover:shadow-xl hover:shadow-indigo-500/30 active:scale-[0.98]"
+          variant="glow"
+          className="animate-fade-in-up h-14 w-full gap-2.5 active:scale-[0.98]"
           onClick={handleSend}
           disabled={upload.isPending || isProcessing}
         >

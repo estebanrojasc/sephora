@@ -18,6 +18,7 @@ import {
 } from "@/features/records/types";
 import { getTotalsStatus } from "@/features/records/totals";
 import { ExcelExportButton } from "@/components/admin/ExcelExportButton";
+import { APP_NAME, BRAND_LOGO_SRC, BRAND_LAB_NAME } from "@/lib/constants";
 
 type ReporteEjecutivoProps = {
   record: Record;
@@ -199,7 +200,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
       />
 
       {/* Controles solo en pantalla */}
-      <div className="flex shrink-0 flex-wrap gap-3 bg-white px-4 py-3 shadow-sm print:hidden">
+      <div className="sticky top-0 z-10 flex shrink-0 flex-wrap gap-2 bg-white px-4 py-3 shadow-sm print:hidden sm:gap-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button
           type="button"
           onClick={handleImprimir}
@@ -219,16 +220,26 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
 
       <div
         ref={reportRef}
-        className="reporte-ejecutivo mx-auto w-full max-w-[216mm] flex-1 bg-white px-6 py-8 print:max-w-none print:px-6 print:py-4 print:text-[8pt] print:[page-size:letter]"
+        className="reporte-ejecutivo mx-auto w-full max-w-[216mm] flex-1 bg-white px-4 py-6 sm:px-6 sm:py-8 print:max-w-none print:px-6 print:py-4 print:text-[8pt] print:[page-size:letter]"
       >
         {/* Encabezado */}
         <header className="border-b-2 border-slate-800 pb-2 print:pb-1.5">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 print:text-[14pt]">
-            REPORTE EJECUTIVO FINANCIERO
-          </h1>
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-500 print:text-[8pt]">
-            Cierre de turno
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 print:text-[14pt]">
+                REPORTE EJECUTIVO FINANCIERO
+              </h1>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500 print:text-[8pt]">
+                Cierre de turno
+              </p>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={BRAND_LOGO_SRC}
+              alt="404LAB"
+              className="h-8 w-auto shrink-0 print:h-7"
+            />
+          </div>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-600 print:text-[8pt]">
             <span>
               ID:{" "}
@@ -241,7 +252,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
         </header>
 
         {/* Fila 1: Datos del turno + Resumen de ingresos */}
-        <div className="mt-4 grid grid-cols-2 gap-4 print:mt-3 print:gap-4 print:[break-inside:avoid]">
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 print:mt-3 print:grid-cols-2 print:gap-4 print:[break-inside:avoid]">
           <section className="min-w-0">
             <h2 className="mb-1 text-xs font-bold uppercase tracking-wider text-slate-700 print:text-[8pt]">
               1. Datos del turno
@@ -284,7 +295,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                     <td className="py-0.5 text-slate-700 break-words">
                       {label}
                     </td>
-                    <td className="py-0.5 text-right font-medium text-slate-900 whitespace-nowrap">
+                    <td className="py-0.5 text-right font-medium text-slate-900 break-words sm:whitespace-nowrap print:whitespace-nowrap">
                       {formatearMoneda(totales[key])}
                     </td>
                   </tr>
@@ -380,7 +391,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
             <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700 print:mb-1 print:text-[8pt]">
               4. Detalle por categoría
             </h2>
-            <div className="grid grid-cols-2 gap-3 print:gap-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 print:grid-cols-2 print:gap-2">
               {detalles.map(({ catId, data }) => {
                 const nombre = NOMBRES_CATEGORIA[catId];
                 const columnasExtra = getDetailExtraColumns(catId);
@@ -394,7 +405,8 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                     </p>
 
                     {catId === "efectivo" ? (
-                      <table className="w-full border-collapse text-[10px] print:text-[7pt]">
+                      <div className="overflow-x-auto print:overflow-visible">
+                      <table className="w-full min-w-[240px] border-collapse text-[10px] print:min-w-0 print:text-[7pt]">
                         <tbody>
                           {(() => {
                             const cash = data.items as CashItem[];
@@ -413,12 +425,12 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                                   <td className="py-0.5 break-words text-slate-900 print:text-slate-800">
                                     {item.denominacion}
                                   </td>
-                                  <td className="py-0.5 text-center whitespace-nowrap text-slate-900 print:text-slate-800">
+                                  <td className="py-0.5 text-center break-words text-slate-900 sm:whitespace-nowrap print:text-slate-800 print:whitespace-nowrap">
                                     {item.cantidad > 0
                                       ? `×${item.cantidad}`
                                       : "—"}
                                   </td>
-                                  <td className="py-0.5 text-right font-medium whitespace-nowrap text-slate-900 print:text-slate-800">
+                                  <td className="py-0.5 text-right font-medium break-words text-slate-900 sm:whitespace-nowrap print:text-slate-800 print:whitespace-nowrap">
                                     {formatearMoneda(item.valor)}
                                   </td>
                                 </tr>
@@ -464,8 +476,10 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                           </tr>
                         </tbody>
                       </table>
+                      </div>
                     ) : data.items.length === 0 ? (
-                      <table className="w-full border-collapse text-[10px] print:text-[7pt]">
+                      <div className="overflow-x-auto print:overflow-visible">
+                      <table className="w-full min-w-[200px] border-collapse text-[10px] print:min-w-0 print:text-[7pt]">
                         <tbody>
                           <tr className="font-semibold text-slate-900 print:text-slate-800">
                             <td className="py-0.5">Subtotal</td>
@@ -483,8 +497,10 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                           </tr>
                         </tbody>
                       </table>
+                      </div>
                     ) : (
-                      <table className="w-full border-collapse text-[10px] print:text-[7pt]">
+                      <div className="overflow-x-auto print:overflow-visible">
+                      <table className="w-full min-w-[280px] border-collapse text-[10px] print:min-w-0 print:text-[7pt]">
                         <thead>
                           <tr className="border-b border-slate-300 font-semibold text-slate-700 print:border-slate-400 print:text-slate-800">
                             <th className="py-0.5 text-left">Descripción</th>
@@ -511,7 +527,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                                     {item[col.key]?.trim() || "—"}
                                   </td>
                                 ))}
-                                <td className="py-0.5 text-right font-medium whitespace-nowrap text-slate-900 print:text-slate-800">
+                                <td className="py-0.5 text-right font-medium break-words text-slate-900 sm:whitespace-nowrap print:text-slate-800 print:whitespace-nowrap">
                                   {formatearMoneda(item.monto)}
                                 </td>
                               </tr>
@@ -530,6 +546,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
                           </tr>
                         </tbody>
                       </table>
+                      </div>
                     )}
                   </div>
                 );
@@ -551,7 +568,7 @@ export function ReporteEjecutivo({ record }: ReporteEjecutivoProps) {
         )}
 
         <footer className="mt-6 border-t border-slate-200 pt-2 text-center text-[10px] text-slate-500 print:mt-4 print:text-[7pt]">
-          Documento generado por Qwen Visor · {header.registroId.slice(0, 8)}… ·{" "}
+          Documento generado por {APP_NAME} · {BRAND_LAB_NAME} · {header.registroId.slice(0, 8)}… ·{" "}
           {new Date().toLocaleDateString("es-CL", {
             timeZone: "America/Santiago",
           })}

@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/25 hover:brightness-110 active:scale-[0.97]",
+          "btn-neon active:scale-[0.97]",
         destructive:
           "bg-destructive text-destructive-foreground shadow-md shadow-destructive/15 hover:brightness-110 active:scale-[0.97]",
         outline:
@@ -19,7 +19,7 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 active:scale-[0.97]",
         ghost: "hover:bg-accent hover:text-accent-foreground active:scale-[0.97]",
         link: "text-primary underline-offset-4 hover:underline",
-        glow: "bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:brightness-110 active:scale-[0.97] animate-glow-pulse",
+        glow: "btn-neon active:scale-[0.97]",
         glass: "glass text-foreground hover:shadow-md hover:brightness-105 active:scale-[0.97]",
       },
       size: {
