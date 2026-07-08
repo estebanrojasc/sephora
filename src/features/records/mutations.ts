@@ -8,6 +8,7 @@ import {
   updateRecordExtraction,
   updateRecordStatus,
   uploadRecordImages,
+  deleteRecordApi,
 } from "./api";
 import { patchRecordInListCaches } from "./cache";
 import { recordKeys } from "./queries";
@@ -23,8 +24,20 @@ export function useUploadImages() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: UploadPayload) => uploadRecordImages(payload),
-    onSuccess: () => {
+    onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: recordKeys.all });
+      qc.setQueryData(recordKeys.detail(data.id), data);
+    },
+  });
+}
+
+export function useDeleteRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteRecordApi(id),
+    onSuccess: (_data, id) => {
+      void qc.invalidateQueries({ queryKey: recordKeys.all });
+      qc.removeQueries({ queryKey: recordKeys.detail(id) });
     },
   });
 }

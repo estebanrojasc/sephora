@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import type { PrepareDirectUploadPayload } from "@/features/records/types";
+import { canAppendImagesToRecord } from "@/features/records/types";
+import { findRecordById } from "@/lib/repositories/records";
+import { requireSession } from "@/lib/auth/guard";
 import { getGcsCredentialsError } from "@/lib/storage/config";
 import {
   prepareRecordImageUploads,
@@ -49,9 +52,46 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const recordId = randomUUID();
+    let recordId = body.recordId?.trim() || randomUUID();
+    let asAdmin = false;
+
+    if (body.recordId?.trim()) {
+      const existing = await findRecordById(body.recordId.trim());
+      if (!existing) {
+        return NextResponse.json(
+          { message: "Registro no encontrado", code: "RECORD_NOT_FOUND" },
+          { status: 404 }
+        );
+      }
+
+      if (existing.deviceId !== body.deviceId) {
+        const auth = await requireSession();
+        if ("error" in auth) {
+          return NextResponse.json(
+            {
+              message: "El registro no pertenece a este dispositivo",
+              code: "DEVICE_MISMATCH",
+            },
+            { status: 403 }
+          );
+        }
+        asAdmin = true;
+      }
+
+      if (!canAppendImagesToRecord(existing.status)) {
+        return NextResponse.json(
+          {
+            message: `No se pueden agregar imágenes en estado «${existing.status}»`,
+            code: "RECORD_NOT_APPENDABLE",
+          },
+          { status: 409 }
+        );
+      }
+      recordId = existing.id;
+    }
+
     const uploads = await prepareRecordImageUploads(recordId, body.images);
-    return NextResponse.json({ recordId, uploads });
+    return NextResponse.json({ recordId, uploads, asAdmin });
   } catch (err) {
     console.error("[api/records/upload/prepare]", err);
     const message =

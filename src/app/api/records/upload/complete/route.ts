@@ -43,14 +43,23 @@ export async function POST(request: NextRequest) {
 
   try {
     const record = await completeDirectRecordUpload(body);
-    return NextResponse.json(record, { status: 201 });
+    const created = record.images.length === body.images.length;
+    return NextResponse.json(record, { status: created ? 201 : 200 });
   } catch (err) {
     console.error("[api/records/upload/complete]", err);
-    if (err instanceof Error && err.message === "RECORD_ALREADY_EXISTS") {
-      return NextResponse.json(
-        { message: "El registro ya existe" },
-        { status: 409 }
-      );
+    if (err instanceof Error) {
+      if (err.message === "DEVICE_MISMATCH") {
+        return NextResponse.json(
+          { message: "El registro no pertenece a este dispositivo" },
+          { status: 403 }
+        );
+      }
+      if (err.message === "RECORD_NOT_APPENDABLE") {
+        return NextResponse.json(
+          { message: "No se pueden agregar imágenes en el estado actual" },
+          { status: 409 }
+        );
+      }
     }
     const message =
       err instanceof Error ? err.message : "Error al guardar el registro";

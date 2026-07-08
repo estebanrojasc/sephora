@@ -50,6 +50,7 @@ async function uploadRecordImagesDirectToGcs(
     deviceId: payload.deviceId,
     driverId: payload.driverId,
     driverName: payload.driverName,
+    recordId: payload.recordId,
     images: payload.images.map((img) => ({
       originalContentType: dataUrlContentType(img.dataUrl),
       processedContentType: img.processedDataUrl
@@ -117,6 +118,7 @@ async function uploadRecordImagesDirectToGcs(
     deviceId: payload.deviceId,
     driverId: payload.driverId,
     driverName: payload.driverName,
+    asAdmin: prepare.asAdmin,
     images: prepare.uploads.map((slot, index) => ({
       id: slot.imageId,
       url: slot.original.key,
@@ -136,6 +138,10 @@ export async function uploadRecordImages(
   payload: UploadPayload
 ): Promise<Record> {
   return uploadRecordImagesDirectToGcs(payload);
+}
+
+export async function deleteRecordApi(id: string): Promise<{ ok: boolean; id: string }> {
+  return fetchJsonNoStore(`/api/records/${id}`, { method: "DELETE" });
 }
 
 export async function openRecord(id: string): Promise<RecordStatusPatch> {

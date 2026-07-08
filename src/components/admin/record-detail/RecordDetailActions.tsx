@@ -19,6 +19,7 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import type { Record } from "@/features/records/types";
 import { cn } from "@/lib/utils";
+import { AdminRecordMediaActions } from "./AdminRecordMediaActions";
 
 interface RecordDetailActionsProps {
   record: Record;
@@ -115,6 +116,7 @@ export function RecordDetailActions({
           record={record}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2")}
         />
+        <AdminRecordMediaActions record={record} />
       </div>
 
       <DropdownMenu>
@@ -166,6 +168,10 @@ export function RecordDetailActions({
           />
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <div className="flex flex-wrap items-center gap-2 lg:hidden">
+        <AdminRecordMediaActions record={record} />
+      </div>
     </>
   );
 }

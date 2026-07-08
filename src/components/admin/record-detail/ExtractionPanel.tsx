@@ -47,9 +47,10 @@ import { toast } from "sonner";
 import { BitacoraHintPanel } from "./BitacoraHintPanel";
 import { useActiveBitacora } from "@/features/bitacora/queries";
 import {
-  getRecordDayForBitacora,
+  getExtractionDayForBitacora,
   listAvailableBitacoraRows,
   matchRecordToBitacora,
+  recordWithLiveExtraction,
   scoreBitacoraRow,
 } from "@/features/bitacora/match";
 import { blockedBitacoraRowIdsForRecord } from "@/features/bitacora/row-links";
@@ -112,8 +113,14 @@ export function ExtractionPanel({
     [totalsStatus]
   );
 
-  const bitacoraDay = getRecordDayForBitacora(record);
+  const bitacoraDay = getExtractionDayForBitacora(liveExtraction, record);
   const { data: activeBitacora } = useActiveBitacora(bitacoraDay);
+
+  const handleBitacoraDayChange = useCallback(() => {
+    setSelectedBitacoraRowId(null);
+    setBitacoraRowDirty(false);
+    formRef.current?.setBitacoraMeta(undefined);
+  }, []);
 
   const resolveBitacoraMeta = useCallback(
     (explicitRowId?: string) => {
@@ -123,16 +130,15 @@ export function ExtractionPanel({
         (record.extraction ? ensureExtractionShape(record.extraction) : null);
       if (!activeBitacora || !values) return undefined;
 
+      const liveRecord = recordWithLiveExtraction(record, values);
+
       let targetRowId =
         explicitRowId ??
         selectedBitacoraRowId ??
         values._meta?.bitacora?.rowId;
 
       if (!targetRowId) {
-        const match = matchRecordToBitacora(
-          { ...record, extraction: values },
-          activeBitacora
-        );
+        const match = matchRecordToBitacora(liveRecord, activeBitacora);
         targetRowId = match?.rowId;
       }
 
@@ -155,10 +161,7 @@ export function ExtractionPanel({
       const row = activeBitacora.rows.find((r) => r.id === targetRowId);
       if (!row) return undefined;
 
-      const matchScore = scoreBitacoraRow(
-        { ...record, extraction: values },
-        row
-      );
+      const matchScore = scoreBitacoraRow(liveRecord, row);
       return buildBitacoraMetaBlock(
         activeBitacora,
         row,
@@ -194,10 +197,8 @@ export function ExtractionPanel({
         liveExtraction ??
         (record.extraction ? ensureExtractionShape(record.extraction) : null);
       if (!values) return;
-      const matchScore = scoreBitacoraRow(
-        { ...record, extraction: values },
-        row
-      );
+      const liveRecord = recordWithLiveExtraction(record, values);
+      const matchScore = scoreBitacoraRow(liveRecord, row);
       const meta = buildBitacoraMetaBlock(
         activeBitacora,
         row,
@@ -366,6 +367,7 @@ export function ExtractionPanel({
             selectedRowId={selectedBitacoraRowId}
             rowSelectionDirty={bitacoraRowDirty}
             onSelectRow={handleSelectBitacoraRow}
+            onBitacoraDayChange={handleBitacoraDayChange}
             onApplyField={(field, value, rowId) => {
               const meta = resolveBitacoraMeta(rowId);
               if (!meta) {

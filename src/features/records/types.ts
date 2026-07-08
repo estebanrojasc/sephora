@@ -174,10 +174,26 @@ export interface Record {
   attemptCount?: number;
 }
 
+/** Estados en los que el conductor (o admin) puede añadir imágenes. */
+export const APPENDABLE_RECORD_STATUSES: RecordStatus[] = [
+  "uploaded",
+  "errors",
+  "in_review",
+];
+
+export function canAppendImagesToRecord(status: RecordStatus): boolean {
+  return APPENDABLE_RECORD_STATUSES.includes(status);
+}
+
 export interface UploadPayload {
   deviceId: string;
   driverId: string;
   driverName: string;
+  /**
+   * Si se indica, las imágenes se añaden a este registro existente
+   * (en vez de crear uno nuevo).
+   */
+  recordId?: string;
   images: {
     /** Versión original (alta resolución) para revisión visual. */
     dataUrl: string;
@@ -191,6 +207,10 @@ export interface PrepareDirectUploadPayload {
   deviceId: string;
   driverId: string;
   driverName: string;
+  /** Append a un registro existente; si se omite se crea uno nuevo. */
+  recordId?: string;
+  /** Bypass de ownership (solo admin autenticado). */
+  asAdmin?: boolean;
   images: {
     originalContentType: string;
     processedContentType?: string;
@@ -206,6 +226,7 @@ export interface DirectUploadSlot {
 export interface PrepareDirectUploadResponse {
   recordId: string;
   uploads: DirectUploadSlot[];
+  asAdmin?: boolean;
 }
 
 export interface CompleteDirectUploadPayload {
@@ -213,6 +234,8 @@ export interface CompleteDirectUploadPayload {
   deviceId: string;
   driverId: string;
   driverName: string;
+  /** Bypass de ownership deviceId (solo tras requireSession admin). */
+  asAdmin?: boolean;
   images: {
     id: string;
     url: string;

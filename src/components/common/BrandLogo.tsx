@@ -15,9 +15,9 @@ interface BrandLogoProps {
 }
 
 const SIZE = {
-  sm: { h: 24, w: 88 },
-  md: { h: 32, w: 118 },
-  lg: { h: 44, w: 162 },
+  sm: { h: 32, w: 118 },
+  md: { h: 42, w: 154 },
+  lg: { h: 56, w: 206 },
 } as const;
 
 export function BrandLogo({

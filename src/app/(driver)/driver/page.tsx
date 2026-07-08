@@ -47,7 +47,10 @@ export default function DriverHomePage() {
             className="animate-fade-in-up"
             style={{ animationDelay: `${i * 0.06}s` }}
           >
-            <RecordSummaryCard record={record} />
+            <RecordSummaryCard
+              record={record}
+              href={`/driver/${record.id}`}
+            />
           </div>
         ))}
       </div>

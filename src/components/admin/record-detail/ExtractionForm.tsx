@@ -45,7 +45,7 @@ const EMPTY: ExtractedField = { valor: "", bbox: [0, 0, 0, 0] };
 
 function withBitacoraMeta(
   extraction: Extraction,
-  bitacora: BitacoraMetaBlock
+  bitacora: BitacoraMetaBlock | undefined
 ): Extraction {
   return {
     ...extraction,
@@ -99,7 +99,7 @@ export interface ExtractionFormHandle {
     initialMeta?: BitacoraMetaBlock
   ) => void;
   applyAllBitacora: (initialMeta?: BitacoraMetaBlock) => void;
-  setBitacoraMeta: (meta: BitacoraMetaBlock) => void;
+  setBitacoraMeta: (meta: BitacoraMetaBlock | undefined) => void;
 }
 
 interface ExtractionFormProps {
@@ -217,9 +217,10 @@ export function ExtractionForm({
         });
       },
       setBitacoraMeta: (meta) => {
-        setState((s) =>
-          syncBitacoraMetaInExtraction(withBitacoraMeta(s, meta))
-        );
+        setState((s) => {
+          const next = withBitacoraMeta(s, meta);
+          return meta ? syncBitacoraMetaInExtraction(next) : next;
+        });
       },
     }),
     [state]

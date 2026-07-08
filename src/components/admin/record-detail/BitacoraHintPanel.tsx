@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,13 +17,15 @@ import { useActiveBitacora } from "@/features/bitacora/queries";
 import { useRecords } from "@/features/records/queries";
 import {
   formatBitacoraRowLabel,
-  getRecordDayForBitacora,
+  getExtractionDayForBitacora,
   listAvailableBitacoraRows,
   matchRecordToBitacora,
+  recordWithLiveExtraction,
   scoreBitacoraRow,
 } from "@/features/bitacora/match";
 import { rowToExcelFields, type BitacoraExcelFields } from "@/features/bitacora/meta";
 import { blockedBitacoraRowIdsForRecord } from "@/features/bitacora/row-links";
+import { formatChileanDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 
 const DISPLAY_FIELDS: {
@@ -60,6 +62,8 @@ interface BitacoraHintPanelProps {
   /** true cuando el revisor cambió la fila y aún no aplica valores. */
   rowSelectionDirty?: boolean;
   onSelectRow?: (rowId: string) => void;
+  /** Cuando cambia el día ISO derivado de la fecha del formulario. */
+  onBitacoraDayChange?: (day: string) => void;
   onApplyField: (
     field: keyof BitacoraExcelFields,
     value: string,
@@ -74,17 +78,30 @@ export function BitacoraHintPanel({
   selectedRowId,
   rowSelectionDirty = false,
   onSelectRow,
+  onBitacoraDayChange,
   onApplyField,
   onApplyAll,
 }: BitacoraHintPanelProps) {
-  const day = getRecordDayForBitacora(record);
-  const { data: bitacora } = useActiveBitacora(day);
+  const day = getExtractionDayForBitacora(extraction, record);
+  const scoredRecord = useMemo(
+    () => recordWithLiveExtraction(record, extraction),
+    [record, extraction]
+  );
+  const { data: bitacora, isLoading: bitacoraLoading } = useActiveBitacora(day);
   const { data: allRecords } = useRecords({ poll: false });
+
+  const prevDayRef = useRef(day);
+  useEffect(() => {
+    if (prevDayRef.current !== day) {
+      prevDayRef.current = day;
+      onBitacoraDayChange?.(day);
+    }
+  }, [day, onBitacoraDayChange]);
 
   const meta = extraction?._meta?.bitacora;
   const autoMatch =
     bitacora && extraction
-      ? matchRecordToBitacora(record, bitacora)
+      ? matchRecordToBitacora(scoredRecord, bitacora)
       : null;
 
   const currentRowId = selectedRowId ?? meta?.rowId ?? null;
@@ -119,25 +136,54 @@ export function BitacoraHintPanel({
   const score =
     meta?.matchScore ??
     (activeRow && extraction
-      ? scoreBitacoraRow({ ...record, extraction }, activeRow)
+      ? scoreBitacoraRow(scoredRecord, activeRow)
       : autoMatch?.matchScore ?? 0);
 
   const suggestedFlat: BitacoraExcelFields | null = activeRow
     ? rowToExcelFields(activeRow)
     : null;
 
+  const dayLabel = formatChileanDate(day) || day;
+
+  if (bitacoraLoading && !bitacora) {
+    return (
+      <Alert className="border-dashed">
+        <AlertDescription className="text-xs text-muted-foreground">
+          Buscando bitácora del {dayLabel}…
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (!bitacora) {
     return (
       <Alert className="border-dashed">
-        <AlertDescription className="flex items-center justify-between gap-2 text-xs">
-          <span>No hay bitácora activa para {day}.</span>
-          <Link
-            href="/admin/bitacora/nueva"
-            className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
-          >
-            <BookOpen className="size-3.5" />
-            Cargar
-          </Link>
+        <AlertDescription className="space-y-2 text-xs">
+          <p>
+            No hay bitácora activa para{" "}
+            <span className="font-medium text-foreground">{dayLabel}</span>{" "}
+            (fecha del documento).
+          </p>
+          <p className="text-muted-foreground">
+            Corrige el campo <span className="font-medium">Fecha</span> en el
+            formulario si la hoja tiene un error manual; el match se actualizará
+            al instante. O carga la bitácora de ese día.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={`/admin/bitacora/${day}`}
+              className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
+            >
+              <BookOpen className="size-3.5" />
+              Ver / crear bitácora {dayLabel}
+            </Link>
+            <Link
+              href="/admin/bitacora/nueva"
+              className="text-indigo-600 hover:underline"
+            >
+              Cargar nueva
+            </Link>
+          </div>
         </AlertDescription>
       </Alert>
     );
@@ -149,7 +195,7 @@ export function BitacoraHintPanel({
         <AlertDescription className="text-xs">
           {occupiedRowIds.size > 0
             ? "Todas las filas de ruta/manual ya están vinculadas a otros registros."
-            : `Bitácora del ${day} sin filas de ruta o manual.`}{" "}
+            : `Bitácora del ${dayLabel} sin filas de ruta o manual.`}{" "}
           <Link
             href={`/admin/bitacora/${day}`}
             className="text-indigo-600 hover:underline"
@@ -168,7 +214,7 @@ export function BitacoraHintPanel({
     <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase text-muted-foreground">
-          Bitácora del día
+          Bitácora · {dayLabel}
         </p>
         <div className="flex items-center gap-2">
           {onApplyAll && suggestedFlat && activeRowId && (
@@ -238,7 +284,8 @@ export function BitacoraHintPanel({
 
       <p className="text-[10px] text-muted-foreground">
         Al aplicar conductor, el nombre en la cabecera se actualiza al instante.
-        Guarda para persistir en Mongo (incluye <code className="text-[9px]">driverName</code>).
+        Guarda para persistir en Mongo (incluye{" "}
+        <code className="text-[9px]">driverName</code>).
       </p>
 
       {suggestedFlat && (

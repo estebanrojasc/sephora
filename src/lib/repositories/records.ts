@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { COLLECTIONS, collectionWithIndexes } from "@/lib/mongo";
 import {
+  canAppendImagesToRecord,
   createEmptyExtraction,
   type Extraction,
   type Record,
@@ -101,15 +102,15 @@ export async function findRecordsByIdsForExcel(ids: string[]): Promise<Record[]>
     .filter((r): r is Record => r != null);
 }
 
-export async function insertRecord(payload: UploadPayload): Promise<Record> {
-  const now = new Date().toISOString();
-  const recordId = randomUUID();
-  const useGcs = shouldUseGcsForUpload();
-
-  const images: RecordImage[] = [];
+function buildLegacyImages(
+  recordId: string,
+  payloadImages: UploadPayload["images"],
+  useGcs: boolean,
+  now: string
+): Promise<RecordImage[]> | RecordImage[] {
   if (useGcs) {
-    const uploaded = await Promise.all(
-      payload.images.map(async (img) => {
+    return Promise.all(
+      payloadImages.map(async (img) => {
         const imageId = randomUUID();
         const refs = await uploadRecordImageToGcs(recordId, img, imageId);
         return {
@@ -120,17 +121,41 @@ export async function insertRecord(payload: UploadPayload): Promise<Record> {
         };
       })
     );
-    images.push(...uploaded);
-  } else {
-    for (const img of payload.images) {
-      images.push({
-        id: randomUUID(),
-        url: img.dataUrl,
-        processedUrl: img.processedDataUrl,
-        createdAt: now,
-      });
-    }
   }
+  return payloadImages.map((img) => ({
+    id: randomUUID(),
+    url: img.dataUrl,
+    processedUrl: img.processedDataUrl,
+    createdAt: now,
+  }));
+}
+
+/** Tras añadir imágenes, limpia processedImageIds para forzar re-procesado IA. */
+function clearProcessedImageIds(extraction: Extraction | undefined): Extraction | undefined {
+  if (!extraction?._meta) return extraction;
+  return {
+    ...extraction,
+    _meta: {
+      ...extraction._meta,
+      processedImageIds: [],
+    },
+  };
+}
+
+export async function insertRecord(payload: UploadPayload): Promise<Record> {
+  if (payload.recordId) {
+    return appendImagesToRecord(payload.recordId, payload);
+  }
+
+  const now = new Date().toISOString();
+  const recordId = randomUUID();
+  const useGcs = shouldUseGcsForUpload();
+  const images = await buildLegacyImages(
+    recordId,
+    payload.images,
+    useGcs,
+    now
+  );
 
   const record: Record = {
     id: recordId,
@@ -147,13 +172,73 @@ export async function insertRecord(payload: UploadPayload): Promise<Record> {
   return record;
 }
 
+export async function appendImagesToRecord(
+  recordId: string,
+  payload: Pick<
+    UploadPayload,
+    "deviceId" | "driverId" | "driverName" | "images"
+  >,
+  options?: { asAdmin?: boolean }
+): Promise<Record> {
+  const existing = await findRecordById(recordId);
+  if (!existing) {
+    throw new Error("RECORD_NOT_FOUND");
+  }
+  if (!options?.asAdmin && existing.deviceId !== payload.deviceId) {
+    throw new Error("DEVICE_MISMATCH");
+  }
+  if (!canAppendImagesToRecord(existing.status)) {
+    throw new Error("RECORD_NOT_APPENDABLE");
+  }
+
+  const now = new Date().toISOString();
+  const useGcs = shouldUseGcsForUpload();
+  const newImages = await buildLegacyImages(
+    recordId,
+    payload.images,
+    useGcs,
+    now
+  );
+
+  return pushImagesToRecord(recordId, existing, newImages);
+}
+
+async function pushImagesToRecord(
+  recordId: string,
+  existing: Record,
+  newImages: RecordImage[]
+): Promise<Record> {
+  const now = new Date().toISOString();
+  const extraction = clearProcessedImageIds(existing.extraction);
+  const c = await col();
+
+  const setFields: { [key: string]: unknown } = { updatedAt: now };
+  if (extraction) setFields.extraction = extraction;
+
+  const unsetFields: { [key: string]: "" } = {};
+  if (existing.status === "errors") {
+    setFields.status = "uploaded";
+    unsetFields.errorComment = "";
+  }
+
+  const updated = await c.findOneAndUpdate(
+    { id: recordId },
+    {
+      $push: { images: { $each: newImages } },
+      $set: setFields,
+      ...(Object.keys(unsetFields).length > 0 ? { $unset: unsetFields } : {}),
+    },
+    { returnDocument: "after" }
+  );
+  const result = stripMongoId(updated);
+  if (!result) throw new Error("RECORD_NOT_FOUND");
+  return result;
+}
+
 export async function completeDirectRecordUpload(
   payload: CompleteDirectUploadPayload
 ): Promise<Record> {
   const existing = await (await col()).findOne({ id: payload.recordId });
-  if (existing) {
-    throw new Error("RECORD_ALREADY_EXISTS");
-  }
 
   await verifyDirectUploadObjects(payload.recordId, payload.images);
 
@@ -164,6 +249,30 @@ export async function completeDirectRecordUpload(
     processedUrl: img.processedUrl,
     createdAt: now,
   }));
+
+  if (existing) {
+    const record = stripMongoId(existing) as Record;
+    // Idempotencia: si ya están todas las imágenes, devolver el record.
+    const existingIds = new Set(record.images.map((i) => i.id));
+    const allPresent = images.every((img) => existingIds.has(img.id));
+    if (allPresent && images.length > 0) {
+      return record;
+    }
+
+    // Append: solo imágenes nuevas (deviceId validado en prepare/route).
+    if (!canAppendImagesToRecord(record.status)) {
+      throw new Error("RECORD_NOT_APPENDABLE");
+    }
+    if (
+      record.deviceId !== payload.deviceId &&
+      !payload.asAdmin
+    ) {
+      throw new Error("DEVICE_MISMATCH");
+    }
+    const toAdd = images.filter((img) => !existingIds.has(img.id));
+    if (toAdd.length === 0) return record;
+    return pushImagesToRecord(payload.recordId, record, toAdd);
+  }
 
   const record: Record = {
     id: payload.recordId,
@@ -178,6 +287,24 @@ export async function completeDirectRecordUpload(
   };
   await (await col()).insertOne(record);
   return record;
+}
+
+export async function deleteRecord(id: string): Promise<Record | null> {
+  const c = await col();
+  const existing = await c.findOne({ id });
+  if (!existing) return null;
+  await c.deleteOne({ id });
+  return stripMongoId(existing);
+}
+
+/** Claves GCS (original + processed) de las imágenes de un registro. */
+export function collectRecordGcsKeys(record: Record): string[] {
+  const keys: string[] = [];
+  for (const img of record.images) {
+    if (img.url.startsWith("records/")) keys.push(img.url);
+    if (img.processedUrl?.startsWith("records/")) keys.push(img.processedUrl);
+  }
+  return keys;
 }
 
 export async function insertRecordFromBitacora(

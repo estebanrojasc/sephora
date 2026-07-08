@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CameraInput } from "@/components/driver/CameraInput";
 import { CropEditor } from "@/components/driver/CropEditor";
@@ -14,17 +14,23 @@ import {
 } from "@/components/driver/CapturedImagesList";
 import { useImagePipeline } from "@/hooks/use-image-pipeline";
 import { useUploadImages } from "@/features/records/mutations";
+import { useRecord } from "@/features/records/queries";
 import { useSessionStore } from "@/features/auth/session-store";
+import { canAppendImagesToRecord } from "@/features/records/types";
 import { COPY, PIPELINE_ENHANCE_BY_DEFAULT } from "@/lib/constants";
 import { toast } from "sonner";
 
 type Stage = "idle" | "cropping" | "preview";
 
-export default function CapturePage() {
+function CapturePageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const appendRecordId = searchParams.get("recordId")?.trim() || undefined;
+
   const { deviceId, driverId, driverName } = useSessionStore();
   const { processBlob, step, progress, isProcessing } = useImagePipeline();
   const upload = useUploadImages();
+  const { data: existingRecord } = useRecord(appendRecordId ?? "");
 
   const [stage, setStage] = useState<Stage>("idle");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -32,6 +38,12 @@ export default function CapturePage() {
   const [previewProcessed, setPreviewProcessed] = useState<string | null>(null);
   const [images, setImages] = useState<CapturedImage[]>([]);
   const [enhance, setEnhance] = useState<boolean>(PIPELINE_ENHANCE_BY_DEFAULT);
+
+  const isAppend = Boolean(appendRecordId);
+  const appendBlocked =
+    isAppend &&
+    existingRecord &&
+    !canAppendImagesToRecord(existingRecord.status);
 
   const handleCapture = (file: File) => {
     setPendingFile(file);
@@ -85,12 +97,17 @@ export default function CapturePage() {
       toast.error("Agrega al menos una imagen");
       return;
     }
+    if (appendBlocked) {
+      toast.error("Este envío ya no admite más imágenes");
+      return;
+    }
 
     upload.mutate(
       {
         deviceId,
         driverId,
         driverName,
+        recordId: appendRecordId,
         images: images.map((i) => ({
           dataUrl: i.dataUrl,
           processedDataUrl: i.processedDataUrl,
@@ -99,10 +116,15 @@ export default function CapturePage() {
       },
       {
         onSuccess: () => {
-          toast.success("Envío realizado correctamente");
-          router.push("/driver");
+          toast.success(
+            isAppend
+              ? "Imágenes agregadas al envío"
+              : "Envío realizado correctamente"
+          );
+          router.push(isAppend ? `/driver/${appendRecordId}` : "/driver");
         },
-        onError: () => toast.error("Error al enviar"),
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : "Error al enviar"),
       }
     );
   };
@@ -110,7 +132,7 @@ export default function CapturePage() {
   return (
     <div className="animate-fade-in mx-auto flex max-w-2xl flex-col gap-4 p-4 sm:p-6">
       <Link
-        href="/driver"
+        href={isAppend ? `/driver/${appendRecordId}` : "/driver"}
         className="inline-flex h-8 w-fit items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors hover:bg-muted"
       >
         <ArrowLeft className="size-4" />
@@ -118,12 +140,24 @@ export default function CapturePage() {
       </Link>
 
       <div className="space-y-1.5">
-        <h1 className="text-xl font-bold sm:text-2xl">Nuevo registro</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">
+          {isAppend ? "Agregar imágenes" : "Nuevo registro"}
+        </h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Toma fotos de los documentos. Podrás ajustar el recorte antes de
-          guardarlas.
+          {isAppend
+            ? existingRecord
+              ? `Se añadirán al envío actual (${existingRecord.images.length} imagen${existingRecord.images.length === 1 ? "" : "es"} ya enviada${existingRecord.images.length === 1 ? "" : "s"}).`
+              : "Se añadirán al envío seleccionado."
+            : "Toma fotos de los documentos. Podrás ajustar el recorte antes de guardarlas."}
         </p>
       </div>
+
+      {appendBlocked && (
+        <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          Este envío está en estado «{existingRecord?.status}» y no admite más
+          fotos.
+        </p>
+      )}
 
       {isProcessing && <OptimizationProgress step={step} progress={progress} />}
 
@@ -173,7 +207,7 @@ export default function CapturePage() {
         </div>
       )}
 
-      {stage === "idle" && (
+      {stage === "idle" && !appendBlocked && (
         <div className="space-y-3">
           <CameraInput
             onCapture={handleCapture}
@@ -205,7 +239,7 @@ export default function CapturePage() {
         onRemove={(id) => setImages((prev) => prev.filter((i) => i.id !== id))}
       />
 
-      {images.length > 0 && stage === "idle" && (
+      {images.length > 0 && stage === "idle" && !appendBlocked && (
         <Button
           size="lg"
           variant="glow"
@@ -216,9 +250,26 @@ export default function CapturePage() {
           <Send className="size-5" />
           {upload.isPending
             ? "Enviando…"
-            : `${COPY.driver.send} (${images.length})`}
+            : isAppend
+              ? `Agregar al envío (${images.length})`
+              : `${COPY.driver.send} (${images.length})`}
         </Button>
       )}
     </div>
+  );
+}
+
+export default function CapturePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-4">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Cargando captura…</p>
+        </div>
+      }
+    >
+      <CapturePageInner />
+    </Suspense>
   );
 }

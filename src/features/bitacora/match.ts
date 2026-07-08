@@ -1,4 +1,4 @@
-import type { Record } from "@/features/records/types";
+import type { Extraction, Record } from "@/features/records/types";
 import { parseNumber } from "@/lib/parse-number";
 import { recordDayKeyIso } from "@/lib/date-utils";
 import { BITACORA_MATCH_THRESHOLD } from "./config";
@@ -164,6 +164,30 @@ export function getRecordDayForBitacora(record: Record): string {
     record.extraction?.fecha?.valor,
     "fecha"
   );
+}
+
+/**
+ * Día ISO para buscar bitácora priorizando la extracción en vivo del formulario
+ * (p. ej. fecha corregida por el revisor) y cayendo al record persistido.
+ */
+export function getExtractionDayForBitacora(
+  extraction: Extraction | null | undefined,
+  record: Record
+): string {
+  return recordDayKeyIso(
+    record.createdAt,
+    extraction?.fecha?.valor ?? record.extraction?.fecha?.valor,
+    "fecha"
+  );
+}
+
+/** Record con extracción en vivo para scoring/match en el panel de revisión. */
+export function recordWithLiveExtraction(
+  record: Record,
+  extraction: Extraction | null | undefined
+): Record {
+  if (!extraction) return record;
+  return { ...record, extraction };
 }
 
 export function matchScoreForRecord(

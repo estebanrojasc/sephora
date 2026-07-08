@@ -39,10 +39,11 @@ export const COPY = {
   driver: {
     title: "Mis envíos",
     newRecord: "Nuevo Registro",
-    empty: "Aún no has enviado documentos. Toca el botón de abajo para capturar tu primer registro.",
+    empty: "Aún no has enviado documentos. Usa «Nuevo» abajo para capturar tu primer registro.",
     optimizing: "Optimizando imagen...",
     send: "Enviar",
     addMore: "Agregar otra imagen",
+    continueRecord: "Continuar envío",
     retake: "Tomar otra foto",
     confirm: "Confirmar imagen",
   },

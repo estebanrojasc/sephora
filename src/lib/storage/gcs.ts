@@ -177,4 +177,17 @@ export async function pingGcsAuth(): Promise<{
   }
 }
 
+export async function deleteObject(objectKey: string): Promise<void> {
+  if (!isGcsConfigured()) return;
+  try {
+    await bucket().file(objectKey).delete({ ignoreNotFound: true });
+  } catch (err) {
+    console.warn("[gcs] deleteObject", objectKey, err);
+  }
+}
+
+export async function deleteObjects(objectKeys: string[]): Promise<void> {
+  await Promise.all(objectKeys.map((key) => deleteObject(key)));
+}
+
 export { isGcsConfigured };

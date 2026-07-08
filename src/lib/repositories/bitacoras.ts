@@ -141,6 +141,38 @@ export async function updateBitacoraRowLink(
   return appendBitacoraRowRecordLink(bitacoraId, rowId, linkedRecordId);
 }
 
+/** Quita un recordId de linkedRecordIds / linkedRecordId de una fila. */
+export async function removeBitacoraRowRecordLink(
+  bitacoraId: string,
+  rowId: string,
+  recordId: string
+): Promise<Bitacora | null> {
+  const c = await col();
+  const bitacora = await findBitacoraById(bitacoraId);
+  if (!bitacora) return null;
+
+  const rows: BitacoraRow[] = bitacora.rows.map((row) => {
+    if (row.id !== rowId) return row;
+    const existing = new Set<string>();
+    if (row.linkedRecordId) existing.add(row.linkedRecordId);
+    for (const id of row.linkedRecordIds ?? []) existing.add(id);
+    existing.delete(recordId);
+    const linkedRecordIds = [...existing];
+    return {
+      ...row,
+      linkedRecordId: linkedRecordIds[0],
+      linkedRecordIds: linkedRecordIds.length > 0 ? linkedRecordIds : undefined,
+    };
+  });
+
+  const updated = await c.findOneAndUpdate(
+    { id: bitacoraId },
+    { $set: { rows, updatedAt: new Date().toISOString() } },
+    { returnDocument: "after" }
+  );
+  return strip(updated);
+}
+
 export async function updateBitacoraRow(
   bitacoraId: string,
   rowId: string,

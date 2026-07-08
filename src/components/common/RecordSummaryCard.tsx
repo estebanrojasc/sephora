@@ -51,8 +51,11 @@ export function RecordSummaryCard({
             </p>
           )}
           {href && (
-            <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
-              Revisar <ChevronRight className="size-3" />
+            <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 sm:opacity-100">
+              {record.status === "errors" || record.status === "uploaded"
+                ? "Ver / agregar fotos"
+                : "Ver envío"}{" "}
+              <ChevronRight className="size-3" />
             </div>
           )}
         </div>
