@@ -66,6 +66,16 @@ export function focusAdminQueueOnBitacoraRecord(dayIso: string) {
   writeStoredBitacoraDate(dayIso);
 }
 
+/** URL de la cola admin ya filtrada al día de la bitácora (fecha de recorrido). */
+export function adminQueueUrlForBitacoraDay(dayIso: string): string {
+  const qs = new URLSearchParams({
+    day: dayIso,
+    mode: "fecha",
+    tab: "saved",
+  });
+  return `/admin?${qs.toString()}`;
+}
+
 export function readStoredBitacoraDate(): string | null {
   if (typeof window === "undefined") return null;
   const stored = sessionStorage.getItem(ADMIN_BITACORA_DATE_STORAGE_KEY);

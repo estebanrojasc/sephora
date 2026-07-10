@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { RecordsQueueToolbar } from "@/components/admin/RecordsQueueToolbar";
@@ -21,12 +22,47 @@ import {
 } from "@/lib/admin-session-storage";
 import { COPY } from "@/lib/constants";
 
+const ALLOWED_TABS: (RecordStatus | "all")[] = [
+  "uploaded",
+  "in_review",
+  "errors",
+  "saved",
+  "rejected",
+  "all",
+];
+
 export function AdminDashboardClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     tab: statusFilter,
     day: dayFilter,
     mode: dayMode,
   } = useAdminSessionPrefs();
+
+  // Query params ganan a sessionStorage (p. ej. tras crear desde bitácora).
+  useEffect(() => {
+    const day = searchParams.get("day");
+    const mode = searchParams.get("mode");
+    const tab = searchParams.get("tab");
+    let changed = false;
+    if (day?.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      writeStoredAdminDay(day);
+      changed = true;
+    }
+    if (mode === "fecha" || mode === "created") {
+      writeStoredAdminDayMode(mode);
+      changed = true;
+    }
+    if (tab && ALLOWED_TABS.includes(tab as RecordStatus | "all")) {
+      writeStoredAdminTab(tab as RecordStatus | "all");
+      changed = true;
+    }
+    if (changed) {
+      notifyAdminSessionPrefsChanged();
+      router.replace("/admin", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   const { data: allRecords = [], isLoading, isError, error, refetch } = useRecords({ status: "all" });
   const { data: activeBitacora } = useActiveBitacora(dayFilter);
@@ -88,7 +124,7 @@ export function AdminDashboardClient() {
           {isError && (
             <div className="rounded-xl border-2 border-destructive/30 bg-destructive/5 px-5 py-4">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                <div className="mt-0.5 flex size-8 shrink-0 items-center rounded-full bg-destructive/10 text-destructive">
                   <AlertTriangle className="size-4" />
                 </div>
                 <div>

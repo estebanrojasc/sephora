@@ -51,7 +51,7 @@ import { pickPendingDeliveryPatch } from "@/features/bitacora/row-patch";
 import { bitacoraRecorridoCanonical } from "@/features/bitacora/meta";
 import type { Bitacora, BitacoraRow } from "@/features/bitacora/types";
 import { todayIsoDateChile } from "@/lib/date-utils";
-import { focusAdminQueueOnBitacoraRecord } from "@/lib/admin-session-storage";
+import { focusAdminQueueOnBitacoraRecord, adminQueueUrlForBitacoraDay } from "@/lib/admin-session-storage";
 import { notifyAdminSessionPrefsChanged } from "@/hooks/use-admin-session-prefs";
 import { cn } from "@/lib/utils";
 
@@ -245,7 +245,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
       focusAdminQueueOnBitacoraRecord(queueDay);
       notifyAdminSessionPrefsChanged();
       toast.success("Registro creado · ya está en Guardados");
-      router.push("/admin");
+      router.push(adminQueueUrlForBitacoraDay(queueDay));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al crear registro");
     } finally {
@@ -263,9 +263,9 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
       notifyAdminSessionPrefsChanged();
       if (result.created > 0) {
         toast.success(
-          `${result.created} registro(s) creados · ya están en Guardados`
+          `${result.created} registro(s) creados · mira el ${initial.date} con Fecha recorrido`
         );
-        router.push("/admin");
+        router.push(adminQueueUrlForBitacoraDay(initial.date));
         return;
       }
       if (result.failures.length > 0) {
