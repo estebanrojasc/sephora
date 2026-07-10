@@ -224,7 +224,9 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
           };
         })
       );
-      toast.success("Registro creado");
+      toast.success(
+        "Registro creado · queda en Guardados, listo para Excel individual o consolidado"
+      );
       router.push(`/admin/records/${recordId}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al crear registro");

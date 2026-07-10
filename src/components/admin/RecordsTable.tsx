@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { RecordSummaryCard } from "@/components/common/RecordSummaryCard";
 import { PdfExportButton } from "@/components/admin/PdfExportButton";
+import { ExcelExportButton } from "@/components/admin/ExcelExportButton";
 import { BulkExcelExportDialog } from "@/components/admin/BulkExcelExportDialog";
 import { SkeletonTable } from "@/components/common/Skeleton";
 import type { Record } from "@/features/records/types";
@@ -239,6 +240,7 @@ export function RecordsTable({
               <Eye className="size-3.5" />
               Revisar
             </Link>
+            <ExcelExportButton record={row.original} iconOnly />
             <PdfExportButton record={row.original} size="sm" />
           </div>
         ),

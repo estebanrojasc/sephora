@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Download,
   FileText,
   MoreHorizontal,
   ScanLine,
@@ -17,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { buttonVariants } from "@/components/ui/button";
+import { ExcelExportButton } from "@/components/admin/ExcelExportButton";
 import type { Record } from "@/features/records/types";
 import { cn } from "@/lib/utils";
 import { AdminRecordMediaActions } from "./AdminRecordMediaActions";
@@ -46,34 +46,6 @@ function PdfExportLink({
       <FileText className="size-4" />
       Reporte ejecutivo
     </Link>
-  );
-}
-
-function ExcelExportLink({
-  record,
-  className,
-}: {
-  record: Record;
-  className?: string;
-}) {
-  if (!record.extraction) {
-    return (
-      <span className={cn(className, "cursor-not-allowed opacity-50")}>
-        <Download className="size-4" />
-        Descargar Excel
-      </span>
-    );
-  }
-
-  return (
-    <a
-      href={`/api/records/${record.id}/excel`}
-      className={className}
-      download
-    >
-      <Download className="size-4" />
-      Descargar Excel
-    </a>
   );
 }
 
@@ -112,10 +84,7 @@ export function RecordDetailActions({
           record={record}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2")}
         />
-        <ExcelExportLink
-          record={record}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2")}
-        />
+        <ExcelExportButton record={record} />
         <AdminRecordMediaActions record={record} />
       </div>
 
@@ -157,15 +126,9 @@ export function RecordDetailActions({
               />
             }
           />
-          <DropdownMenuItem
-            disabled={!hasExtraction}
-            render={
-              <ExcelExportLink
-                record={record}
-                className="flex w-full items-center gap-2"
-              />
-            }
-          />
+          <div className="px-2 py-1.5">
+            <ExcelExportButton record={record} className="w-full justify-start" />
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
 

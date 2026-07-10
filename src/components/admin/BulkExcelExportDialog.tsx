@@ -133,9 +133,9 @@ export function BulkExcelExportDialog({
         <DialogHeader>
           <DialogTitle>Excel unificado</DialogTitle>
           <DialogDescription>
-            Exporta los registros visibles en la tabla (día y tab actuales) en
-            una hoja Resumen consolidada. Ordena las filas antes de descargar.
-            Máximo 50 registros.
+            Exporta los registros visibles en la tabla (día y tab actuales:
+            Guardados o En revisión) en una hoja Resumen consolidada. Ordena
+            las filas antes de descargar. Máximo 50 registros.
           </DialogDescription>
         </DialogHeader>
 
