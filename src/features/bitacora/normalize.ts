@@ -1,6 +1,6 @@
 import { newId } from "@/lib/id";
 import { formatExtractedDateChilean, parseToIso } from "@/lib/date-utils";
-import { normalizeThousandsDisplay } from "@/lib/parse-number";
+import { normalizeInvoiceNumber, normalizeThousandsDisplay } from "@/lib/parse-number";
 import type { BitacoraRow, BitacoraRowType } from "./types";
 import { normalizePatente, recorridoSuffix } from "./normalize-keys";
 
@@ -56,8 +56,14 @@ export function normalizeBitacoraRow(input: unknown): BitacoraRow {
     recorridoSuffix:
       asString(obj.recorridoSuffix) ??
       (recorrido ? recorridoSuffix(recorrido) : undefined),
-    primerFolio: asString(obj.primerFolio),
-    ultimoFolio: asString(obj.ultimoFolio),
+    primerFolio: (() => {
+      const v = asString(obj.primerFolio);
+      return v ? normalizeInvoiceNumber(v) || v : undefined;
+    })(),
+    ultimoFolio: (() => {
+      const v = asString(obj.ultimoFolio);
+      return v ? normalizeInvoiceNumber(v) || v : undefined;
+    })(),
     cantFact: asString(obj.cantFact),
     puntos: asString(obj.puntos),
     montoTotal: obj.montoTotal
