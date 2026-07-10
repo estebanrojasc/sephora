@@ -31,8 +31,8 @@ export function AdminDashboardClient() {
   const { data: allRecords = [], isLoading, isError, error, refetch } = useRecords({ status: "all" });
   const { data: activeBitacora } = useActiveBitacora(dayFilter);
   const dayRecords = useMemo(
-    () => filterRecordsByDay(allRecords, dayFilter, dayMode),
-    [allRecords, dayFilter, dayMode]
+    () => filterRecordsByDay(allRecords, dayFilter, dayMode, activeBitacora),
+    [allRecords, dayFilter, dayMode, activeBitacora]
   );
   const tabCounts = useMemo(() => {
     const counts: Partial<Record<RecordStatus | "all", number>> = { all: dayRecords.length };

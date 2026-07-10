@@ -100,6 +100,27 @@ export function confirmedBitacoraRowLinks(
   return links.filter((l) => l.confirmed);
 }
 
+/** Filas de ruta/manual/pendiente sin un registro propio confirmado. */
+export function bitacoraRowNeedsOwnRecord(
+  row: BitacoraRow,
+  links: BitacoraRowRecordLink[]
+): boolean {
+  if (
+    row.rowType !== "manual" &&
+    row.rowType !== "ruta" &&
+    row.rowType !== "entrega_pendiente"
+  ) {
+    return false;
+  }
+  if (
+    row.rowType === "entrega_pendiente" &&
+    !row.scheduledDate?.trim()
+  ) {
+    return false;
+  }
+  return confirmedBitacoraRowLinks(links).length === 0;
+}
+
 export function canCreateRecordForBitacoraRow(
   row: BitacoraRow,
   links: BitacoraRowRecordLink[]

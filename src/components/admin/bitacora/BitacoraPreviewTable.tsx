@@ -172,13 +172,16 @@ function BitacoraCellEditor({
 }
 
 function BitacoraRowLinks({ links }: { links: BitacoraRowRecordLink[] }) {
-  if (links.length === 0) {
-    return <span className="text-xs text-muted-foreground">—</span>;
+  const confirmed = links.filter((l) => l.confirmed);
+  if (confirmed.length === 0) {
+    return (
+      <span className="text-xs text-muted-foreground">Sin registro propio</span>
+    );
   }
 
   return (
     <ul className="space-y-1">
-      {links.map((link) => (
+      {confirmed.map((link) => (
         <li key={link.recordId}>
           <Link
             href={`/admin/records/${link.recordId}`}
@@ -186,11 +189,6 @@ function BitacoraRowLinks({ links }: { links: BitacoraRowRecordLink[] }) {
           >
             <span>{link.label}</span>
             <StatusBadge status={link.status} />
-            {!link.confirmed && (
-              <span className="text-[10px] font-normal text-amber-700">
-                (recorrido no coincide)
-              </span>
-            )}
           </Link>
         </li>
       ))}
@@ -228,6 +226,10 @@ function BitacoraRowActions({
     return null;
   }
 
+  const hasConfirmed = links.some((l) => l.confirmed);
+  const hasStaleOnly =
+    !hasConfirmed && links.some((l) => !l.confirmed);
+
   return (
     <div className="space-y-2">
       <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -247,6 +249,12 @@ function BitacoraRowActions({
         />
         Varias revisiones
       </label>
+      {hasStaleOnly && (
+        <p className="text-[10px] leading-snug text-amber-800">
+          Había un vínculo a otro recorrido (no cuenta como guardado de esta
+          fila).
+        </p>
+      )}
       {canCreate && onCreateRecord && (
         <button
           type="button"
@@ -260,18 +268,20 @@ function BitacoraRowActions({
             row.rowType === "entrega_pendiente" &&
             !row.scheduledDate?.trim()
               ? "Indica la fecha programada primero"
-              : undefined
+              : hasStaleOnly
+                ? "Esta fila aún no tiene su propio registro en la cola"
+                : undefined
           }
           onClick={() => onCreateRecord(row)}
         >
           {creatingRowId === row.id
             ? "Creando…"
-            : links.some((l) => l.confirmed)
+            : hasConfirmed
               ? "Otra revisión"
-              : "Crear registro"}
+              : "Crear registro propio"}
         </button>
       )}
-      {!canCreate && links.some((l) => l.confirmed) && (
+      {!canCreate && hasConfirmed && (
         <span className="block text-[10px] text-muted-foreground">
           Vinculada
         </span>
@@ -337,7 +347,7 @@ function BitacoraPreviewRowCard({
         ))}
       </dl>
 
-      {showLinksColumn && links.length > 0 && (
+      {showLinksColumn && (
         <div className="mt-3 border-t pt-3">
           <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Revisiones

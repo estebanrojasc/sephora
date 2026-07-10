@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Brain,
+  FilePlus2,
   Loader2,
   Save,
 } from "lucide-react";
@@ -43,8 +44,10 @@ import { useRecords } from "@/features/records/queries";
 import {
   collectBitacoraRowRecordLinks,
   getRowLinkedRecordIds,
+  bitacoraRowNeedsOwnRecord,
 } from "@/features/bitacora/row-links";
 import { pickPendingDeliveryPatch } from "@/features/bitacora/row-patch";
+import { bitacoraRecorridoCanonical } from "@/features/bitacora/meta";
 import type { Bitacora, BitacoraRow } from "@/features/bitacora/types";
 import { todayIsoDateChile } from "@/lib/date-utils";
 import { focusAdminQueueOnBitacoraRecord } from "@/lib/admin-session-storage";
@@ -72,6 +75,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
   const [rows, setRows] = useState<BitacoraRow[]>(initial?.rows ?? []);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [creatingRowId, setCreatingRowId] = useState<string | null>(null);
+  const [creatingMissing, setCreatingMissing] = useState(false);
   const [parsed, setParsed] = useState(Boolean(initial?.rows.length));
   /** Último pegado parseado; evita reparsear al volver del paso Revisar. */
   const [parsedFromPaste, setParsedFromPaste] = useState<string | null>(
@@ -95,6 +99,13 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
     if (!initial) return undefined;
     return collectBitacoraRowRecordLinks({ ...initial, rows }, allRecords);
   }, [initial, rows, allRecords]);
+
+  const rowsNeedingRecord = useMemo(() => {
+    if (!rowRecordLinks) return [];
+    return rows.filter((row) =>
+      bitacoraRowNeedsOwnRecord(row, rowRecordLinks.get(row.id) ?? [])
+    );
+  }, [rows, rowRecordLinks]);
 
   const applyHeuristic = useCallback((raw: string) => {
     const grid = parseClipboardToGrid(raw);
@@ -249,6 +260,102 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
     }
   };
 
+  const handleCreateMissingRecords = async () => {
+    if (!initial?.id || rowsNeedingRecord.length === 0) return;
+    setCreatingMissing(true);
+    let created = 0;
+    const failures: string[] = [];
+    try {
+      for (const row of rowsNeedingRecord) {
+        const current = rows.find((r) => r.id === row.id) ?? row;
+        try {
+          if (current.rowType === "entrega_pendiente") {
+            await updateBitacoraRow.mutateAsync({
+              bitacoraId: initial.id,
+              rowId: current.id,
+              ...pickPendingDeliveryPatch(current),
+            });
+          }
+          const { recordId } = await createRecord.mutateAsync({
+            bitacoraId: initial.id,
+            rowId: current.id,
+          });
+          created += 1;
+          setRows((prev) =>
+            prev.map((r) => {
+              if (r.id !== current.id) return r;
+              const linkedRecordIds = [...getRowLinkedRecordIds(r), recordId];
+              return {
+                ...r,
+                linkedRecordId: linkedRecordIds[0],
+                linkedRecordIds,
+              };
+            })
+          );
+        } catch (e) {
+          const label =
+            bitacoraRecorridoCanonical(current) ||
+            current.conductor ||
+            current.id.slice(0, 8);
+          failures.push(
+            `${label}: ${e instanceof Error ? e.message : "error"}`
+          );
+        }
+      }
+      focusAdminQueueOnBitacoraRecord(initial.date);
+      notifyAdminSessionPrefsChanged();
+      if (created > 0) {
+        toast.success(
+          `${created} registro(s) creado(s) · aparecen en Guardados`,
+          {
+            action: {
+              label: "Ver en cola",
+              onClick: () => router.push("/admin"),
+            },
+          }
+        );
+      }
+      if (failures.length > 0) {
+        toast.error(
+          `No se pudieron crear ${failures.length}: ${failures.slice(0, 3).join(" · ")}`
+        );
+      }
+    } finally {
+      setCreatingMissing(false);
+    }
+  };
+
+  const missingRecordsBanner =
+    initial && rowsNeedingRecord.length > 0 ? (
+      <Alert className="border-amber-300 bg-amber-50 text-amber-950">
+        <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Faltan registros propios para{" "}
+            {rowsNeedingRecord
+              .map((r) => bitacoraRecorridoCanonical(r) || r.conductor || "?")
+              .join(", ")}
+            . El estado «Guardado» de otro recorrido no cuenta para estas filas
+            (no hace falta activar «Varias revisiones»).
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 gap-2 border-amber-400 bg-white"
+            disabled={creatingMissing || creatingRowId != null}
+            onClick={() => void handleCreateMissingRecords()}
+          >
+            {creatingMissing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FilePlus2 className="size-4" />
+            )}
+            Crear {rowsNeedingRecord.length} registro(s) propio(s)
+          </Button>
+        </AlertDescription>
+      </Alert>
+    ) : null;
+
   const handleToggleMultipleReviews = async (
     rowId: string,
     allowsMultipleReviews: boolean
@@ -290,6 +397,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
             <Input value={initial.title ?? ""} disabled />
           </div>
         </div>
+        {missingRecordsBanner}
         <BitacoraPreviewTable
           rows={rows}
           onChange={setRows}
