@@ -186,6 +186,11 @@ function BitacoraRowLinks({ links }: { links: BitacoraRowRecordLink[] }) {
           >
             <span>{link.label}</span>
             <StatusBadge status={link.status} />
+            {!link.confirmed && (
+              <span className="text-[10px] font-normal text-amber-700">
+                (recorrido no coincide)
+              </span>
+            )}
           </Link>
         </li>
       ))}
@@ -261,12 +266,12 @@ function BitacoraRowActions({
         >
           {creatingRowId === row.id
             ? "Creando…"
-            : links.length > 0
+            : links.some((l) => l.confirmed)
               ? "Otra revisión"
               : "Crear registro"}
         </button>
       )}
-      {!canCreate && links.length > 0 && (
+      {!canCreate && links.some((l) => l.confirmed) && (
         <span className="block text-[10px] text-muted-foreground">
           Vinculada
         </span>

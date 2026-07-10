@@ -20,10 +20,7 @@ import type {
   BitacoraSuggestedFields,
 } from "./types";
 
-function scoreRow(
-  record: Record,
-  row: BitacoraRow
-): number {
+function scoreRow(record: Record, row: BitacoraRow): number {
   const ex = record.extraction;
   if (!ex) return 0;
 
@@ -33,7 +30,10 @@ function scoreRow(
   const rowSuffix = row.recorridoSuffix ?? recorridoSuffix(row.recorrido);
   if (recDigits && rowSuffix) {
     if (recDigits.endsWith(rowSuffix) || recDigits === rowSuffix) score += 40;
-    else if (row.recorrido && recDigits === normalizeRecorridoDigits(row.recorrido))
+    else if (
+      row.recorrido &&
+      recDigits === normalizeRecorridoDigits(row.recorrido)
+    )
       score += 40;
   }
 
@@ -56,6 +56,18 @@ function scoreRow(
   return score;
 }
 
+/** True si el recorrido del registro concuerda con el de la fila de bitácora. */
+export function recorridosAgree(record: Record, row: BitacoraRow): boolean {
+  const recDigits = normalizeRecorridoDigits(
+    record.extraction?.n_recorrido?.valor
+  );
+  const rowDigits = normalizeRecorridoDigits(bitacoraRecorridoCanonical(row));
+  if (!recDigits || !rowDigits) return false;
+  if (recDigits === rowDigits) return true;
+  const suf = row.recorridoSuffix ?? recorridoSuffix(rowDigits);
+  return Boolean(suf && recDigits.endsWith(suf));
+}
+
 export function scoreBitacoraRow(record: Record, row: BitacoraRow): number {
   return scoreRow(record, row);
 }
@@ -76,7 +88,7 @@ export function listAvailableBitacoraRows(
     blockedRowIds?: ReadonlySet<string>;
   }
 ): BitacoraRow[] {
-  const { currentRecordId, currentRowId, blockedRowIds } = options;
+  const { currentRowId, blockedRowIds } = options;
   return listAssignableBitacoraRows(bitacora).filter((row) => {
     if (currentRowId && row.id === currentRowId) return true;
     if (blockedRowIds?.has(row.id)) return false;
@@ -147,6 +159,11 @@ export function matchRecordToBitacora(
   }
 
   if (!best || best.score < BITACORA_MATCH_THRESHOLD) return null;
+
+  // Patente+conductor = 40 (= umbral). Con varias filas Pedro/misma patente
+  // eso vinculaba mal y bloqueaba «Crear registro» sin un registro propio en
+  // la cola. Exigir acuerdo de recorrido para auto-match.
+  if (!recorridosAgree(record, best.row)) return null;
 
   return {
     bitacoraId: bitacora.id,

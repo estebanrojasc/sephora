@@ -233,7 +233,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
       focusAdminQueueOnBitacoraRecord(queueDay);
       notifyAdminSessionPrefsChanged();
       toast.success(
-        "Registro creado · aparece en En revisión (fecha de recorrido)",
+        "Registro creado · aparece en Guardados (fecha de recorrido)",
         {
           action: {
             label: "Ver en cola",

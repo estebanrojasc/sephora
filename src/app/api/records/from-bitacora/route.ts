@@ -4,10 +4,15 @@ import { buildAdminRecordFromBitacora } from "@/features/bitacora/build-extracti
 import {
   appendBitacoraRowRecordLink,
   findBitacoraById,
+  removeBitacoraRowRecordLink,
 } from "@/lib/repositories/bitacoras";
-import { insertRecordFromBitacora } from "@/lib/repositories/records";
+import {
+  findRecordsByIds,
+  insertRecordFromBitacora,
+} from "@/lib/repositories/records";
 import {
   getRowLinkedRecordIds,
+  isConfirmedBitacoraRowLink,
   rowAllowsMultipleReviews,
 } from "@/features/bitacora/row-links";
 
@@ -37,15 +42,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Fila no encontrada" }, { status: 404 });
   }
 
-  const existingLinks = getRowLinkedRecordIds(row);
-  if (existingLinks.length > 0 && !rowAllowsMultipleReviews(row)) {
-    return NextResponse.json(
-      {
-        message: "Ya existe un registro vinculado a esta fila",
-        recordId: existingLinks[0],
-      },
-      { status: 409 }
+  const existingLinkIds = getRowLinkedRecordIds(row);
+  if (existingLinkIds.length > 0) {
+    const linkedRecords = await findRecordsByIds(existingLinkIds);
+    const byId = new Map(linkedRecords.map((r) => [r.id, r]));
+    const confirmed = linkedRecords.filter((r) =>
+      isConfirmedBitacoraRowLink(r, row)
     );
+
+    if (confirmed.length > 0 && !rowAllowsMultipleReviews(row)) {
+      return NextResponse.json(
+        {
+          message: "Ya existe un registro vinculado a esta fila",
+          recordId: confirmed[0]!.id,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Limpia vínculos obsoletos (mismo conductor/patente, otro recorrido).
+    for (const id of existingLinkIds) {
+      const rec = byId.get(id);
+      if (!rec || !isConfirmedBitacoraRowLink(rec, row)) {
+        await removeBitacoraRowRecordLink(bitacoraId, rowId, id);
+      }
+    }
   }
 
   if (
