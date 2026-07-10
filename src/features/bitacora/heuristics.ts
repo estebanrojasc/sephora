@@ -1,6 +1,6 @@
 import { newId } from "@/lib/id";
 import { parseToIso } from "@/lib/date-utils";
-import { normalizeThousandsDisplay } from "@/lib/parse-number";
+import { normalizeInvoiceNumber, normalizeThousandsDisplay } from "@/lib/parse-number";
 import type { BitacoraRow, BitacoraRowType } from "./types";
 import { normalizePatenteDisplay } from "./normalize";
 import { recorridoSuffix } from "./normalize-keys";
@@ -205,8 +205,8 @@ function rowFromCells(
     sector: cellAt(cells, map.sector) || undefined,
     recorrido,
     recorridoSuffix: recorrido ? recorridoSuffix(recorrido) : undefined,
-    primerFolio: cellAt(cells, map.primerFolio) || undefined,
-    ultimoFolio: cellAt(cells, map.ultimoFolio) || undefined,
+    primerFolio: normalizeInvoiceNumber(cellAt(cells, map.primerFolio)) || undefined,
+    ultimoFolio: normalizeInvoiceNumber(cellAt(cells, map.ultimoFolio)) || undefined,
     cantFact: cellAt(cells, map.cantFact) || undefined,
     puntos: cellAt(cells, map.puntos) || undefined,
     montoTotal: cleanMonto(rawMonto),

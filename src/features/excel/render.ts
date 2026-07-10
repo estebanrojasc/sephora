@@ -38,11 +38,11 @@ const LIST_LAYOUT: ListCellLayout[] = [
   { col: "M", list: "cheques_al_dia", field: "fecha", type: "text", extraStyle: 37, placeholder: "{{chq_dia_fechas}}" },
   { col: "N", list: "cheques_al_dia", field: "banco", type: "text", extraStyle: 38, placeholder: "{{chq_dia_bancos}}" },
   { col: "O", list: "cheques_al_dia", field: "valor", type: "number", extraStyle: 39, placeholder: "{{chq_dia_valores}}" },
-  { col: "P", list: "rech_total", field: "fac", type: "number", extraStyle: 42, placeholder: "{{rech_tot_fac}}" },
+  { col: "P", list: "rech_total", field: "fac", type: "text", extraStyle: 42, placeholder: "{{rech_tot_fac}}" },
   { col: "Q", list: "rech_total", field: "val", type: "number", extraStyle: 72, placeholder: "{{rech_tot_val}}" },
-  { col: "R", list: "rech_parcial", field: "fac", type: "number", extraStyle: 44, placeholder: "{{rech_par_fac}}" },
+  { col: "R", list: "rech_parcial", field: "fac", type: "text", extraStyle: 44, placeholder: "{{rech_par_fac}}" },
   { col: "S", list: "rech_parcial", field: "val", type: "number", extraStyle: 77, placeholder: "{{rech_par_val}}" },
-  { col: "T", list: "negocio", field: "fac", type: "number", extraStyle: 42, placeholder: "{{neg_fac}}" },
+  { col: "T", list: "negocio", field: "fac", type: "text", extraStyle: 42, placeholder: "{{neg_fac}}" },
   { col: "U", list: "negocio", field: "val", type: "number", extraStyle: 72, placeholder: "{{neg_val}}" },
 ];
 

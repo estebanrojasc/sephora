@@ -8,6 +8,19 @@ export function formatChileanIntegerAmount(n: number): string {
 }
 
 /**
+ * N° de factura / folio: solo dígitos, sin separadores de miles.
+ * Ej. "607.261" | "607,261" | "607 261" → "607261"
+ */
+export function normalizeInvoiceNumber(
+  value: string | undefined | null
+): string {
+  if (value == null) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+  return raw.replace(/[^\d]/g, "");
+}
+
+/**
  * Convierte comas usadas como separador de miles al punto (formato chileno).
  * Si el valor es un monto entero CLP, lo re-formatea con puntos de miles.
  */

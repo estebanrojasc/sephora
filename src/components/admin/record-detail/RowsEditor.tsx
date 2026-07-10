@@ -13,7 +13,7 @@ import {
   resolveCatalogStoredValue,
 } from "@/features/catalogs/resolve";
 import { transferBankDisplayLabel } from "@/features/records/transfer-bank";
-import { normalizeThousandsDisplay } from "@/lib/parse-number";
+import { normalizeInvoiceNumber, normalizeThousandsDisplay } from "@/lib/parse-number";
 
 const TRANSFER_BANK_CATALOG_KEY = "detalle_transferencias.banco";
 
@@ -123,12 +123,11 @@ function RowsEditorCell<T extends object>({
         onFocus={focusCell}
         onBlur={() => {
           blurCell();
-          if (col.key === "valor" && field.valor.trim()) {
-            onUpdate(
-              rowIndex,
-              col.key,
-              normalizeThousandsDisplay(field.valor)
-            );
+          if (!field.valor.trim()) return;
+          if (col.key === "valor") {
+            onUpdate(rowIndex, col.key, normalizeThousandsDisplay(field.valor));
+          } else if (col.key === "no_fac") {
+            onUpdate(rowIndex, col.key, normalizeInvoiceNumber(field.valor));
           }
         }}
         className="h-8 w-full text-sm"

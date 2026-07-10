@@ -6,6 +6,7 @@ import {
 } from "@/features/records/types";
 import { isChequeAlDia, chequeReferenceIso } from "@/features/records/cheque-utils";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
+import { normalizeInvoiceNumber } from "@/lib/parse-number";
 import {
   dedupeTransferenciaRows,
   harvestTransfersFromObservations,
@@ -223,7 +224,9 @@ export function getDetailItems(
     }
     case "rechazoTotal": {
       const items: RowItem[] = current.n_c_rechazo_total.map((r) => ({
-        descripcion: r.no_fac.valor ? `Fact. ${r.no_fac.valor}` : "—",
+        descripcion: r.no_fac.valor
+          ? `Fact. ${normalizeInvoiceNumber(r.no_fac.valor) || r.no_fac.valor}`
+          : "—",
         monto: parseAmount(r.valor.valor),
       }));
       const total =
@@ -234,7 +237,9 @@ export function getDetailItems(
     }
     case "rechazoParcial": {
       const items: RowItem[] = current.n_c_rechazo_parcial.map((r) => ({
-        descripcion: r.no_fac.valor ? `Fact. ${r.no_fac.valor}` : "—",
+        descripcion: r.no_fac.valor
+          ? `Fact. ${normalizeInvoiceNumber(r.no_fac.valor) || r.no_fac.valor}`
+          : "—",
         monto: parseAmount(r.valor.valor),
       }));
       const total =
@@ -245,7 +250,9 @@ export function getDetailItems(
     }
     case "ncNegocio": {
       const items: RowItem[] = current.n_c_por_negocios.map((r) => ({
-        descripcion: r.no_fac.valor ? `Fact. ${r.no_fac.valor}` : "—",
+        descripcion: r.no_fac.valor
+          ? `Fact. ${normalizeInvoiceNumber(r.no_fac.valor) || r.no_fac.valor}`
+          : "—",
         monto: parseAmount(r.valor.valor),
       }));
       const total =
@@ -255,7 +262,9 @@ export function getDetailItems(
     }
     case "creditoVendedor": {
       const items: RowItem[] = current.detalle_credito_vendedor.map((r) => ({
-        descripcion: r.no_fac.valor ? `Fact. ${r.no_fac.valor}` : "—",
+        descripcion: r.no_fac.valor
+          ? `Fact. ${normalizeInvoiceNumber(r.no_fac.valor) || r.no_fac.valor}`
+          : "—",
         cliente: r.cliente.valor,
         vendedor: r.nro_vendedor.valor,
         monto: parseAmount(r.valor.valor),
@@ -294,7 +303,9 @@ export function getDetailItems(
     }
     case "transferencias": {
       const items: RowItem[] = current.detalle_transferencias.map((r) => ({
-        descripcion: r.no_fac.valor ? `Fact. ${r.no_fac.valor}` : "—",
+        descripcion: r.no_fac.valor
+          ? `Fact. ${normalizeInvoiceNumber(r.no_fac.valor) || r.no_fac.valor}`
+          : "—",
         cliente: r.cliente.valor,
         banco: transferBankDisplayLabel(r.banco.valor),
         monto: parseAmount(r.valor.valor),

@@ -12,7 +12,10 @@ import {
 } from "@/features/records/types";
 import { splitBilletesAndMonedas } from "@/features/records/efectivo-utils";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
-import { normalizeThousandsDisplay } from "@/lib/parse-number";
+import {
+  normalizeInvoiceNumber,
+  normalizeThousandsDisplay,
+} from "@/lib/parse-number";
 import { normalizeTransferBankCode } from "@/features/records/transfer-bank";
 
 const EMPTY_BBOX: Bbox = [0, 0, 0, 0];
@@ -39,9 +42,15 @@ function coerceAmountField(field: ExtractedField): ExtractedField {
   };
 }
 
-function fillField(input: unknown): ExtractedField {
+function coerceInvoiceField(field: ExtractedField): ExtractedField {
+  if (!field.valor.trim()) return field;
+  const next = normalizeInvoiceNumber(field.valor);
+  return next === field.valor ? field : { ...field, valor: next };
+}
+
+function fillFieldRaw(input: unknown): ExtractedField {
   if (typeof input === "string") {
-    return { valor: normalizeThousandsDisplay(input), bbox: [...EMPTY_BBOX] };
+    return { valor: input, bbox: [...EMPTY_BBOX] };
   }
   if (typeof input === "number" && Number.isFinite(input)) {
     return { valor: String(input), bbox: [...EMPTY_BBOX] };
@@ -64,34 +73,47 @@ function fillField(input: unknown): ExtractedField {
       ? ([bb[0], bb[1], bb[2], bb[3]] as Bbox)
       : [...EMPTY_BBOX];
 
-  return { valor: normalizeThousandsDisplay(valor), bbox };
+  return { valor, bbox };
+}
+
+function fillField(input: unknown): ExtractedField {
+  const field = fillFieldRaw(input);
+  if (!field.valor.trim()) return field;
+  return {
+    ...field,
+    valor: normalizeThousandsDisplay(field.valor),
+  };
+}
+
+function fillInvoiceField(input: unknown): ExtractedField {
+  return coerceInvoiceField(fillFieldRaw(input));
 }
 
 function fillChequeRow(input: unknown): ChequeRow {
   const obj = asObject(input) ?? {};
   return {
-    fecha: coerceDateField(fillField(obj.fecha)),
-    banco: fillField(obj.banco),
-    valor: coerceAmountField(fillField(obj.valor)),
+    fecha: coerceDateField(fillFieldRaw(obj.fecha)),
+    banco: fillFieldRaw(obj.banco),
+    valor: coerceAmountField(fillFieldRaw(obj.valor)),
   };
 }
 
 function fillNcRow(input: unknown): NCRow {
   const obj = asObject(input) ?? {};
   return {
-    no_fac: fillField(obj.no_fac),
-    valor: fillField(obj.valor),
+    no_fac: fillInvoiceField(obj.no_fac),
+    valor: coerceAmountField(fillFieldRaw(obj.valor)),
   };
 }
 
 function fillTransferenciaRow(input: unknown): TransferenciaRow {
   const obj = asObject(input) ?? {};
-  const banco = fillField(obj.banco);
+  const banco = fillFieldRaw(obj.banco);
   const code = normalizeTransferBankCode(banco.valor);
   return {
-    no_fac: fillField(obj.no_fac),
-    valor: fillField(obj.valor),
-    cliente: fillField(obj.cliente),
+    no_fac: fillInvoiceField(obj.no_fac),
+    valor: coerceAmountField(fillFieldRaw(obj.valor)),
+    cliente: fillFieldRaw(obj.cliente),
     banco: code !== banco.valor ? { ...banco, valor: code } : banco,
   };
 }
@@ -99,10 +121,10 @@ function fillTransferenciaRow(input: unknown): TransferenciaRow {
 function fillCreditoVendedorRow(input: unknown): CreditoVendedorRow {
   const obj = asObject(input) ?? {};
   return {
-    no_fac: fillField(obj.no_fac),
-    valor: fillField(obj.valor),
-    cliente: fillField(obj.cliente),
-    nro_vendedor: fillField(obj.nro_vendedor),
+    no_fac: fillInvoiceField(obj.no_fac),
+    valor: coerceAmountField(fillFieldRaw(obj.valor)),
+    cliente: fillFieldRaw(obj.cliente),
+    nro_vendedor: fillFieldRaw(obj.nro_vendedor),
   };
 }
 

@@ -1,7 +1,10 @@
 import { splitBilletesAndMonedas } from "./efectivo-utils";
 import { syncDetalleEfectivoTotals } from "./efectivo-totals";
 import { formatExtractedDateChilean } from "@/lib/date-utils";
-import { normalizeThousandsDisplay } from "@/lib/parse-number";
+import {
+  normalizeInvoiceNumber,
+  normalizeThousandsDisplay,
+} from "@/lib/parse-number";
 import type { BitacoraMetaBlock } from "@/features/bitacora/meta";
 
 export type RecordStatus =
@@ -269,6 +272,12 @@ function normalizeAmountOnLoad(field: ExtractedField): ExtractedField {
   return next === field.valor ? field : { ...field, valor: next };
 }
 
+function normalizeInvoiceOnLoad(field: ExtractedField): ExtractedField {
+  if (!field.valor.trim()) return field;
+  const next = normalizeInvoiceNumber(field.valor);
+  return next === field.valor ? field : { ...field, valor: next };
+}
+
 function normalizeDateOnLoad(field: ExtractedField): ExtractedField {
   if (!field.valor.trim()) return field;
   const next = formatExtractedDateChilean(field.valor);
@@ -403,12 +412,27 @@ export function ensureExtractionShape(
         valor: normalizeAmountOnLoad(row.valor ?? { ...EMPTY_FIELD }),
       })
     ),
-    n_c_rechazo_total: e.n_c_rechazo_total ?? base.n_c_rechazo_total,
-    n_c_rechazo_parcial: e.n_c_rechazo_parcial ?? base.n_c_rechazo_parcial,
-    n_c_por_negocios: e.n_c_por_negocios ?? base.n_c_por_negocios,
+    n_c_rechazo_total: (e.n_c_rechazo_total ?? base.n_c_rechazo_total).map(
+      (row) => ({
+        no_fac: normalizeInvoiceOnLoad(row.no_fac ?? { ...EMPTY_FIELD }),
+        valor: row.valor ?? { ...EMPTY_FIELD },
+      })
+    ),
+    n_c_rechazo_parcial: (
+      e.n_c_rechazo_parcial ?? base.n_c_rechazo_parcial
+    ).map((row) => ({
+      no_fac: normalizeInvoiceOnLoad(row.no_fac ?? { ...EMPTY_FIELD }),
+      valor: row.valor ?? { ...EMPTY_FIELD },
+    })),
+    n_c_por_negocios: (e.n_c_por_negocios ?? base.n_c_por_negocios).map(
+      (row) => ({
+        no_fac: normalizeInvoiceOnLoad(row.no_fac ?? { ...EMPTY_FIELD }),
+        valor: row.valor ?? { ...EMPTY_FIELD },
+      })
+    ),
     detalle_transferencias: (e.detalle_transferencias ?? base.detalle_transferencias).map(
       (row) => ({
-        no_fac: row.no_fac ?? { ...EMPTY_FIELD },
+        no_fac: normalizeInvoiceOnLoad(row.no_fac ?? { ...EMPTY_FIELD }),
         valor: row.valor ?? { ...EMPTY_FIELD },
         cliente: row.cliente ?? { ...EMPTY_FIELD },
         banco: row.banco ?? { ...EMPTY_FIELD },
@@ -417,7 +441,7 @@ export function ensureExtractionShape(
     detalle_credito_vendedor: (
       e.detalle_credito_vendedor ?? base.detalle_credito_vendedor
     ).map((row) => ({
-      no_fac: row.no_fac ?? { ...EMPTY_FIELD },
+      no_fac: normalizeInvoiceOnLoad(row.no_fac ?? { ...EMPTY_FIELD }),
       valor: row.valor ?? { ...EMPTY_FIELD },
       cliente: row.cliente ?? { ...EMPTY_FIELD },
       nro_vendedor: row.nro_vendedor ?? { ...EMPTY_FIELD },

@@ -7,8 +7,16 @@ import { splitChequesByTipo, chequeReferenceIso } from "@/features/records/chequ
 import { syncBitacoraMetaInExtraction } from "@/features/bitacora/meta";
 import { migrateLegacyTransfers } from "@/features/pdf/reporte-utils";
 import { transferBankDisplayLabel } from "@/features/records/transfer-bank";
-import { parseNumber } from "@/lib/parse-number";
+import { parseNumber, normalizeInvoiceNumber } from "@/lib/parse-number";
 import type { BitacoraExcelFields } from "@/features/bitacora/meta";
+
+function text(field: { valor?: string } | undefined): string {
+  return field?.valor?.trim() ?? "";
+}
+
+function invoiceText(field: { valor?: string } | undefined): string {
+  return normalizeInvoiceNumber(field?.valor);
+}
 
 function appendResumenBitacoraScalars(
   scalars: globalThis.Record<string, ScalarValue>,
@@ -98,10 +106,6 @@ function getExtraction(record: AppRecord): Extraction | null {
   return syncBitacoraMetaInExtraction(
     migrateLegacyTransfers(ensureExtractionShape(record.extraction))
   );
-}
-
-function text(value: { valor: string } | undefined): string {
-  return value?.valor ?? "";
 }
 
 function aliasScalar(
@@ -249,27 +253,27 @@ export function buildRendicionPayload(record: AppRecord): RendicionPayload {
     cheques_a_fecha: aFecha.map(mapCheque),
     cheques_al_dia: alDia.map(mapCheque),
     rech_total: (e.n_c_rechazo_total ?? []).map((r) => ({
-      fac: text(r.no_fac),
+      fac: invoiceText(r.no_fac),
       val: text(r.valor),
     })),
     rech_parcial: (e.n_c_rechazo_parcial ?? []).map((r) => ({
-      fac: text(r.no_fac),
+      fac: invoiceText(r.no_fac),
       val: text(r.valor),
     })),
     negocio: (e.n_c_por_negocios ?? []).map((r) => ({
-      fac: text(r.no_fac),
+      fac: invoiceText(r.no_fac),
       val: text(r.valor),
     })),
     credito_vendedor: (e.detalle_credito_vendedor ?? []).map((r) => ({
       cliente: text(r.cliente),
-      no_fac: text(r.no_fac),
+      no_fac: invoiceText(r.no_fac),
       valor: text(r.valor),
       nro_vendedor: text(r.nro_vendedor),
       recorrido: text(e.n_recorrido),
     })),
     transferencias: (e.detalle_transferencias ?? []).map((r) => ({
       cliente: text(r.cliente),
-      no_fac: text(r.no_fac),
+      no_fac: invoiceText(r.no_fac),
       valor: text(r.valor),
       banco: transferBankDisplayLabel(text(r.banco)),
       recorrido: text(e.n_recorrido),
