@@ -47,6 +47,8 @@ import {
 import { pickPendingDeliveryPatch } from "@/features/bitacora/row-patch";
 import type { Bitacora, BitacoraRow } from "@/features/bitacora/types";
 import { todayIsoDateChile } from "@/lib/date-utils";
+import { focusAdminQueueOnBitacoraRecord } from "@/lib/admin-session-storage";
+import { notifyAdminSessionPrefsChanged } from "@/hooks/use-admin-session-prefs";
 import { cn } from "@/lib/utils";
 
 interface BitacoraEditorProps {
@@ -224,8 +226,20 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
           };
         })
       );
+      const queueDay =
+        current.rowType === "entrega_pendiente" && current.scheduledDate
+          ? current.scheduledDate
+          : initial.date;
+      focusAdminQueueOnBitacoraRecord(queueDay);
+      notifyAdminSessionPrefsChanged();
       toast.success(
-        "Registro creado · queda en Guardados, listo para Excel individual o consolidado"
+        "Registro creado · aparece en En revisión (fecha de recorrido)",
+        {
+          action: {
+            label: "Ver en cola",
+            onClick: () => router.push("/admin"),
+          },
+        }
       );
       router.push(`/admin/records/${recordId}`);
     } catch (e) {

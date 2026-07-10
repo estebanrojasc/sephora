@@ -54,6 +54,18 @@ export function writeStoredBitacoraDate(date: string) {
   }
 }
 
+/**
+ * Alinea la cola admin para ver un registro creado desde bitácora:
+ * pestaña En revisión + día por fecha de recorrido (no por carga).
+ */
+export function focusAdminQueueOnBitacoraRecord(dayIso: string) {
+  if (!dayIso.match(/^\d{4}-\d{2}-\d{2}$/)) return;
+  writeStoredAdminTab("in_review");
+  writeStoredAdminDay(dayIso);
+  writeStoredAdminDayMode("fecha");
+  writeStoredBitacoraDate(dayIso);
+}
+
 export function readStoredBitacoraDate(): string | null {
   if (typeof window === "undefined") return null;
   const stored = sessionStorage.getItem(ADMIN_BITACORA_DATE_STORAGE_KEY);

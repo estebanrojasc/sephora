@@ -69,7 +69,7 @@ export function buildAdminRecordFromBitacora(
     deviceId: "admin-bitacora",
     driverId: "admin-bitacora",
     driverName: row.conductor?.trim() || "Bitácora",
-    status: "saved",
+    status: "in_review",
     images: [],
     extraction: buildExtractionFromBitacoraRow(row, bitacoraDate, bitacora),
     attemptCount: 0,

@@ -118,7 +118,9 @@ export function AdminDashboardClient() {
               records={filteredRecords}
               isLoading={showTableLoading}
               enableBulkExcel={
-                statusFilter === "saved" || statusFilter === "in_review"
+                statusFilter === "saved" ||
+                statusFilter === "in_review" ||
+                statusFilter === "all"
               }
               activeBitacora={activeBitacora}
             />
