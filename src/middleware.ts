@@ -49,6 +49,7 @@ function isPathProtected(pathname: string): boolean {
   if (pathname.startsWith("/api/catalogs")) return true;
   if (pathname.startsWith("/api/bitacora")) return true;
   if (pathname === "/api/records/from-bitacora") return true;
+  if (pathname.startsWith("/api/records/from-bitacora/")) return true;
   if (pathname.startsWith("/api/records/") && pathname.endsWith("/process-ai")) {
     return true;
   }

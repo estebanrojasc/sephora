@@ -227,8 +227,7 @@ function BitacoraRowActions({
   }
 
   const hasConfirmed = links.some((l) => l.confirmed);
-  const hasStaleOnly =
-    !hasConfirmed && links.some((l) => !l.confirmed);
+  const hasStaleOnly = !hasConfirmed && links.some((l) => !l.confirmed);
 
   return (
     <div className="space-y-2">
@@ -249,12 +248,6 @@ function BitacoraRowActions({
         />
         Varias revisiones
       </label>
-      {hasStaleOnly && (
-        <p className="text-[10px] leading-snug text-amber-800">
-          Había un vínculo a otro recorrido (no cuenta como guardado de esta
-          fila).
-        </p>
-      )}
       {canCreate && onCreateRecord && (
         <button
           type="button"

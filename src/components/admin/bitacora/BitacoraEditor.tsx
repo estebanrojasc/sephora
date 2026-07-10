@@ -35,6 +35,7 @@ import {
 import { parseClipboardToGrid } from "@/features/bitacora/parse-tsv";
 import {
   useCreateBitacora,
+  useCreateMissingRecordsFromBitacora,
   useCreateRecordFromBitacora,
   useParseBitacora,
   useUpdateBitacoraRow,
@@ -64,6 +65,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
   const createBitacora = useCreateBitacora();
   const parseBitacora = useParseBitacora();
   const createRecord = useCreateRecordFromBitacora();
+  const createMissing = useCreateMissingRecordsFromBitacora();
   const updateRowSettings = useUpdateBitacoraRowSettings();
   const updateBitacoraRow = useUpdateBitacoraRow();
   const { data: allRecords = [] } = useRecords({ status: "all", poll: false });
@@ -75,7 +77,6 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
   const [rows, setRows] = useState<BitacoraRow[]>(initial?.rows ?? []);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [creatingRowId, setCreatingRowId] = useState<string | null>(null);
-  const [creatingMissing, setCreatingMissing] = useState(false);
   const [parsed, setParsed] = useState(Boolean(initial?.rows.length));
   /** Último pegado parseado; evita reparsear al volver del paso Revisar. */
   const [parsedFromPaste, setParsedFromPaste] = useState<string | null>(
@@ -243,16 +244,8 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
           : initial.date;
       focusAdminQueueOnBitacoraRecord(queueDay);
       notifyAdminSessionPrefsChanged();
-      toast.success(
-        "Registro creado · aparece en Guardados (fecha de recorrido)",
-        {
-          action: {
-            label: "Ver en cola",
-            onClick: () => router.push("/admin"),
-          },
-        }
-      );
-      router.push(`/admin/records/${recordId}`);
+      toast.success("Registro creado · ya está en Guardados");
+      router.push("/admin");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al crear registro");
     } finally {
@@ -262,98 +255,62 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
 
   const handleCreateMissingRecords = async () => {
     if (!initial?.id || rowsNeedingRecord.length === 0) return;
-    setCreatingMissing(true);
-    let created = 0;
-    const failures: string[] = [];
     try {
-      for (const row of rowsNeedingRecord) {
-        const current = rows.find((r) => r.id === row.id) ?? row;
-        try {
-          if (current.rowType === "entrega_pendiente") {
-            await updateBitacoraRow.mutateAsync({
-              bitacoraId: initial.id,
-              rowId: current.id,
-              ...pickPendingDeliveryPatch(current),
-            });
-          }
-          const { recordId } = await createRecord.mutateAsync({
-            bitacoraId: initial.id,
-            rowId: current.id,
-          });
-          created += 1;
-          setRows((prev) =>
-            prev.map((r) => {
-              if (r.id !== current.id) return r;
-              const linkedRecordIds = [...getRowLinkedRecordIds(r), recordId];
-              return {
-                ...r,
-                linkedRecordId: linkedRecordIds[0],
-                linkedRecordIds,
-              };
-            })
-          );
-        } catch (e) {
-          const label =
-            bitacoraRecorridoCanonical(current) ||
-            current.conductor ||
-            current.id.slice(0, 8);
-          failures.push(
-            `${label}: ${e instanceof Error ? e.message : "error"}`
-          );
-        }
-      }
+      const result = await createMissing.mutateAsync({
+        bitacoraId: initial.id,
+      });
       focusAdminQueueOnBitacoraRecord(initial.date);
       notifyAdminSessionPrefsChanged();
-      if (created > 0) {
+      if (result.created > 0) {
         toast.success(
-          `${created} registro(s) creado(s) · aparecen en Guardados`,
-          {
-            action: {
-              label: "Ver en cola",
-              onClick: () => router.push("/admin"),
-            },
-          }
+          `${result.created} registro(s) creados · ya están en Guardados`
         );
+        router.push("/admin");
+        return;
       }
-      if (failures.length > 0) {
+      if (result.failures.length > 0) {
         toast.error(
-          `No se pudieron crear ${failures.length}: ${failures.slice(0, 3).join(" · ")}`
+          result.failures
+            .slice(0, 3)
+            .map((f) => `${f.recorrido}: ${f.message}`)
+            .join(" · ")
         );
+      } else {
+        toast.message("No había registros pendientes por crear");
       }
-    } finally {
-      setCreatingMissing(false);
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "No se pudieron crear los registros"
+      );
     }
   };
 
   const missingRecordsBanner =
     initial && rowsNeedingRecord.length > 0 ? (
-      <Alert className="border-amber-300 bg-amber-50 text-amber-950">
-        <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Faltan registros propios para{" "}
+      <div className="flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          Faltan {rowsNeedingRecord.length} en la cola:{" "}
+          <strong>
             {rowsNeedingRecord
-              .map((r) => bitacoraRecorridoCanonical(r) || r.conductor || "?")
+              .map((r) => bitacoraRecorridoCanonical(r) || "?")
               .join(", ")}
-            . El estado «Guardado» de otro recorrido no cuenta para estas filas
-            (no hace falta activar «Varias revisiones»).
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="shrink-0 gap-2 border-amber-400 bg-white"
-            disabled={creatingMissing || creatingRowId != null}
-            onClick={() => void handleCreateMissingRecords()}
-          >
-            {creatingMissing ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <FilePlus2 className="size-4" />
-            )}
-            Crear {rowsNeedingRecord.length} registro(s) propio(s)
-          </Button>
-        </AlertDescription>
-      </Alert>
+          </strong>
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          className="shrink-0 gap-2"
+          disabled={createMissing.isPending || creatingRowId != null}
+          onClick={() => void handleCreateMissingRecords()}
+        >
+          {createMissing.isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <FilePlus2 className="size-4" />
+          )}
+          Crear y ir a la cola
+        </Button>
+      </div>
     ) : null;
 
   const handleToggleMultipleReviews = async (

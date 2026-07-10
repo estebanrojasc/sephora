@@ -77,4 +77,18 @@ export async function createRecordFromBitacoraApi(payload: {
   });
 }
 
+export async function createMissingRecordsFromBitacoraApi(payload: {
+  bitacoraId: string;
+}): Promise<{
+  created: number;
+  recordIds: string[];
+  failures: { recorrido: string; message: string }[];
+}> {
+  return fetchJsonNoStore("/api/records/from-bitacora/missing", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export type { Bitacora, BitacoraRow };

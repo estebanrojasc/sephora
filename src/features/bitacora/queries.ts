@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import type { BitacoraRowPatch } from "./row-patch";
 import {
   createBitacoraApi,
+  createMissingRecordsFromBitacoraApi,
   createRecordFromBitacoraApi,
   fetchBitacoraById,
   fetchBitacoraDates,
@@ -88,6 +89,18 @@ export function useCreateRecordFromBitacora() {
   return useMutation({
     mutationFn: (payload: { bitacoraId: string; rowId: string }) =>
       createRecordFromBitacoraApi(payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIST_KEY });
+      void qc.invalidateQueries({ queryKey: ["records"] });
+    },
+  });
+}
+
+export function useCreateMissingRecordsFromBitacora() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { bitacoraId: string }) =>
+      createMissingRecordsFromBitacoraApi(payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: LIST_KEY });
       void qc.invalidateQueries({ queryKey: ["records"] });
