@@ -63,8 +63,8 @@ function mergeTransferenciaRows(
   const b = next ?? [];
   const byKey = new Map<string, TransferenciaRow>();
   for (const row of [...a, ...b]) {
-    const key = `${row.no_fac.valor}|${row.valor.valor}`;
-    if (key === "|") continue;
+    const key = `${row.no_fac.valor}|${row.valor.valor}|${row.cliente.valor}|${row.banco.valor}`;
+    if (key === "|||") continue;
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, row);
@@ -88,8 +88,10 @@ function mergeCreditoVendedorRows(
   const b = next ?? [];
   const byKey = new Map<string, CreditoVendedorRow>();
   for (const row of [...a, ...b]) {
-    const key = `${row.no_fac.valor}|${row.valor.valor}|${row.nro_vendedor.valor}`;
-    if (key === "||") continue;
+    // Incluye cliente: antes key "|||" descartaba filas solo-cliente
+    // (sin factura/monto/vendedor) y se perdían al reprocesar IA.
+    const key = `${row.no_fac.valor}|${row.valor.valor}|${row.nro_vendedor.valor}|${row.cliente.valor}`;
+    if (key === "|||") continue;
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, row);

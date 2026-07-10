@@ -168,43 +168,59 @@ export interface ExtractionTotalsStatus {
   cuadrado: boolean;
 }
 
+/**
+ * Totales declarados en rendición/sección sin ninguna fila de detalle con monto.
+ * Antes solo se avisaba nulos/parciales; crédito vendedor y transferencias
+ * podían guardarse "completos" con solo el total → Excel/PDF sin líneas.
+ */
 function getRendicionWithoutRows(e: Extraction): SectionState[] {
   const shaped = ensureExtractionShape(e);
   const warnings: SectionState[] = [];
 
-  const retornoTotal = safeNumber(shaped.rendicion.retorno_total.valor);
-  if (
-    retornoTotal !== null &&
-    retornoTotal > 0 &&
-    shaped.n_c_rechazo_total.length === 0
-  ) {
-    warnings.push({
-      id: "rendicion_retorno_total",
-      label: "Nulos (rechazo total)",
-      itemCount: 0,
-      sumItems: 0,
-      declared: retornoTotal,
-      declaredEmpty: false,
-      diff: null,
-    });
-  }
+  const pushIfOrphan = (
+    id: string,
+    label: string,
+    declaredRaw: string | undefined | null,
+    detailCount: number
+  ) => {
+    const declared = safeNumber(declaredRaw);
+    if (declared !== null && declared > 0 && detailCount === 0) {
+      warnings.push({
+        id,
+        label,
+        itemCount: 0,
+        sumItems: 0,
+        declared,
+        declaredEmpty: false,
+        diff: null,
+      });
+    }
+  };
 
-  const retornoParcial = safeNumber(shaped.rendicion.retorno_parcial.valor);
-  if (
-    retornoParcial !== null &&
-    retornoParcial > 0 &&
-    shaped.n_c_rechazo_parcial.length === 0
-  ) {
-    warnings.push({
-      id: "rendicion_retorno_parcial",
-      label: "Parciales (rechazo parcial)",
-      itemCount: 0,
-      sumItems: 0,
-      declared: retornoParcial,
-      declaredEmpty: false,
-      diff: null,
-    });
-  }
+  pushIfOrphan(
+    "rendicion_retorno_total",
+    "Nulos (rechazo total)",
+    shaped.rendicion.retorno_total.valor,
+    rowSum(shaped.n_c_rechazo_total.map((r) => r.valor.valor)).count
+  );
+  pushIfOrphan(
+    "rendicion_retorno_parcial",
+    "Parciales (rechazo parcial)",
+    shaped.rendicion.retorno_parcial.valor,
+    rowSum(shaped.n_c_rechazo_parcial.map((r) => r.valor.valor)).count
+  );
+  pushIfOrphan(
+    "credito_vendedor",
+    "Crédito vendedor",
+    shaped.rendicion.credito_vendedor.valor,
+    rowSum(shaped.detalle_credito_vendedor.map((r) => r.valor.valor)).count
+  );
+  pushIfOrphan(
+    "transferencias",
+    "Transferencias",
+    shaped.total_transferencias.valor || shaped.rendicion.transferencia.valor,
+    rowSum(shaped.detalle_transferencias.map((r) => r.valor.valor)).count
+  );
 
   return warnings;
 }
@@ -221,19 +237,27 @@ export function getTotalsStatus(e: Extraction): ExtractionTotalsStatus {
       s.diff !== null &&
       Math.abs(s.diff) > TOTAL_MATCH_TOLERANCE
   );
+  const rendicionWithoutRows = getRendicionWithoutRows(e);
 
   const declaredGrandTotal = sections.reduce(
     (acc, s) => acc + (s.declared ?? 0),
     0
   );
 
+  // Bloquea guardar si hay total sin filas de detalle (p. ej. solo crédito
+  // vendedor): el registro quedaba "saved" pero Excel/PDF salían vacíos.
+  const canSave = missing.length === 0 && rendicionWithoutRows.length === 0;
+
   return {
     missing,
     mismatches,
-    rendicionWithoutRows: getRendicionWithoutRows(e),
+    rendicionWithoutRows,
     declaredGrandTotal,
-    canSave: missing.length === 0,
-    cuadrado: missing.length === 0 && mismatches.length === 0,
+    canSave,
+    cuadrado:
+      missing.length === 0 &&
+      mismatches.length === 0 &&
+      rendicionWithoutRows.length === 0,
   };
 }
 
@@ -261,7 +285,10 @@ const SECTION_RENDICION_FALLBACK_KEYS: Partial<Record<string, string>> = {
  * Prioriza "missing" sobre "mismatch".
  */
 export function getTotalFieldIssues(
-  status: Pick<ExtractionTotalsStatus, "missing" | "mismatches">
+  status: Pick<
+    ExtractionTotalsStatus,
+    "missing" | "mismatches" | "rendicionWithoutRows"
+  >
 ): Map<string, TotalFieldIssue> {
   const map = new Map<string, TotalFieldIssue>();
 
@@ -270,6 +297,20 @@ export function getTotalFieldIssues(
     if (key) map.set(key, "missing");
     const fallback = SECTION_RENDICION_FALLBACK_KEYS[s.id];
     if (fallback) map.set(fallback, "missing");
+  }
+
+  for (const s of status.rendicionWithoutRows) {
+    // Mapear ids de warning a la clave de campo editable.
+    const sectionId =
+      s.id === "rendicion_retorno_total"
+        ? "n_c_rechazo_total"
+        : s.id === "rendicion_retorno_parcial"
+          ? "n_c_rechazo_parcial"
+          : s.id;
+    const key = SECTION_TOTAL_FIELD_KEYS[sectionId];
+    if (key && !map.has(key)) map.set(key, "missing");
+    const fallback = SECTION_RENDICION_FALLBACK_KEYS[sectionId];
+    if (fallback && !map.has(fallback)) map.set(fallback, "missing");
   }
 
   for (const s of status.mismatches) {

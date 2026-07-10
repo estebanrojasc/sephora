@@ -254,7 +254,7 @@ export function ExtractionPanel({
         id: record.id,
         payload: { status: "saved" },
       });
-      toast.success("Registro guardado");
+      toast.success("Registro guardado · aparece en la pestaña Guardados");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo guardar");
     }
@@ -431,8 +431,36 @@ export function ExtractionPanel({
             </Alert>
           )}
 
+          {totalsStatus && totalsStatus.rendicionWithoutRows.length > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="size-4" />
+              <AlertDescription>
+                <p className="font-medium">
+                  Hay totales sin filas de detalle — en Excel/PDF no saldrán las
+                  líneas:
+                </p>
+                <ul className="mt-1 list-disc pl-5 text-sm">
+                  {totalsStatus.rendicionWithoutRows.map((m) => (
+                    <li key={m.id}>
+                      {m.label} · total{" "}
+                      <span className="font-mono">
+                        {formatCLP(m.declared ?? 0)}
+                      </span>{" "}
+                      sin filas con monto
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Completa el detalle (p. ej. crédito vendedor: factura,
+                  cliente, monto) o borra el total si no aplica.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {totalsStatus &&
             totalsStatus.missing.length === 0 &&
+            totalsStatus.rendicionWithoutRows.length === 0 &&
             totalsStatus.mismatches.length > 0 && (
               <Alert className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100 [&>svg]:text-amber-700 dark:[&>svg]:text-amber-300">
                 <AlertTriangle className="size-4" />
@@ -473,6 +501,11 @@ export function ExtractionPanel({
               isAddingToExisting
               imageCount={totalImages}
             />
+            <p className="text-center text-[11px] text-muted-foreground">
+              Al reprocesar se combinan datos con lo actual: filas que borraste
+              pueden volver si siguen en la imagen. Usa «Reiniciar» para partir
+              de cero.
+            </p>
             <Button
               variant="outline"
               className="w-full gap-2"
@@ -500,9 +533,15 @@ export function ExtractionPanel({
         saveDisabled={Boolean(totalsStatus && !totalsStatus.canSave)}
         saveDisabledReason={
           totalsStatus && !totalsStatus.canSave
-            ? `Faltan totales: ${totalsStatus.missing
-                .map((m) => m.label)
-                .join(", ")}`
+            ? totalsStatus.missing.length > 0
+              ? `Faltan totales: ${totalsStatus.missing
+                  .map((m) => m.label)
+                  .join(", ")}`
+              : totalsStatus.rendicionWithoutRows.length > 0
+                ? `Total sin detalle: ${totalsStatus.rendicionWithoutRows
+                    .map((m) => m.label)
+                    .join(", ")}`
+                : "No se puede guardar"
             : undefined
         }
       />
