@@ -20,7 +20,7 @@ const listeners = new Set<() => void>();
 const SERVER_SNAPSHOT: AdminSessionPrefs = {
   tab: "uploaded",
   day: "",
-  mode: "created",
+  mode: "fecha",
 };
 
 let cachedClientSnapshot: AdminSessionPrefs | null = null;

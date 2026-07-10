@@ -39,9 +39,11 @@ export function writeStoredAdminDay(date: string) {
 }
 
 export function readStoredAdminDayMode(): RecordsDayFilterMode {
-  if (typeof window === "undefined") return "created";
+  if (typeof window === "undefined") return "fecha";
   const stored = sessionStorage.getItem(ADMIN_DAY_MODE_STORAGE_KEY);
-  return stored === "fecha" ? "fecha" : "created";
+  if (stored === "created") return "created";
+  if (stored === "fecha") return "fecha";
+  return "fecha";
 }
 
 export function writeStoredAdminDayMode(mode: RecordsDayFilterMode) {
