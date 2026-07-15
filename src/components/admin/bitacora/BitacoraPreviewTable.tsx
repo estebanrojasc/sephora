@@ -18,7 +18,6 @@ import {
   canCreateRecordForBitacoraRow,
   defaultAllowsMultipleReviews,
   rowAllowsMultipleReviews,
-  shouldOfferCreateRecordFromBitacoraRow,
   type BitacoraRowRecordLink,
 } from "@/features/bitacora/row-links";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -201,7 +200,6 @@ function BitacoraRowActions({
   links,
   allowsMultiple,
   canCreate,
-  showCreate,
   creatingRowId,
   onCreateRecord,
   onToggleMultipleReviews,
@@ -210,7 +208,6 @@ function BitacoraRowActions({
   links: BitacoraRowRecordLink[];
   allowsMultiple: boolean;
   canCreate: boolean;
-  showCreate: boolean;
   creatingRowId?: string | null;
   onCreateRecord?: (row: BitacoraRow) => void;
   onToggleMultipleReviews?: (
@@ -227,8 +224,6 @@ function BitacoraRowActions({
   }
 
   const hasConfirmed = links.some((l) => l.confirmed);
-  const awaitingConductorUpload =
-    row.rowType === "ruta" && !hasConfirmed && readOnly;
 
   return (
     <div className="space-y-2">
@@ -249,7 +244,7 @@ function BitacoraRowActions({
         />
         Varias revisiones
       </label>
-      {showCreate && onCreateRecord && (
+      {canCreate && onCreateRecord && (
         <button
           type="button"
           disabled={
@@ -272,11 +267,6 @@ function BitacoraRowActions({
               ? "Otra revisión"
               : "Crear registro"}
         </button>
-      )}
-      {awaitingConductorUpload && (
-        <span className="block text-[10px] text-muted-foreground">
-          Se vincula al subir fotos del conductor
-        </span>
       )}
       {!canCreate && hasConfirmed && (
         <span className="block text-[10px] text-muted-foreground">
@@ -316,9 +306,6 @@ function BitacoraPreviewRowCard({
   const allowsMultiple = rowAllowsMultipleReviews(row);
   const canCreate = Boolean(
     onCreateRecord && canCreateRecordForBitacoraRow(row, links)
-  );
-  const showCreate = Boolean(
-    onCreateRecord && shouldOfferCreateRecordFromBitacoraRow(row, links)
   );
 
   return (
@@ -380,7 +367,6 @@ function BitacoraPreviewRowCard({
             links={links}
             allowsMultiple={allowsMultiple}
             canCreate={canCreate}
-            showCreate={showCreate}
             creatingRowId={creatingRowId}
             onCreateRecord={onCreateRecord}
             onToggleMultipleReviews={onToggleMultipleReviews}
@@ -629,10 +615,6 @@ export function BitacoraPreviewTable({
                     onCreateRecord &&
                       canCreateRecordForBitacoraRow(row, links)
                   );
-                  const showCreate = Boolean(
-                    onCreateRecord &&
-                      shouldOfferCreateRecordFromBitacoraRow(row, links)
-                  );
                   const allowsMultiple = rowAllowsMultipleReviews(row);
                   const ctx: RowContext = {
                     row,
@@ -664,7 +646,6 @@ export function BitacoraPreviewTable({
                             links={links}
                             allowsMultiple={allowsMultiple}
                             canCreate={canCreate}
-                            showCreate={showCreate}
                             creatingRowId={creatingRowId}
                             onCreateRecord={onCreateRecord}
                             onToggleMultipleReviews={onToggleMultipleReviews}

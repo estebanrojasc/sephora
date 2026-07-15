@@ -136,25 +136,6 @@ export function canCreateRecordForBitacoraRow(
   return rowAllowsMultipleReviews(row);
 }
 
-/**
- * Rutas del día se vinculan al subir fotos del conductor.
- * Crear registro desde bitácora aplica a manuales, pendientes y rutas con
- * «Varias revisiones» cuando ya hay una vinculada.
- */
-export function shouldOfferCreateRecordFromBitacoraRow(
-  row: BitacoraRow,
-  links: BitacoraRowRecordLink[]
-): boolean {
-  if (!canCreateRecordForBitacoraRow(row, links)) return false;
-  if (row.rowType === "manual" || row.rowType === "entrega_pendiente") {
-    return true;
-  }
-  if (row.rowType === "ruta") {
-    return confirmedBitacoraRowLinks(links).length > 0;
-  }
-  return false;
-}
-
 /** Filas bloqueadas para otros registros (ya tienen revisión y no admiten más). */
 export function blockedBitacoraRowIdsForRecord(
   bitacora: Bitacora,
