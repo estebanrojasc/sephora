@@ -27,6 +27,7 @@ import { rowToExcelFields, type BitacoraExcelFields } from "@/features/bitacora/
 import { blockedBitacoraRowIdsForRecord } from "@/features/bitacora/row-links";
 import { formatChileanDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import { BitacoraUnlinkButton } from "./BitacoraUnlinkButton";
 
 const DISPLAY_FIELDS: {
   key: keyof BitacoraExcelFields;
@@ -164,6 +165,13 @@ export function BitacoraHintPanel({
             <span className="font-medium text-foreground">{dayLabel}</span>{" "}
             (fecha del documento).
           </p>
+          {meta?.bitacoraId && (
+            <BitacoraUnlinkButton
+              recordId={record.id}
+              extraction={extraction}
+              className="h-7 gap-1.5 text-xs"
+            />
+          )}
           <p className="text-muted-foreground">
             Corrige el campo <span className="font-medium">Fecha</span> en el
             formulario si la hoja tiene un error manual; el match se actualizará
@@ -216,7 +224,15 @@ export function BitacoraHintPanel({
         <p className="text-xs font-semibold uppercase text-muted-foreground">
           Bitácora · {dayLabel}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {meta?.bitacoraId && (
+            <BitacoraUnlinkButton
+              recordId={record.id}
+              extraction={extraction}
+              variant="ghost"
+              className="h-6 gap-1 px-2 text-[10px]"
+            />
+          )}
           {onApplyAll && suggestedFlat && activeRowId && (
             <Button
               type="button"

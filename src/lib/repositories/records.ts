@@ -331,6 +331,33 @@ export async function findRecordsByIds(ids: string[]): Promise<Record[]> {
     .filter((r): r is Record => r != null);
 }
 
+export async function findRecordsByBitacoraId(
+  bitacoraId: string
+): Promise<Record[]> {
+  const docs = await (await col())
+    .find({ "extraction._meta.bitacora.bitacoraId": bitacoraId })
+    .toArray();
+  return docs.map((d) => stripMongoId(d) as Record);
+}
+
+/** Quita el bloque `_meta.bitacora` del registro (desvincular). */
+export async function patchRecordExtractionMeta(
+  recordId: string
+): Promise<Record | null> {
+  const record = await findRecordById(recordId);
+  if (!record?.extraction?._meta) return record;
+
+  const { bitacora: _removed, ...restMeta } = record.extraction._meta;
+  void _removed;
+  const extraction = {
+    ...record.extraction,
+    _meta: {
+      ...restMeta,
+    },
+  };
+  return patchRecord(recordId, { extraction });
+}
+
 /** Reapunta `_meta.bitacora` de un record a otra fila/versión de bitácora. */
 export async function retargetRecordBitacoraMeta(
   recordId: string,

@@ -144,6 +144,12 @@ export async function deleteRecordApi(id: string): Promise<{ ok: boolean; id: st
   return fetchJsonNoStore(`/api/records/${id}`, { method: "DELETE" });
 }
 
+export async function unlinkRecordFromBitacoraApi(id: string): Promise<Record> {
+  return fetchJsonNoStore<Record>(`/api/records/${id}/bitacora-link`, {
+    method: "DELETE",
+  });
+}
+
 export async function openRecord(id: string): Promise<RecordStatusPatch> {
   return fetchJsonNoStore<RecordStatusPatch>(`/api/records/${id}/open`, {
     method: "POST",

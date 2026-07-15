@@ -9,6 +9,7 @@ import {
   updateRecordStatus,
   uploadRecordImages,
   deleteRecordApi,
+  unlinkRecordFromBitacoraApi,
 } from "./api";
 import { patchRecordInListCaches } from "./cache";
 import { recordKeys } from "./queries";
@@ -38,6 +39,18 @@ export function useDeleteRecord() {
     onSuccess: (_data, id) => {
       void qc.invalidateQueries({ queryKey: recordKeys.all });
       qc.removeQueries({ queryKey: recordKeys.detail(id) });
+    },
+  });
+}
+
+export function useUnlinkRecordFromBitacora() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unlinkRecordFromBitacoraApi(id),
+    onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: recordKeys.all });
+      void qc.invalidateQueries({ queryKey: ["bitacora"] });
+      qc.setQueryData(recordKeys.detail(data.id), data);
     },
   });
 }

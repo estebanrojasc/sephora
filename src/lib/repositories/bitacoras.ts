@@ -9,7 +9,16 @@ import type {
 import type { BitacoraRowPatch } from "@/features/bitacora/row-patch";
 import { BITACORA_ROW_EDITABLE_FIELDS } from "@/features/bitacora/row-patch";
 import { inheritBitacoraRowLinks } from "@/features/bitacora/inherit-links";
-import { retargetRecordBitacoraMeta } from "@/lib/repositories/records";
+import {
+  collectLinkedRecordIdsForBitacora,
+  collectLinkedRecordIdsForDate,
+} from "@/features/bitacora/linked-records";
+import { getRowLinkedRecordIds } from "@/features/bitacora/row-links";
+import {
+  findRecordsByBitacoraId,
+  findRecordsByIds,
+  retargetRecordBitacoraMeta,
+} from "@/lib/repositories/records";
 
 async function col() {
   return collectionWithIndexes<Bitacora>(COLLECTIONS.bitacoras, [
@@ -296,8 +305,20 @@ export async function deleteBitacoraRow(
   const row = bitacora.rows.find((r) => r.id === rowId);
   if (!row) return null;
 
-  // Los registros en Guardados (con o sin fotos) siguen existiendo; solo
-  // quitamos la fila de la bitácora.
+  const linkIds = new Set(getRowLinkedRecordIds(row));
+  for (const rec of await findRecordsByBitacoraId(bitacoraId)) {
+    if (rec.extraction?._meta?.bitacora?.rowId === rowId) {
+      linkIds.add(rec.id);
+    }
+  }
+  const records = await findRecordsByIds([...linkIds]);
+  if (records.length > 0) {
+    throw new BitacoraDeleteBlockedError(
+      "La fila tiene registros vinculados. Desvincúlalos o elimínalos desde la cola primero.",
+      records.map((r) => r.id)
+    );
+  }
+
   const rows = bitacora.rows.filter((r) => r.id !== rowId);
   const updated = await c.findOneAndUpdate(
     { id: bitacoraId },
@@ -316,7 +337,14 @@ export async function deleteBitacoraVersion(
     throw new BitacoraDeleteBlockedError("Bitácora no encontrada");
   }
 
-  // No se borran registros vinculados: pueden tener datos manuales sin fotos.
+  const linkedIds = await collectLinkedRecordIdsForBitacora(bitacora);
+  if (linkedIds.length > 0) {
+    throw new BitacoraDeleteBlockedError(
+      "Hay registros vinculados. Elimínalos o desvincúlalos desde cada registro antes de borrar esta versión.",
+      linkedIds
+    );
+  }
+
   await c.deleteOne({ id: bitacoraId });
 
   let reactivatedId: string | null = null;
@@ -344,6 +372,14 @@ export async function deleteBitacorasForDate(
   const versions = await listVersionsForDate(date);
   if (versions.length === 0) {
     return { deletedCount: 0 };
+  }
+
+  const linkedIds = await collectLinkedRecordIdsForDate(versions);
+  if (linkedIds.length > 0) {
+    throw new BitacoraDeleteBlockedError(
+      "Hay registros vinculados a este día. Elimínalos o desvincúlalos desde cada registro antes de borrar la bitácora.",
+      linkedIds
+    );
   }
 
   const c = await col();

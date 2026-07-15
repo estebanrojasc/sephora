@@ -18,7 +18,16 @@ import {
 } from "@/features/bitacora/queries";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { writeStoredBitacoraDate } from "@/lib/admin-session-storage";
+import { ApiFetchError } from "@/lib/fetch-client";
 import { cn } from "@/lib/utils";
+
+function blockingRecordIdsFromError(err: unknown): string[] {
+  if (err instanceof ApiFetchError && err.status === 409) {
+    const body = err.body as { blockingRecordIds?: string[] };
+    return body.blockingRecordIds ?? [];
+  }
+  return [];
+}
 
 export function BitacoraDatePageClient({ date }: { date: string }) {
   const router = useRouter();
@@ -35,6 +44,7 @@ export function BitacoraDatePageClient({ date }: { date: string }) {
   const [editing, setEditing] = useState(false);
   const [confirmDeleteVersion, setConfirmDeleteVersion] = useState(false);
   const [confirmDeleteDay, setConfirmDeleteDay] = useState(false);
+  const [blockingRecordIds, setBlockingRecordIds] = useState<string[]>([]);
 
   useEffect(() => {
     setSelectedId(undefined);
@@ -65,6 +75,7 @@ export function BitacoraDatePageClient({ date }: { date: string }) {
       );
       setConfirmDeleteVersion(false);
       setEditing(false);
+      setBlockingRecordIds([]);
       if (!result.reactivatedId) {
         router.push("/admin/bitacora");
         return;
@@ -72,6 +83,8 @@ export function BitacoraDatePageClient({ date }: { date: string }) {
       setSelectedId(result.reactivatedId);
       await refetch();
     } catch (e) {
+      const ids = blockingRecordIdsFromError(e);
+      if (ids.length > 0) setBlockingRecordIds(ids);
       toast.error(
         e instanceof Error ? e.message : "No se pudo eliminar la versión"
       );
@@ -82,11 +95,14 @@ export function BitacoraDatePageClient({ date }: { date: string }) {
     try {
       const result = await deleteDay.mutateAsync(date);
       toast.success(
-        `Bitácora del día eliminada (${result.deletedCount} versión(es)). Los registros en Guardados no se borran.`
+        `Bitácora del día eliminada (${result.deletedCount} versión(es))`
       );
       setConfirmDeleteDay(false);
+      setBlockingRecordIds([]);
       router.push("/admin/bitacora");
     } catch (e) {
+      const ids = blockingRecordIdsFromError(e);
+      if (ids.length > 0) setBlockingRecordIds(ids);
       toast.error(
         e instanceof Error ? e.message : "No se pudo eliminar el día"
       );
@@ -213,11 +229,36 @@ export function BitacoraDatePageClient({ date }: { date: string }) {
         }}
       />
 
+      {blockingRecordIds.length > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          <p className="font-medium">
+            {blockingRecordIds.length} registro(s) siguen vinculados a esta
+            bitácora
+          </p>
+          <p className="mt-1 text-xs opacity-90">
+            Elimínalos desde la cola o desvincúlalos con «Desvincular de
+            bitácora» dentro de cada registro.
+          </p>
+          <ul className="mt-2 space-y-1 text-xs">
+            {blockingRecordIds.map((id) => (
+              <li key={id}>
+                <Link
+                  href={`/admin/records/${id}`}
+                  className="text-indigo-600 underline"
+                >
+                  Ver registro {id.slice(0, 8)}…
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <ConfirmDialog
         open={confirmDeleteVersion}
         onOpenChange={setConfirmDeleteVersion}
         title="Eliminar esta versión"
-        description="Se borrará solo este documento de bitácora. Los registros en Guardados (con o sin fotos) siguen existiendo. Si es la versión activa, se reactivará la versión anterior."
+        description="No se puede borrar si hay registros vinculados (manuales o con fotos). Elimínalos o desvincúlalos desde cada registro primero. Si es la versión activa, al borrar se reactivará la anterior."
         confirmLabel="Eliminar versión"
         variant="destructive"
         loading={deleteVersion.isPending}
@@ -227,7 +268,7 @@ export function BitacoraDatePageClient({ date }: { date: string }) {
         open={confirmDeleteDay}
         onOpenChange={setConfirmDeleteDay}
         title={`Eliminar bitácora del ${date}`}
-        description="Se borrarán todas las versiones de este día. Los registros en Guardados no se eliminan; bórralos desde la cola si ya no los necesitas."
+        description="No se puede borrar si queda algún registro vinculado a cualquier versión de este día. Elimínalos o usa «Desvincular de bitácora» en cada registro."
         confirmLabel="Eliminar día"
         variant="destructive"
         loading={deleteDay.isPending}
