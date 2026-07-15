@@ -36,6 +36,48 @@ export async function createBitacoraApi(
   });
 }
 
+export async function updateBitacoraApi(
+  bitacoraId: string,
+  payload: { title?: string; rows: BitacoraRow[]; rawPaste: string }
+): Promise<Bitacora> {
+  return fetchJsonNoStore<Bitacora>(`/api/bitacora/${bitacoraId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteBitacoraVersionApi(
+  bitacoraId: string
+): Promise<{
+  ok: boolean;
+  deletedId: string;
+  date: string;
+  reactivatedId: string | null;
+}> {
+  return fetchJsonNoStore(`/api/bitacora/${bitacoraId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function deleteBitacoraDayApi(
+  date: string
+): Promise<{ deletedCount: number }> {
+  return fetchJsonNoStore(`/api/bitacora?date=${encodeURIComponent(date)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function deleteBitacoraRowApi(
+  bitacoraId: string,
+  rowId: string
+): Promise<Bitacora> {
+  return fetchJsonNoStore<Bitacora>(
+    `/api/bitacora/${bitacoraId}?rowId=${encodeURIComponent(rowId)}`,
+    { method: "DELETE" }
+  );
+}
+
 export async function parseBitacoraApi(
   rawPaste: string,
   options?: { useAi?: boolean }

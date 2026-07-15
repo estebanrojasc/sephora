@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { newId } from "@/lib/id";
@@ -18,19 +18,15 @@ import {
   canCreateRecordForBitacoraRow,
   defaultAllowsMultipleReviews,
   rowAllowsMultipleReviews,
+  shouldOfferCreateRecordFromBitacoraRow,
   type BitacoraRowRecordLink,
 } from "@/features/bitacora/row-links";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { BitacoraRowBadge } from "./BitacoraRowBadge";
 import { cn } from "@/lib/utils";
 
-function isPendingRowEditableInReadOnly(row: BitacoraRow): boolean {
-  return row.rowType === "entrega_pendiente";
-}
-
-function isCellEditable(row: BitacoraRow, readOnly: boolean): boolean {
-  if (!readOnly) return true;
-  return isPendingRowEditableInReadOnly(row);
+function isCellEditable(_row: BitacoraRow, readOnly: boolean): boolean {
+  return !readOnly;
 }
 
 const COLUMNS: { key: keyof BitacoraRow; label: string }[] = [
@@ -62,6 +58,8 @@ interface BitacoraPreviewTableProps {
   rows: BitacoraRow[];
   onChange: (rows: BitacoraRow[]) => void;
   onCreateRecord?: (row: BitacoraRow) => void;
+  onDeleteRow?: (rowId: string) => void;
+  deletingRowId?: string | null;
   creatingRowId?: string | null;
   readOnly?: boolean;
   rowRecordLinks?: Map<string, BitacoraRowRecordLink[]>;
@@ -175,7 +173,7 @@ function BitacoraRowLinks({ links }: { links: BitacoraRowRecordLink[] }) {
   const confirmed = links.filter((l) => l.confirmed);
   if (confirmed.length === 0) {
     return (
-      <span className="text-xs text-muted-foreground">Sin registro propio</span>
+      <span className="text-xs text-muted-foreground">Sin registro</span>
     );
   }
 
@@ -203,6 +201,7 @@ function BitacoraRowActions({
   links,
   allowsMultiple,
   canCreate,
+  showCreate,
   creatingRowId,
   onCreateRecord,
   onToggleMultipleReviews,
@@ -211,6 +210,7 @@ function BitacoraRowActions({
   links: BitacoraRowRecordLink[];
   allowsMultiple: boolean;
   canCreate: boolean;
+  showCreate: boolean;
   creatingRowId?: string | null;
   onCreateRecord?: (row: BitacoraRow) => void;
   onToggleMultipleReviews?: (
@@ -227,7 +227,8 @@ function BitacoraRowActions({
   }
 
   const hasConfirmed = links.some((l) => l.confirmed);
-  const hasStaleOnly = !hasConfirmed && links.some((l) => !l.confirmed);
+  const awaitingConductorUpload =
+    row.rowType === "ruta" && !hasConfirmed && readOnly;
 
   return (
     <div className="space-y-2">
@@ -248,7 +249,7 @@ function BitacoraRowActions({
         />
         Varias revisiones
       </label>
-      {canCreate && onCreateRecord && (
+      {showCreate && onCreateRecord && (
         <button
           type="button"
           disabled={
@@ -261,9 +262,7 @@ function BitacoraRowActions({
             row.rowType === "entrega_pendiente" &&
             !row.scheduledDate?.trim()
               ? "Indica la fecha programada primero"
-              : hasStaleOnly
-                ? "Esta fila aún no tiene su propio registro en la cola"
-                : undefined
+              : undefined
           }
           onClick={() => onCreateRecord(row)}
         >
@@ -271,8 +270,13 @@ function BitacoraRowActions({
             ? "Creando…"
             : hasConfirmed
               ? "Otra revisión"
-              : "Crear registro propio"}
+              : "Crear registro"}
         </button>
+      )}
+      {awaitingConductorUpload && (
+        <span className="block text-[10px] text-muted-foreground">
+          Se vincula al subir fotos del conductor
+        </span>
       )}
       {!canCreate && hasConfirmed && (
         <span className="block text-[10px] text-muted-foreground">
@@ -290,7 +294,9 @@ function BitacoraPreviewRowCard({
   showRowSettingsColumn,
   onToggleMultipleReviews,
   onCreateRecord,
+  onDeleteRow,
   creatingRowId,
+  deletingRowId,
 }: {
   ctx: RowContext;
   links: BitacoraRowRecordLink[];
@@ -301,13 +307,18 @@ function BitacoraPreviewRowCard({
     allowsMultipleReviews: boolean
   ) => void;
   onCreateRecord?: (row: BitacoraRow) => void;
+  onDeleteRow?: (rowId: string) => void;
   creatingRowId?: string | null;
+  deletingRowId?: string | null;
 }) {
-  const { row } = ctx;
+  const { row, readOnly } = ctx;
   const recorrido = bitacoraRecorridoCanonical(row);
   const allowsMultiple = rowAllowsMultipleReviews(row);
   const canCreate = Boolean(
     onCreateRecord && canCreateRecordForBitacoraRow(row, links)
+  );
+  const showCreate = Boolean(
+    onCreateRecord && shouldOfferCreateRecordFromBitacoraRow(row, links)
   );
 
   return (
@@ -319,6 +330,19 @@ function BitacoraPreviewRowCard({
             <p className="truncate text-sm font-semibold">{recorrido}</p>
           )}
         </div>
+        {!readOnly && onDeleteRow && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 shrink-0 gap-1 text-destructive hover:text-destructive"
+            disabled={deletingRowId === row.id}
+            onClick={() => onDeleteRow(row.id)}
+          >
+            <Trash2 className="size-3.5" />
+            Eliminar
+          </Button>
+        )}
       </div>
 
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5">
@@ -356,6 +380,7 @@ function BitacoraPreviewRowCard({
             links={links}
             allowsMultiple={allowsMultiple}
             canCreate={canCreate}
+            showCreate={showCreate}
             creatingRowId={creatingRowId}
             onCreateRecord={onCreateRecord}
             onToggleMultipleReviews={onToggleMultipleReviews}
@@ -370,6 +395,8 @@ export function BitacoraPreviewTable({
   rows,
   onChange,
   onCreateRecord,
+  onDeleteRow,
+  deletingRowId,
   creatingRowId,
   readOnly = false,
   rowRecordLinks,
@@ -387,6 +414,14 @@ export function BitacoraPreviewTable({
     value: string
   ) => {
     updateRow(idx, { [key]: value || undefined });
+  };
+
+  const removeRowLocal = (rowId: string) => {
+    if (onDeleteRow) {
+      onDeleteRow(rowId);
+      return;
+    }
+    onChange(rows.filter((r) => r.id !== rowId));
   };
 
   const rutas = rows.filter((r) => r.rowType === "ruta");
@@ -415,6 +450,7 @@ export function BitacoraPreviewTable({
   const showActionsColumn = Boolean(onCreateRecord);
   const showRowSettingsColumn =
     showActionsColumn || Boolean(onToggleMultipleReviews) || !readOnly;
+  const showDeleteColumn = !readOnly;
 
   const sections = [
     { title: "Rutas del día", items: rutas },
@@ -520,10 +556,10 @@ export function BitacoraPreviewTable({
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">
             {section.title}
           </h3>
-          {section.title.startsWith("Entregas pendientes") && readOnly && (
+          {section.title.startsWith("Entregas pendientes") && !readOnly && (
             <p className="text-xs text-amber-700 dark:text-amber-300">
-              Completa la columna «Fecha prog.» (y otros datos si faltan) antes
-              de crear el registro.
+              Completa la columna «Fecha prog.» si vas a crear un borrador en
+              Guardados.
             </p>
           )}
 
@@ -548,7 +584,9 @@ export function BitacoraPreviewTable({
                   showRowSettingsColumn={showRowSettingsColumn}
                   onToggleMultipleReviews={onToggleMultipleReviews}
                   onCreateRecord={onCreateRecord}
+                  onDeleteRow={removeRowLocal}
                   creatingRowId={creatingRowId}
+                  deletingRowId={deletingRowId}
                 />
               );
             })}
@@ -578,6 +616,9 @@ export function BitacoraPreviewTable({
                   {(showRowSettingsColumn || onToggleMultipleReviews) && (
                     <th className="px-2 py-1.5 text-xs font-medium">Acción</th>
                   )}
+                  {showDeleteColumn && (
+                    <th className="px-2 py-1.5 text-xs font-medium"> </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -587,6 +628,10 @@ export function BitacoraPreviewTable({
                   const canCreate = Boolean(
                     onCreateRecord &&
                       canCreateRecordForBitacoraRow(row, links)
+                  );
+                  const showCreate = Boolean(
+                    onCreateRecord &&
+                      shouldOfferCreateRecordFromBitacoraRow(row, links)
                   );
                   const allowsMultiple = rowAllowsMultipleReviews(row);
                   const ctx: RowContext = {
@@ -619,10 +664,26 @@ export function BitacoraPreviewTable({
                             links={links}
                             allowsMultiple={allowsMultiple}
                             canCreate={canCreate}
+                            showCreate={showCreate}
                             creatingRowId={creatingRowId}
                             onCreateRecord={onCreateRecord}
                             onToggleMultipleReviews={onToggleMultipleReviews}
                           />
+                        </td>
+                      )}
+                      {showDeleteColumn && (
+                        <td className="px-1 py-1 align-top">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            disabled={deletingRowId === row.id}
+                            title="Eliminar fila"
+                            onClick={() => removeRowLocal(row.id)}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
                         </td>
                       )}
                     </tr>

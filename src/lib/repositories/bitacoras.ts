@@ -7,9 +7,9 @@ import type {
   CreateBitacoraPayload,
 } from "@/features/bitacora/types";
 import type { BitacoraRowPatch } from "@/features/bitacora/row-patch";
-import {
-  PENDING_DELIVERY_EDITABLE_FIELDS,
-} from "@/features/bitacora/row-patch";
+import { BITACORA_ROW_EDITABLE_FIELDS } from "@/features/bitacora/row-patch";
+import { inheritBitacoraRowLinks } from "@/features/bitacora/inherit-links";
+import { retargetRecordBitacoraMeta } from "@/lib/repositories/records";
 
 async function col() {
   return collectionWithIndexes<Bitacora>(COLLECTIONS.bitacoras, [
@@ -77,7 +77,16 @@ export async function createBitacoraVersion(
 ): Promise<Bitacora> {
   const c = await col();
   const now = new Date().toISOString();
+  const previous = await findActiveBitacoraForDate(payload.date);
   const version = await getNextVersionForDate(payload.date);
+
+  let rows = payload.rows;
+  let inheritedRecordIds = new Map<string, string[]>();
+  if (previous) {
+    const inherited = inheritBitacoraRowLinks(previous, payload.rows);
+    rows = inherited.rows;
+    inheritedRecordIds = inherited.inheritedRecordIds;
+  }
 
   await c.updateMany(
     { date: payload.date, isActive: true },
@@ -90,7 +99,7 @@ export async function createBitacoraVersion(
     title: payload.title,
     version,
     isActive: true,
-    rows: payload.rows,
+    rows,
     rawPaste: payload.rawPaste,
     aiProvider: payload.aiProvider,
     createdAt: now,
@@ -98,7 +107,45 @@ export async function createBitacoraVersion(
   };
 
   await c.insertOne(doc);
+
+  for (const [rowId, recordIds] of inheritedRecordIds) {
+    for (const recordId of recordIds) {
+      await retargetRecordBitacoraMeta(recordId, {
+        bitacoraId: doc.id,
+        rowId,
+        version: doc.version,
+      });
+    }
+  }
+
   return doc;
+}
+
+export async function replaceActiveBitacoraContents(
+  bitacoraId: string,
+  payload: {
+    title?: string;
+    rows: BitacoraRow[];
+    rawPaste: string;
+  }
+): Promise<Bitacora | null> {
+  const c = await col();
+  const bitacora = await findBitacoraById(bitacoraId);
+  if (!bitacora || !bitacora.isActive) return null;
+
+  const updated = await c.findOneAndUpdate(
+    { id: bitacoraId, isActive: true },
+    {
+      $set: {
+        title: payload.title,
+        rows: payload.rows,
+        rawPaste: payload.rawPaste,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    { returnDocument: "after" }
+  );
+  return strip(updated);
 }
 
 export async function appendBitacoraRowRecordLink(
@@ -189,12 +236,14 @@ export async function updateBitacoraRow(
   if (patch.allowsMultipleReviews !== undefined) {
     allowed.allowsMultipleReviews = patch.allowsMultipleReviews;
   }
-  if (row.rowType === "entrega_pendiente") {
-    for (const key of PENDING_DELIVERY_EDITABLE_FIELDS) {
-      if (key in patch) {
-        const value = patch[key];
+  for (const key of BITACORA_ROW_EDITABLE_FIELDS) {
+    if (key in patch) {
+      const value = patch[key];
+      if (key === "rowType" && typeof value === "string") {
+        allowed.rowType = value as BitacoraRow["rowType"];
+      } else if (typeof value === "string" || value === undefined) {
         (allowed as Record<string, string | undefined>)[key] =
-          value?.trim() ? value.trim() : undefined;
+          typeof value === "string" && value.trim() ? value.trim() : undefined;
       }
     }
   }
@@ -219,6 +268,87 @@ export async function updateBitacoraRowSettings(
   settings: { allowsMultipleReviews?: boolean }
 ): Promise<Bitacora | null> {
   return updateBitacoraRow(bitacoraId, rowId, settings);
+}
+
+export class BitacoraDeleteBlockedError extends Error {
+  constructor(
+    message: string,
+    public readonly blockingRecordIds: string[] = []
+  ) {
+    super(message);
+    this.name = "BitacoraDeleteBlockedError";
+  }
+}
+
+export async function deleteBitacoraRow(
+  bitacoraId: string,
+  rowId: string
+): Promise<Bitacora | null> {
+  const c = await col();
+  const bitacora = await findBitacoraById(bitacoraId);
+  if (!bitacora) return null;
+  if (!bitacora.isActive) {
+    throw new BitacoraDeleteBlockedError(
+      "Solo se pueden eliminar filas de la versión activa"
+    );
+  }
+
+  const row = bitacora.rows.find((r) => r.id === rowId);
+  if (!row) return null;
+
+  // Los registros en Guardados (con o sin fotos) siguen existiendo; solo
+  // quitamos la fila de la bitácora.
+  const rows = bitacora.rows.filter((r) => r.id !== rowId);
+  const updated = await c.findOneAndUpdate(
+    { id: bitacoraId },
+    { $set: { rows, updatedAt: new Date().toISOString() } },
+    { returnDocument: "after" }
+  );
+  return strip(updated);
+}
+
+export async function deleteBitacoraVersion(
+  bitacoraId: string
+): Promise<{ deleted: Bitacora; reactivatedId: string | null }> {
+  const c = await col();
+  const bitacora = await findBitacoraById(bitacoraId);
+  if (!bitacora) {
+    throw new BitacoraDeleteBlockedError("Bitácora no encontrada");
+  }
+
+  // No se borran registros vinculados: pueden tener datos manuales sin fotos.
+  await c.deleteOne({ id: bitacoraId });
+
+  let reactivatedId: string | null = null;
+  if (bitacora.isActive) {
+    const previous = await c.findOne(
+      { date: bitacora.date, id: { $ne: bitacoraId } },
+      { sort: { version: -1 } }
+    );
+    if (previous) {
+      const now = new Date().toISOString();
+      await c.updateOne(
+        { id: previous.id },
+        { $set: { isActive: true, updatedAt: now } }
+      );
+      reactivatedId = previous.id;
+    }
+  }
+
+  return { deleted: bitacora, reactivatedId };
+}
+
+export async function deleteBitacorasForDate(
+  date: string
+): Promise<{ deletedCount: number }> {
+  const versions = await listVersionsForDate(date);
+  if (versions.length === 0) {
+    return { deletedCount: 0 };
+  }
+
+  const c = await col();
+  const result = await c.deleteMany({ date });
+  return { deletedCount: result.deletedCount };
 }
 
 export async function listDistinctBitacoraDates(): Promise<string[]> {

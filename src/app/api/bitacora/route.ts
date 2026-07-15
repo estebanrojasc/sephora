@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   createBitacoraVersion,
+  deleteBitacorasForDate,
+  BitacoraDeleteBlockedError,
   listBitacoras,
 } from "@/lib/repositories/bitacoras";
 import { jsonNoStore } from "@/lib/api-response";
@@ -73,4 +75,26 @@ export async function POST(request: NextRequest) {
   }
   const created = await createBitacoraVersion(parsed.data);
   return jsonNoStore(created, { status: 201 });
+}
+
+export async function DELETE(request: NextRequest) {
+  const date = request.nextUrl.searchParams.get("date");
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json(
+      { message: "Indica ?date=YYYY-MM-DD" },
+      { status: 400 }
+    );
+  }
+  try {
+    const result = await deleteBitacorasForDate(date);
+    return jsonNoStore(result);
+  } catch (err) {
+    if (err instanceof BitacoraDeleteBlockedError) {
+      return NextResponse.json(
+        { message: err.message, blockingRecordIds: err.blockingRecordIds },
+        { status: 409 }
+      );
+    }
+    return mongoErrorResponse(err, "api/bitacora DELETE");
+  }
 }

@@ -6,13 +6,17 @@ import {
   createBitacoraApi,
   createMissingRecordsFromBitacoraApi,
   createRecordFromBitacoraApi,
+  deleteBitacoraDayApi,
+  deleteBitacoraRowApi,
+  deleteBitacoraVersionApi,
   fetchBitacoraById,
   fetchBitacoraDates,
   fetchBitacoras,
   parseBitacoraApi,
+  updateBitacoraApi,
   updateBitacoraRowApi,
 } from "./api";
-import type { CreateBitacoraPayload } from "./types";
+import type { BitacoraRow, CreateBitacoraPayload } from "./types";
 
 const LIST_KEY = ["bitacora"] as const;
 
@@ -68,6 +72,58 @@ export function useCreateBitacora() {
     mutationFn: (payload: CreateBitacoraPayload) => createBitacoraApi(payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: LIST_KEY });
+    },
+  });
+}
+
+export function useUpdateBitacora() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      bitacoraId: string;
+      title?: string;
+      rows: BitacoraRow[];
+      rawPaste: string;
+    }) => {
+      const { bitacoraId, ...body } = payload;
+      return updateBitacoraApi(bitacoraId, body);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIST_KEY });
+    },
+  });
+}
+
+export function useDeleteBitacoraVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (bitacoraId: string) => deleteBitacoraVersionApi(bitacoraId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIST_KEY });
+      void qc.invalidateQueries({ queryKey: ["records"] });
+    },
+  });
+}
+
+export function useDeleteBitacoraDay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (date: string) => deleteBitacoraDayApi(date),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIST_KEY });
+      void qc.invalidateQueries({ queryKey: ["records"] });
+    },
+  });
+}
+
+export function useDeleteBitacoraRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { bitacoraId: string; rowId: string }) =>
+      deleteBitacoraRowApi(payload.bitacoraId, payload.rowId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIST_KEY });
+      void qc.invalidateQueries({ queryKey: ["records"] });
     },
   });
 }

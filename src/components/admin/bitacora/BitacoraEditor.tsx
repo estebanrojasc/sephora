@@ -2,12 +2,10 @@
 
 import { BitacoraDayList as BitacoraDayListShared } from "@/components/admin/bitacora/BitacoraDayList";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
   Brain,
-  FilePlus2,
   Loader2,
   Save,
 } from "lucide-react";
@@ -35,9 +33,10 @@ import {
 import { parseClipboardToGrid } from "@/features/bitacora/parse-tsv";
 import {
   useCreateBitacora,
-  useCreateMissingRecordsFromBitacora,
   useCreateRecordFromBitacora,
+  useDeleteBitacoraRow,
   useParseBitacora,
+  useUpdateBitacora,
   useUpdateBitacoraRow,
   useUpdateBitacoraRowSettings,
 } from "@/features/bitacora/queries";
@@ -45,38 +44,56 @@ import { useRecords } from "@/features/records/queries";
 import {
   collectBitacoraRowRecordLinks,
   getRowLinkedRecordIds,
-  bitacoraRowNeedsOwnRecord,
 } from "@/features/bitacora/row-links";
 import { pickPendingDeliveryPatch } from "@/features/bitacora/row-patch";
-import { bitacoraRecorridoCanonical } from "@/features/bitacora/meta";
 import type { Bitacora, BitacoraRow } from "@/features/bitacora/types";
 import { todayIsoDateChile } from "@/lib/date-utils";
-import { focusAdminQueueOnBitacoraRecord, adminQueueUrlForBitacoraDay } from "@/lib/admin-session-storage";
+import {
+  focusAdminQueueOnBitacoraRecord,
+  adminQueueUrlForBitacoraDay,
+} from "@/lib/admin-session-storage";
 import { notifyAdminSessionPrefsChanged } from "@/hooks/use-admin-session-prefs";
 import { cn } from "@/lib/utils";
 
 interface BitacoraEditorProps {
   initial?: Bitacora;
   readOnly?: boolean;
+  /** Edición in-place de la versión activa (sin crear v2). */
+  editing?: boolean;
+  onCancelEdit?: () => void;
+  onSavedInPlace?: (bitacora: Bitacora) => void;
+  /** Fecha inicial al crear (p.ej. desde ?date=). */
+  defaultDate?: string;
 }
 
-export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProps) {
+export function BitacoraEditor({
+  initial,
+  readOnly = false,
+  editing = false,
+  onCancelEdit,
+  onSavedInPlace,
+  defaultDate,
+}: BitacoraEditorProps) {
   const router = useRouter();
   const createBitacora = useCreateBitacora();
+  const updateBitacora = useUpdateBitacora();
   const parseBitacora = useParseBitacora();
   const createRecord = useCreateRecordFromBitacora();
-  const createMissing = useCreateMissingRecordsFromBitacora();
+  const deleteRow = useDeleteBitacoraRow();
   const updateRowSettings = useUpdateBitacoraRowSettings();
   const updateBitacoraRow = useUpdateBitacoraRow();
   const { data: allRecords = [] } = useRecords({ status: "all", poll: false });
 
   const [step, setStep] = useState(initial ? 2 : 1);
   const [rawPaste, setRawPaste] = useState(initial?.rawPaste ?? "");
-  const [date, setDate] = useState(initial?.date ?? todayIsoDateChile());
+  const [date, setDate] = useState(
+    initial?.date ?? defaultDate ?? todayIsoDateChile()
+  );
   const [title, setTitle] = useState(initial?.title ?? "");
   const [rows, setRows] = useState<BitacoraRow[]>(initial?.rows ?? []);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [creatingRowId, setCreatingRowId] = useState<string | null>(null);
+  const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
   const [parsed, setParsed] = useState(Boolean(initial?.rows.length));
   /** Último pegado parseado; evita reparsear al volver del paso Revisar. */
   const [parsedFromPaste, setParsedFromPaste] = useState<string | null>(
@@ -96,17 +113,15 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
     setStep(2);
   }, [initial?.id]);
 
+  useEffect(() => {
+    if (initial || !defaultDate) return;
+    setDate(defaultDate);
+  }, [defaultDate, initial]);
+
   const rowRecordLinks = useMemo(() => {
     if (!initial) return undefined;
     return collectBitacoraRowRecordLinks({ ...initial, rows }, allRecords);
   }, [initial, rows, allRecords]);
-
-  const rowsNeedingRecord = useMemo(() => {
-    if (!rowRecordLinks) return [];
-    return rows.filter((row) =>
-      bitacoraRowNeedsOwnRecord(row, rowRecordLinks.get(row.id) ?? [])
-    );
-  }, [rows, rowRecordLinks]);
 
   const applyHeuristic = useCallback((raw: string) => {
     const grid = parseClipboardToGrid(raw);
@@ -187,13 +202,56 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
         date,
         title: title || undefined,
         rows,
-        rawPaste,
+        rawPaste: rawPaste || "(editado sin pegado)",
       });
       toast.success(`Bitácora guardada (v${saved.version})`);
       router.push(`/admin/bitacora/${saved.date}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al guardar");
     }
+  };
+
+  const handleSaveInPlace = async () => {
+    if (!initial?.id) return;
+    const dataRows = rows.filter((r) => r.rowType !== "totals");
+    if (dataRows.length === 0) {
+      toast.error("No hay filas de datos para guardar");
+      return;
+    }
+    try {
+      const saved = await updateBitacora.mutateAsync({
+        bitacoraId: initial.id,
+        title: title || undefined,
+        rows,
+        rawPaste: rawPaste || initial.rawPaste || "(editado)",
+      });
+      toast.success("Cambios guardados en la versión activa");
+      onSavedInPlace?.(saved);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al guardar");
+    }
+  };
+
+  const handleDeleteRow = async (rowId: string) => {
+    if (editing && initial?.id) {
+      setDeletingRowId(rowId);
+      try {
+        const updated = await deleteRow.mutateAsync({
+          bitacoraId: initial.id,
+          rowId,
+        });
+        setRows(updated.rows);
+        toast.success("Fila eliminada");
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : "No se pudo eliminar la fila"
+        );
+      } finally {
+        setDeletingRowId(null);
+      }
+      return;
+    }
+    setRows((prev) => prev.filter((r) => r.id !== rowId));
   };
 
   const handleCreateRecord = async (row: BitacoraRow) => {
@@ -244,7 +302,7 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
           : initial.date;
       focusAdminQueueOnBitacoraRecord(queueDay);
       notifyAdminSessionPrefsChanged();
-      toast.success("Registro creado · ya está en Guardados");
+      toast.success("Registro creado en Guardados");
       router.push(adminQueueUrlForBitacoraDay(queueDay));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al crear registro");
@@ -252,66 +310,6 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
       setCreatingRowId(null);
     }
   };
-
-  const handleCreateMissingRecords = async () => {
-    if (!initial?.id || rowsNeedingRecord.length === 0) return;
-    try {
-      const result = await createMissing.mutateAsync({
-        bitacoraId: initial.id,
-      });
-      focusAdminQueueOnBitacoraRecord(initial.date);
-      notifyAdminSessionPrefsChanged();
-      if (result.created > 0) {
-        toast.success(
-          `${result.created} registro(s) creados · mira el ${initial.date} con Fecha recorrido`
-        );
-        router.push(adminQueueUrlForBitacoraDay(initial.date));
-        return;
-      }
-      if (result.failures.length > 0) {
-        toast.error(
-          result.failures
-            .slice(0, 3)
-            .map((f) => `${f.recorrido}: ${f.message}`)
-            .join(" · ")
-        );
-      } else {
-        toast.message("No había registros pendientes por crear");
-      }
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "No se pudieron crear los registros"
-      );
-    }
-  };
-
-  const missingRecordsBanner =
-    initial && rowsNeedingRecord.length > 0 ? (
-      <div className="flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
-        <p>
-          Faltan {rowsNeedingRecord.length} en la cola:{" "}
-          <strong>
-            {rowsNeedingRecord
-              .map((r) => bitacoraRecorridoCanonical(r) || "?")
-              .join(", ")}
-          </strong>
-        </p>
-        <Button
-          type="button"
-          size="sm"
-          className="shrink-0 gap-2"
-          disabled={createMissing.isPending || creatingRowId != null}
-          onClick={() => void handleCreateMissingRecords()}
-        >
-          {createMissing.isPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <FilePlus2 className="size-4" />
-          )}
-          Crear y ir a la cola
-        </Button>
-      </div>
-    ) : null;
 
   const handleToggleMultipleReviews = async (
     rowId: string,
@@ -341,6 +339,57 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
     }
   };
 
+  if (editing && initial) {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Fecha bitácora</Label>
+            <Input type="date" value={initial.date} disabled />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Título</Label>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="BITÁCORA CL20 A …"
+            />
+          </div>
+        </div>
+        <BitacoraPreviewTable
+          rows={rows}
+          onChange={setRows}
+          onDeleteRow={handleDeleteRow}
+          deletingRowId={deletingRowId}
+          onCreateRecord={handleCreateRecord}
+          creatingRowId={creatingRowId}
+          rowRecordLinks={rowRecordLinks}
+          onToggleMultipleReviews={handleToggleMultipleReviews}
+        />
+        <div className="flex flex-wrap justify-end gap-2">
+          {onCancelEdit && (
+            <Button type="button" variant="outline" onClick={onCancelEdit}>
+              Cancelar
+            </Button>
+          )}
+          <Button
+            type="button"
+            onClick={() => void handleSaveInPlace()}
+            disabled={updateBitacora.isPending}
+            className="gap-2"
+          >
+            {updateBitacora.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Save className="size-4" />
+            )}
+            Guardar cambios
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (readOnly && initial) {
     return (
       <div className="space-y-6">
@@ -354,15 +403,18 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
             <Input value={initial.title ?? ""} disabled />
           </div>
         </div>
-        {missingRecordsBanner}
         <BitacoraPreviewTable
           rows={rows}
           onChange={setRows}
           readOnly
-          onCreateRecord={handleCreateRecord}
+          onCreateRecord={
+            initial.isActive ? handleCreateRecord : undefined
+          }
           creatingRowId={creatingRowId}
           rowRecordLinks={rowRecordLinks}
-          onToggleMultipleReviews={handleToggleMultipleReviews}
+          onToggleMultipleReviews={
+            initial.isActive ? handleToggleMultipleReviews : undefined
+          }
         />
       </div>
     );
@@ -441,7 +493,11 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
             )}
           </div>
 
-          <BitacoraPreviewTable rows={rows} onChange={setRows} />
+          <BitacoraPreviewTable
+            rows={rows}
+            onChange={setRows}
+            onDeleteRow={handleDeleteRow}
+          />
 
           <div className="rounded-lg border border-dashed p-3">
             <p className="text-xs text-muted-foreground">
@@ -511,8 +567,10 @@ export function BitacoraEditor({ initial, readOnly = false }: BitacoraEditorProp
                 {summary.totales > 0 && <li>{summary.totales} fila de totales</li>}
               </ul>
               <p className="text-xs text-muted-foreground">
-                Se creará una nueva versión activa para este día. La versión
-                anterior quedará en el historial.
+                Se creará una nueva versión activa para este día. Los vínculos a
+                registros existentes se reenganchan por recorrido. Para
+                correcciones puntuales, edita la versión activa en lugar de crear
+                otra.
               </p>
             </CardContent>
           </Card>

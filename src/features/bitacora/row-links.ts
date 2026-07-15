@@ -11,8 +11,7 @@ export interface BitacoraRowRecordLink {
   status: RecordStatus;
   /**
    * Vínculo confiable: meta.rowId de este registro apunta a la fila, o el
-   * recorrido concuerda. Sin esto, patente+conductor podían marcar «Vinculada»
-   * filas que no tienen registro propio en la cola.
+   * recorrido concuerda.
    */
   confirmed: boolean;
 }
@@ -100,7 +99,7 @@ export function confirmedBitacoraRowLinks(
   return links.filter((l) => l.confirmed);
 }
 
-/** Filas de ruta/manual/pendiente sin un registro propio confirmado. */
+/** Filas sin un registro confirmado vinculado (p. ej. antes de crear o match). */
 export function bitacoraRowNeedsOwnRecord(
   row: BitacoraRow,
   links: BitacoraRowRecordLink[]
@@ -135,6 +134,25 @@ export function canCreateRecordForBitacoraRow(
   const confirmed = confirmedBitacoraRowLinks(links);
   if (confirmed.length === 0) return true;
   return rowAllowsMultipleReviews(row);
+}
+
+/**
+ * Rutas del día se vinculan al subir fotos del conductor.
+ * Crear registro desde bitácora aplica a manuales, pendientes y rutas con
+ * «Varias revisiones» cuando ya hay una vinculada.
+ */
+export function shouldOfferCreateRecordFromBitacoraRow(
+  row: BitacoraRow,
+  links: BitacoraRowRecordLink[]
+): boolean {
+  if (!canCreateRecordForBitacoraRow(row, links)) return false;
+  if (row.rowType === "manual" || row.rowType === "entrega_pendiente") {
+    return true;
+  }
+  if (row.rowType === "ruta") {
+    return confirmedBitacoraRowLinks(links).length > 0;
+  }
+  return false;
 }
 
 /** Filas bloqueadas para otros registros (ya tienen revisión y no admiten más). */

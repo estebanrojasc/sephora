@@ -331,6 +331,37 @@ export async function findRecordsByIds(ids: string[]): Promise<Record[]> {
     .filter((r): r is Record => r != null);
 }
 
+/** Reapunta `_meta.bitacora` de un record a otra fila/versión de bitácora. */
+export async function retargetRecordBitacoraMeta(
+  recordId: string,
+  target: { bitacoraId: string; rowId: string; version: number }
+): Promise<Record | null> {
+  const record = await findRecordById(recordId);
+  if (!record?.extraction) return null;
+  const prevMeta = record.extraction._meta;
+  const prevBitacora = prevMeta?.bitacora;
+  const extraction = {
+    ...record.extraction,
+    _meta: {
+      confidence: prevMeta?.confidence ?? 1,
+      processedImageIds: prevMeta?.processedImageIds ?? [],
+      processedAt: prevMeta?.processedAt ?? new Date().toISOString(),
+      source: prevMeta?.source,
+      ...prevMeta,
+      bitacora: prevBitacora
+        ? {
+            ...prevBitacora,
+            bitacoraId: target.bitacoraId,
+            rowId: target.rowId,
+            version: target.version,
+          }
+        : undefined,
+    },
+  };
+  if (!extraction._meta.bitacora) return record;
+  return patchRecord(recordId, { extraction });
+}
+
 async function patchRecord(
   id: string,
   patch: Partial<Record>
